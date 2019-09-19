@@ -1,0 +1,185 @@
+
+Hbase的Filter详解使用
+
+https://blog.csdn.net/lr131425/article/details/72676254
+
+
+参数基础:
+	
+	有两个参数类在各类Filter中经常出现，统一介绍下：
+	
+	（1）比较运算符 CompareFilter.CompareOp 比较运算符用于定义比较关系，可以有以下几类值供选择：
+	
+		EQUAL                      相等
+		GREATER                    大于
+		GREATER_OR_EQUAL           大于等于
+		LESS                       小于
+		LESS_OR_EQUAL              小于等于
+		NOT_EQUAL                  不等于
+		
+	（2）比较器  ByteArrayComparable
+
+		通过比较器可以实现多样化目标匹配效果，比较器有以下子类可以使用：
+		
+		BinaryComparator           	匹配完整字节数组 
+		BinaryPrefixComparator     	匹配字节数组前缀 
+		BitComparator
+		NullComparator
+		RegexStringComparator    	正则表达式匹配
+		SubstringComparator        	子串匹配
+		
+		
+1. FilterList
+
+	FilterList 代表一个过滤器链它可以包含一组即将应用于目标数据集的过滤器，
+	
+	过滤器间具有“与” FilterList.Operator.MUST_PASS_ALL 和“或” FilterList.Operator.MUST_PASS_ONE 关系。
+	
+	
+		FilterList list = new FilterList(FilterList.Operator.MUST_PASS_ONE);   //数据只要满足一组过滤器中的一个就可以
+
+		SingleColumnValueFilter filter1 = new SingleColumnValueFilter(cf,column,CompareOp.EQUAL,Bytes.toBytes("my value"));
+
+		list.add(filter1);
+
+		SingleColumnValueFilter filter2 = new SingleColumnValueFilter(cf,column,CompareOp.EQUAL,Bytes.toBytes("my other value"));
+
+		list.add(filter2);
+
+		Scan scan = new Scan();
+
+		scan.setFilter(list);
+
+
+2. 列值过滤器--SingleColumnValueFilter
+
+	SingleColumnValueFilter 用于测试列值相等 (CompareOp.EQUAL ), 不等 (CompareOp.NOT_EQUAL),或单侧范围 (e.g., CompareOp.GREATER)。
+	
+	构造函数：
+	
+		（1）比较的关键字是一个字符数组
+			
+			SingleColumnValueFilter(byte[] family, byte[] qualifier, CompareFilter.CompareOp compareOp, byte[] value)
+
+		（2）比较的关键字是一个比较器（比较器下一小节做介绍）
+
+			SingleColumnValueFilter(byte[] family, byte[] qualifier, CompareFilter.CompareOp compareOp, ByteArrayComparable comparator)
+
+	注意：根据列的值来决定这一行数据是否返回，落脚点在行，而不是列。我们可以设置filter.setFilterIfMissing(true);
+		
+		如果为true，当这一列不存在时，不会返回，如果为false，当这一列不存在时，会返回所有的列信息
+		
+	
+		Table table = connection.getTable(TableName.valueOf("user"));
+
+        SingleColumnValueFilter scvf= new SingleColumnValueFilter(Bytes.toBytes("account"), Bytes.toBytes("name"), CompareOp.EQUAL,"zhangsan".getBytes());
+
+        scvf.setFilterIfMissing(true); //默认为false， 没有此列的数据也会返回 ，为true则只返回name=lisi的数据
+
+        Scan scan = new Scan();
+
+        scan.setFilter(scvf);
+
+        ResultScanner resultScanner = table.getScanner(scan);
+
+        for (Result result : resultScanner) {
+
+			 List<Cell> cells= result.listCells();	
+
+			 for (Cell cell : cells) {
+
+				 String row = Bytes.toString(result.getRow());
+
+				 String family1 = Bytes.toString(CellUtil.cloneFamily(cell));
+
+				 String qualifier = Bytes.toString(CellUtil.cloneQualifier(cell));
+
+				 String value = Bytes.toString(CellUtil.cloneValue(cell));
+
+				 System.out.println("[row:"+row+"],[family:"+family1+"],[qualifier:"+qualifier+"]"
+
+				 		+ ",[value:"+value+"],[time:"+cell.getTimestamp()+"]");
+
+			}
+
+		}
+
+			
+3. 键值元数据
+
+	由于 HBase 采用键值对保存内部数据，键值元数据过滤器评估一行的键(ColumnFamily：Qualifiers)是否存在 
+
+	3.1. 基于列族过滤数据的 FamilyFilter
+
+		构造函数：
+
+		FamilyFilter(CompareFilter.CompareOp familyCompareOp, ByteArrayComparable familyComparator)
+	
+		代码如下：
+			
+		   public static ResultScanner getDataFamilyFilter(String tableName,String family) throws IOException{
+
+				Table table = connection.getTable(TableName.valueOf("user"));
+
+				FamilyFilter ff = new FamilyFilter(CompareOp.EQUAL , 
+
+						new BinaryComparator(Bytes.toBytes("account")));   //表中不存在account列族，过滤结果为空
+
+		//		 new BinaryPrefixComparator(value) //匹配字节数组前缀
+
+		//		 new RegexStringComparator(expr) // 正则表达式匹配
+
+		//		 new SubstringComparator(substr)// 子字符串匹配 
+
+				Scan scan = new Scan();
+
+				// 通过scan.addFamily(family)  也可以实现此操作
+
+				scan.setFilter(ff);
+
+				ResultScanner resultScanner = table.getScanner(scan);
+
+				return resultScanner;
+
+			}
+
+		测试结果：查询的都是account列簇的内容
+	
+	
+	3.2. 基于限定符Qualifier（列）过滤数据的QualifierFilter
+	
+		构造函数：
+
+			QualifierFilter(CompareFilter.CompareOp op, ByteArrayComparable qualifierComparator)
+			
+		
+		代码:
+		
+			Table table = connection.getTable(TableName.valueOf("user"));
+
+			QualifierFilter ff = new QualifierFilter(
+
+					CompareOp.EQUAL , new BinaryComparator(Bytes.toBytes("name")));
+
+	//		 new BinaryPrefixComparator(value) //匹配字节数组前缀
+
+	//		 new RegexStringComparator(expr) // 正则表达式匹配
+
+	//		 new SubstringComparator(substr)// 子字符串匹配 
+
+			Scan scan = new Scan();
+
+			// 通过scan.addFamily(family)  也可以实现此操作
+
+			scan.setFilter(ff);
+
+			ResultScanner resultScanner = table.getScanner(scan);
+
+	
+4. RowKey
+
+5. PageFilter
+
+6. SkipFilter
+
+7. FirstKeyOnlyFilter

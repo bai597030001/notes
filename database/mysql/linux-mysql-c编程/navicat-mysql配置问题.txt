@@ -1,0 +1,58 @@
+一：
+无法连接，报错1045：
+
+解决：
+	使用如下方法得到解决：
+	# /etc/init.d/mysql stop
+	# mysqld_safe --user=mysql --skip-grant-tables --skip-networking &
+	# mysql -u root mysql
+	mysql> UPDATE user SET Password=PASSWORD('newpassword') where USER='root';
+	mysql> FLUSH PRIVILEGES;
+	mysql> quit
+
+	# /etc/init.d/mysql restart
+	# mysql -uroot -p
+	Enter password: <输入新设的密码newpassword>
+	
+*********************************************************************************************************
+	
+二：				
+					/*******************************
+					*开启mysql帐户远程登录，并授权**
+					*******************************/
+输入
+grant all PRIVILEGES on mysql.* to root@'192.168.1.100'  identified by 'jtydl';
+
+该命令的参数分析：
+
+all PRIVILEGES 表示赋予所有的权限给指定用户，这里也可以替换为赋予某一具体的权限，例如select,insert,update,delete,create,drop 等，具体权限间用“,”半角逗号分隔。
+
+mysql.* 表示上面的权限是针对于哪个表的，mysql指的是数据库，后面的 * 表示对于所有的表，由此可以推理出：对于全部数据库的全部表授权为“*.*”，对于某一数据库的全部表授权为“数据库名.*”，对于某一数据库的某一表授权为“数据库名.表名”。
+
+root 表示你要给哪个用户授权，这个用户可以是存在的用户，也可以是不存在的用户。
+
+192.168.1.100   表示允许远程连接的 IP 地址，如果想不限制链接的 IP 则设置为“%”即可。
+
+jtydl 为用户的密码。
+
+即如果想不限制IP地址，修改所有数据表允许远程连接的命令是：
+
+grant all PRIVILEGES on *.* to root@'%'  identified by 'jtydl';
+
+3.输入命令后，还需要执行下面的语句，方可生效。
+
+flush privileges; 
+
+
+示例：
+grant all privileges on *.* to 'root'@'%' identified by '123456' with grant option;
+flush privileges;
+
+***********************************************************************************************************
+三：						/***************			
+						    *对用户进行授权*
+							***************/
+对baijd用户开启所有数据库权限：
+
+grant all privileges on *.* to baijd identified by '123456';
+flush privileges;

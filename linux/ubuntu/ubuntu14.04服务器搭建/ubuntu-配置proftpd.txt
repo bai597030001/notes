@@ -1,0 +1,73 @@
+一、什么是ProFTPD
+
+ProFTPD 是一款流行于类UNIX系统的 FTP 服务器程序，与vsftpd、WU-FTP等功能类似。
+
+[官方网址] http://www.proftpd.org
+
+二、安装ProFTPD
+
+$ sudo apt-get install proftpd
+
+三、添加ftp组及用户
+
+$ groupadd ftpg
+
+// -d 参数表示默认目录
+
+$ useradd ftpu -d /Data/webapps/ -g ftpg
+
+// 设置密码
+
+$ passwd ftpg
+
+使用用Ftp客户端工具测试连接：
+
+连接成功.
+
+四、修改用户 chroot
+
+连接成功但并没有限定用户 ftpu 的根目录，也就是chroot,用户还可以访问上级目录
+
+// 修改 proftpd配置文件
+
+$ vi /etc/proftpd/proftpd.conf
+
+// 去掉如下行前的注释 #
+
+# DefaultRoot ~
+
+// 重启 proftpd 即可
+
+$ /etc/init.d/proftpd restart
+
+五、禁止用户终端登录
+
+// 编辑 /etc/passwd
+
+$ vi /etc/passwd
+
+ftpu:x:1006:1004::/Data/webapps/:/bin/sh
+
+修改成
+
+ftpu:x:1006:1004::/Data/webapps/:/sbin/nologin
+
+重启proftpd后ftp客户端提示无法连接：
+
+-------------------------------
+
+530 Login incorrect.
+
+-------------------------------
+
+经检查发现当前系统的shells列表中没有 /sbin/nologin
+
+// 添加 /sbin/nologin 支持
+
+$ vi /etc/shells
+
+// 在该文档中添加一行
+
+/sbin/nologin
+
+六、重启proftpd,完成.

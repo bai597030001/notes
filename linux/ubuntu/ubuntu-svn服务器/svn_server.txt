@@ -1,0 +1,55 @@
+
+    SVN服务器搭建    
+	
+	1.安装包  sudo apt-get install subversion   
+	2.添加svn管理用户及subversion组  sudo adduser svnuser sudo addgroup subversion  sudo addgroup svnuser subversion   
+	3.创建项目目录  sudo mkdir /home/svn cd /home/svn  sudo mkdir fitness  （fitness即为仓库名称）   
+	4.创建SVN文件仓库   sudo svnadmin create /home/svn/fitness （此处即为该项目的文件仓库）   
+	5.更改文件夹权限   sudo chown -R root:subversion fitness sudo chmod -R g+rws fitness     
+	6.创建SVN用户和密码，设置权限  (1)修改/home/svn/fitness/conf/svnserve,conf  将以下代码前的#去掉  anon-access = read      
+	此处设置的是匿名用户得权限，如果想拒绝匿名用户则设置为none auth-access = write       
+	设置有权限用户得权限  password-db = passwd     指定查找用户名和密码得文件，这样设置即为本目录下得passwd文件  authz-db = authz             
+	制定各用户具体权限得文件，这样设置即为本目录下得authz  (2)修改 /home/svn/fitness/conf/passwd  该文件规定了用户名和密码，
+	增加以下内容: admin = 123456 user1 = 123456 
+    user2 = 123456  (3)设置用户权限  在/home/svn/fitness/suthz下 在[groups]下增加以下内容 admin = admin  user = user1,user2      
+	规定了两个组，admin和user   [/]                   根目录权限  admin = rw             admin用户得权限为读写  @user = r  	
+	user组的权限，指定组前面必须加上@ [/trunk/fitness]     制定该目录权限 @user=rw  权限有继承性，子文件夹能够继承权限   
+	
+	7.进入另外得一个目录下创建副本,访问方式及项目导入：   svn co 
+	file:///home/svn/fitness  执行完该步骤后，在本目录下产生了一个名为fitness的副本    
+	
+	8.创建特定目录结构便于管理  进去新产生得fitness目录 
+	sudo svn mkdir branch sudo svn mkdir tags sudo svn mkdir trunk cd truck  sudo svn mkdir fitness  
+	该步骤只是为了文件方便管理，不是必须进行得。   
+	
+	9启动服务  svnserve -d -r /home/svn  -d 表示svnserver以“守护”进程模式运行 -r 指定文件系统的根位置（版本库的根目录），
+	这样客户端不用输入全路径，就可以访问版本库  如: svn://192.168.2.230./fitness   使用客户端进行登陆 
+	
+	10.添加到开机自启动
+		
+		1.问题描述
+		今天服务器重启了之后，在手动启动svn服务的时候，想写个脚本，让ubuntu的开机自启动svn服务。
+
+		2.解决方法
+		2.1.写个脚本startsvn.sh  subversion
+		#!/bin/bash
+		svnserve -d -r /home/svn
+		2.2.将脚本放置到/etc/init.d/
+		2.3.使用ubuntu工具update-rc.d
+		update-rc.d starsvn.sh defaults（这个命令等效于update-rc.d startsvn.sh start 20 2 3 4 5 . stop 20 0 1 6 . ）
+		20是默认的启动顺序号，可以手动修改，当然也可以在defaults后面加一个启动顺序号。0\1\2\3\4\5\6是ubuntu的运行级别。
+
+		3.备注
+		update-rc.d 可以生成或者移除System-V启动模式下的初始化脚本的链接，System-V是Ubuntu采用的一种启动方式
+		（好像记得更先进的启动方式是System-d），update-rc.d会在/etc/rcrunlevel.d/目录下生成/etc/init.d/目录下的启动脚本的链接。
+		
+	11.show log无法查看日志
+		问题：在修改文件后show log无法显示日志，上面的时间会自动在2016年和1970年间跳，而且设置不了时间。
+		解决方法：
+		1.编辑svnserve.conf，设置“anon-access=none”
+		2.在authz中添加?
+		[/]
+		* =?
+		3，清理svn的cache
+
+		即可

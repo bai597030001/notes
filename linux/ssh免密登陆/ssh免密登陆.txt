@@ -1,0 +1,51 @@
+ssh免密登陆：
+
+	ssh-keygen的命令手册，通过”man ssh-keygen“命令：通过命令”ssh-keygen -t rsa“
+	生成之后会在用户的根目录生成一个 “.ssh”的文件夹
+	进入“.ssh”会生成以下几个文件
+		authorized_keys	: 存放远程免密登录的公钥,主要通过这个文件记录多台机器的公钥
+	　　id_rsa 			: 生成的私钥文件
+	　　id_rsa.pub 		：生成的公钥文件
+	　　know_hosts 		: 已知的主机公钥清单
+
+	　　如果希望ssh公钥生效需满足至少下面两个条件：
+	　　1) .ssh目录的权限必须是700 
+	　　2) .ssh/authorized_keys文件权限必须是600
+	
+	
+	
+	要达到的目的：
+		A机器ssh登录B机器无需输入密码；
+		加密方式选 rsa|dsa均可以，默认dsa
+		?
+		二、具体操作流程
+		?
+		单向登陆的操作过程（能满足上边的目的）：
+		1、登录A机器 
+		2、ssh-keygen -t [rsa|dsa]，将会生成密钥文件和私钥文件 id_rsa,id_rsa.pub或id_dsa,id_dsa.pub
+		3、将 .pub 文件复制到B机器的 .ssh 目录，?并 cat id_dsa.pub >> ~/.ssh/authorized_keys
+		4、大功告成，从A机器登录B机器的目标账户，不再需要密码了；（直接运行 #ssh 192.168.20.60 ）
+		?
+		双向登陆的操作过程：
+		1、ssh-keygen做密码验证可以使在向对方机器上ssh ,scp不用使用密码.具体方法如下:
+		2、两个节点都执行操作：#ssh-keygen -t rsa 
+		? 然后全部回车,采用默认值.
+
+		3、这样生成了一对密钥，存放在用户目录的~/.ssh下。
+		将公钥考到对方机器的用户目录下 ，并将其复制到~/.ssh/authorized_keys中（操作命令：#cat id_dsa.pub >> ~/.ssh/authorized_keys ）。
+
+
+		4、设置文件和目录权限：
+		设置authorized_keys权限
+		$ chmod 600 authorized_keys 
+		设置.ssh目录权限
+		$ chmod 700 -R .ssh
+		
+	三、总结注意事项
+		1、文件和目录的权限千万别设置成chmod 777.这个权限太大了，
+			不安全，数字签名也不支持。我开始图省事就这么干了
+		2、生成的rsa/dsa签名的公钥是给对方机器使用的。这个公钥内容还要拷贝到authorized_keys 
+		3、linux之间的访问直接 ssh 机器ip
+		4、某个机器生成自己的RSA或者DSA的数字签名，将公钥给目标机器，
+			然后目标机器接收后设定相关权限（公钥和authorized_keys权限），
+			这个目标机就能被生成数字签名的机器无密码访问了

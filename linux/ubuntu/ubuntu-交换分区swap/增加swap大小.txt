@@ -1,0 +1,42 @@
+编译安装报错"virtual memory exhausted: Cannot allocate memory"
+
+原因：
+       虚拟机安装时没有设置swap或者设置内存太小。
+解决办法：
+       增加swap大小。
+      
+       1.查看当前内存使用情况
+       
+Text代码  收藏代码
+flc@ubuntu:/tmp/mysql-5.7.12$ free -m  
+             total       used       free     shared    buffers     cached  
+Mem:           745        213        531          0         10        169  
+-/+ buffers/cache:         32        712  
+Swap:            0          0          0  
+ 
+       2.创建swap文件（目录可以自己指定）
+        
+Text代码  收藏代码
+flc@ubuntu:/tmp/mysql-5.7.12$ dd if=/dev/zero of=/var/swap bs=1024 count=1024000  
+1024000+0 records in  
+1024000+0 records out  
+1048576000 bytes (1.0 GB) copied, 32.9351 s, 31.8 MB/s  
+ 
+       3.建立swap
+      
+Text代码  收藏代码
+mkswap /var/swap  
+       
+       4启动swap
+       
+Text代码  收藏代码
+swapon /var/swap  
+ 
+       现在再看内存使用情况
+    
+Text代码  收藏代码
+flc@ubuntu:/tmp/mysql-5.7.12$ free -m  
+             total       used       free     shared    buffers     cached  
+Mem:           745        683         61          0          1        643  
+-/+ buffers/cache:         39        706  
+Swap:          999          0        999  

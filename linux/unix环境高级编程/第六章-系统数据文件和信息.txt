@@ -1,0 +1,92 @@
+一：
+
+1、口令文件	/etc/passwd		组文件	/etc/group
+	口令文件包含字段及定义	-->		/usr/include/pwd.h文件	-->	struct passwd结构
+	
+2、阻止特定用户登录系统
+	将/etc/passwd中用户登录shell改成 /dev/null	或者是	/bin/false	或者是	/bin/true
+	
+3、两个命令：
+	1)finger		2)vipw
+	
+4、获取口令文件项的函数	(要查看的只是登录名或用户ID)
+	
+	struct passwd*	getpwuid(uid_t	uid);
+	
+	struct passwd*	getpwnam(const char* name);
+	
+	
+	(如果程序要查看整个口令文件，则使用下面三个函数)
+	
+	struct	passwd*	 getpwent(void);
+	
+	void			 setpwent(void);
+	
+	void			 endpwent(void);
+	
+	
+5、获取阴影口令文件函数(/etc/shadow)
+
+	struct	spwd*	getspnam(const char* name);
+	
+	struct	spwd*	getspent(void);
+	
+	
+	void	setspent(void);
+	
+	void	endspent(void);
+	
+二：
+
+1、组文件
+	<grp.h>中的 struct	group结构
+	
+2、查看组名或数值组ID的函数：
+
+	struct	group*	getgrgid(gid_t	gid);
+	
+	struct	group*	getgrnam(const char* name);
+	
+	注：如果要搜索整个组文件，则需要下面几个函数
+	
+	struct group*	getgrent(void);
+	
+	void 			setgrent(void);
+	
+	void			endgrent(void);
+	
+3、命令：newgrp
+
+4、附加组ID的概念：
+	可以属于多达16个组，不必显式的经常更改组
+	
+	获取和设置附加组ID的函数：
+	
+	int	getgroups(int gidsetsize, gid_t grouplist[]);
+	
+	int setgroups(int ngroups, const gid_t grouplist[]);
+	
+	int initgroups(const char* username, gid_t basegid);
+	
+	
+5、账户登录记录
+
+	struct utmp;
+	
+	wtmp文件 和 utmp文件
+	
+	last命令
+	
+	
+6、系统标识
+
+	int		uname(struct utsname* name);
+	
+	
+	int	gethostname(char* name, int namelen);
+	//只返回主机名，就是TCP/IP网络主机上的名字
+	
+	sethostname();//超级用户用来设置主机名
+	
+	命令 --> hostname
+	

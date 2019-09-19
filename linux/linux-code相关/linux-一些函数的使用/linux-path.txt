@@ -1,0 +1,37 @@
+1、realpath()	通过相对路径来寻找绝对路径
+示例：
+#include<limits.h>
+#include<stdlib.h>
+#include<string>
+#include<iostream>
+using namespace std;
+
+int main(int argc, char** argv)
+{
+ char relative_path[1024] = "./";
+ char absolute_path[1024] = {0};
+ if ( NULL == realpath(relative_path, absolute_path) )
+ {
+	 cout<<"resolve path error"<<endl;
+	 return 0;
+ }
+
+ cout<<"the absolute path : "<<absolute_path<<endl;
+ return 0;
+}
+
+2、getcwd(),	readlink(),		
+示例：
+#include<iostream>
+#include<unistd.h>
+using namespace std;
+int main(int argc, char * argv[])
+{
+	char buffer[1024] = {0};
+	getcwd(buffer, 1024);
+	cout << buffer << endl;
+
+	char exec_name[1024] = {0};
+	readlink("/proc/self/exe", exec_name, 1024);
+	cout << exec_name << endl;
+}

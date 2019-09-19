@@ -1,0 +1,16 @@
+1:
+  // 为当前连接设置默认的字符集
+  mysql_set_character_set(mysql_conn,"gb2312");
+  
+ 2:
+ mysql_num_rows() 返回结果集中行的数目。此命令仅对 SELECT 语句有效。
+ 要取得被 INSERT，UPDATE 或者 DELETE 查询所影响到的行的数目，用 mysql_affected_rows()。
+ 使用注意:
+一定是查询 SELECT 后再下一次查询 SELECT 之前使用该函数
+
+3:
+ mysql_affected_rows() 函数返回前一次 MySQL 操作所影响的记录行数。
+ 
+4:
+ MYSQL_ROW mysql_fetch_row(MYSQL_RES *result)
+ 检索一个结果集合的下一行。

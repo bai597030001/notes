@@ -1,0 +1,283 @@
+﻿http://blog.chinaunix.net/uid-317451-id-92667.html
+
+基于sleep的朴素解法
+看到这个题目，我想大家的想法和我一样，都是首先想到类似这样的解法：
+
+
+#include <stdio.h>
+
+int main(int argc, char *argv[])
+{
+        while (1) {
+                printf("%d\n", time(NULL));
+                sleep(2);
+        }
+
+        return 0;
+}
+
+如果对时间精度要求不高，以上代码确实能工作的很好。因为sleep的时间精度只能到1s：
+
+       #include <unistd.h>
+
+       unsigned int sleep(unsigned int seconds);
+
+所以对于更高的时间精度（比如说毫秒）来说，sleep就不能奏效了。如果沿着这个思路走下去，还分别有精确到微妙和纳秒的函数usleep和nanosleep可用：
+
+      #include <unistd.h>
+
+       int usleep(useconds_t usec);
+
+   Feature Test Macro Requirements for glibc (see feature_test_macros(7)):
+
+       usleep(): _BSD_SOURCE || _XOPEN_SOURCE >= 500
+
+
+      #include <time.h>
+
+       int nanosleep(const struct timespec *req, struct timespec *rem);
+
+   Feature Test Macro Requirements for glibc (see feature_test_macros(7)):
+
+       nanosleep(): _POSIX_C_SOURCE >= 199309L
+
+既然有了能精确到纳秒的nanosleep可用，上面的较低精度的函数也就可以休息了。实际上在Linux系统下，sleep和usleep就是通过一个系统调用nanosleep实现的。
+用带有超时功能的API变相实现睡眠
+如果开发者不知道有usleep和nanosleep，这个时候他可能会联想到select类的系统调用：
+
+       According to POSIX.1-2001 */
+       #include <sys/select.h>
+
+       /* According to earlier standards */
+       #include <sys/time.h>
+       #include <sys/types.h>
+       #include <unistd.h>
+
+       int select(int nfds, fd_set *readfds, fd_set *writefds,
+                  fd_set *exceptfds, struct timeval *timeout);
+
+      #include <poll.h>
+
+       int poll(struct pollfd *fds, nfds_t nfds, int timeout);
+
+       #include <sys/epoll.h>
+
+       int epoll_wait(int epfd, struct epoll_event *events,
+                      int maxevents, int timeout);
+       int epoll_pwait(int epfd, struct epoll_event *events,
+                      int maxevents, int timeout,
+                      const sigset_t *sigmask);
+
+从函数原型和相关手册来看，poll和epoll_wait能提供的时间精度为毫秒，select比他们两个略胜一筹，为微秒，和前述的usleep相当。但是，果真如此么？这需要我们深入到Linux的具体实现，在内核里，这几个系统调用的超时功能都是通过内核中的动态定时器实现的，而动态定时器的时间精度是由当前内核的HZ数决定的。如果内核的HZ是100，那么动态定时器的时间精度就是1/HZ=1/100=10毫秒。目前，X86系统的HZ最大可以定义为1000，也就是说X86系统的动态定时器的时间精度最高只能到1毫秒。由此来看，select用来指示超时的timeval数据结构，只是看起来很美，实际上精度和poll/epoll_wait相当。
+基于定时器的实现
+除了基于sleep的实现外，还有基于能用信号进行异步提醒的定时器实现:
+
+#include <stdio.h>
+#include <signal.h>
+
+int main(int argc, char *argv[])
+{
+        sigset_t block;
+
+        sigemptyset(&block);
+        sigaddset(&block, SIGALRM);
+        sigprocmask(SIG_BLOCK, &block, NULL);
+
+        while (1) {
+                printf("%d\n", time(NULL));
+                alarm(2);
+                sigwaitinfo(&block, NULL);
+        }
+
+        return 0;
+}
+
+显然，上面的代码并没有利用信号进行异步提醒，而是通过先阻塞信号的传递，然后用sigwaitinfo等待并将信号取出的方法将异步化同步。这样做的目的是为了尽可能减少非必要的信号调用消耗，因为这个程序只需要执行这个简单的单一任务，所以异步除了带来消耗外，并无任何好处。
+
+读者可能已经发现上面的代码无非是把最初的代码中的sleep换成了alarm和sigwaitinfo两个调用，除了复杂了代码之外，好像并没有什么额外的好处。alarm的时间精度只能到1s，并且alarm和sigwaitinfo的确也可以看成是sleep的一种实现，实际上有的sleep确实是透过alarm来实现的，请看sleep的手册页：
+
+
+BUGS
+       sleep()  may be implemented using SIGALRM; mixing calls to alarm(2) and
+       sleep() is a bad idea.
+
+       Using longjmp(3) from a signal handler or  modifying  the  handling  of
+       SIGALRM while sleeping will cause undefined results.
+
+但是，这只是表象，本质他们是不同的，sleep是拨了一个临时实时定时器并等待定时器到期，而alarm是用进程唯一的实时定时器来定时唤醒等待信号到来的进程执行。
+
+如果需要更高的时间精度，可以采用精度为微秒的alarm版本ualarm：
+
+       #include <unistd.h>
+
+       useconds_t ualarm(useconds_t usecs, useconds_t interval);
+
+   Feature Test Macro Requirements for glibc (see feature_test_macros(7)):
+
+       ualarm(): _BSD_SOURCE || _XOPEN_SOURCE >= 500
+
+或者是直接用setitimer操纵进程的实时定时器：
+
+      #include <sys/time.h>
+
+       int getitimer(int which, struct itimerval *value);
+       int setitimer(int which, const struct itimerval *value,
+                     struct itimerval *ovalue);
+
+第一个参数：计时器的类型，体现哪一个的意思
+    ITIMER_REAL - 真实计时器，通过产生SIGALRM信号工作
+    (掌握)
+    ITIMER_VIRTUAL - 虚拟计时器，通过产生SIGVTALRM信号
+    ITIMER_PROT - 实用计时器，通过产生SIGPROF信号
+
+第二个参数：设置计时器的新值
+    struct itimerval 
+    {
+       struct timeval it_interval; /*间隔时间*/
+       struct timeval it_value;    /*启动时间*/
+    };
+    struct timeval 
+    {
+       long tv_sec;/* 秒数 */
+       long tv_usec;/* 微秒 */
+    };
+
+
+
+细心的你应该已经注意到了，ualarm和setitimer都额外提供了间隔时间的设置以便于间隔定时器用SIGALRM周期性的唤醒进程，
+这对于我们的需求有什么意义呢？请听我慢慢道来。一般来说，需要定时执行的任务所消耗的时间都很短，至少都会少于间隔时间，
+否则这个需求就是无法实现的。我们前面的程序实现，都是假设任务消耗时间为0，实际上的任务并不总是像打印当前系统时间这么简单，
+即便它们持续的时间真的短到相对来说可以忽略不计，如果这些小的忽略不计累积起来，也还是可能会造成长时间后的大偏差，
+所以我们有必要将这段时间计算进来。一种补救的措施是在任务执行的前后执行gettimeofday得到系统的时间，
+然后做差得到任务消耗时间并在接下来的“sleep”中将其扣除。问题看似解决了，
+但是我们毕竟没有将系统进行上下文切换的时间和计算消耗时间的时间考虑进来，这样的话，还是会存在较大的误差。
+另一种计算量相对小些的算法是：直接通过时间间隔计算下一次超时的绝对时间，然后根据当前的绝对时间算出需要等待的时间并睡眠。
+但是，这也只是修修补补而已，并没有从根本上解决问题。间隔定时器的出现从根本上解决了上面所提的问题，它自身就提供周期唤醒的功能，
+从而避免了每次都计算的负担。因为ualarm已经被放弃，所以用setitimer再次改写代码：
+
+
+#include <stdio.h>
+#include <signal.h>
+#include <sys/time.h>
+
+int main(int argc, char *argv[])
+{
+        sigset_t block;
+        struct itimerval itv;
+
+        sigemptyset(&block);
+        sigaddset(&block, SIGALRM);
+        sigprocmask(SIG_BLOCK, &block, NULL);
+
+        itv.it_interval.tv_sec = 2;
+        itv.it_interval.tv_usec = 0;
+        itv.it_value = itv.it_interval;
+        setitimer(ITIMER_REAL, &itv, NULL);
+
+        while (1) {
+                printf("%d\n", time(NULL));
+                sigwaitinfo(&block, NULL);
+        }
+
+        return 0;
+}
+
+进程的间隔计时器能够提供的时间精度为微秒，对于大多数的应用来说，应该已经足够，如果需要更高的时间精度，或者需要多个定时器，
+那么每个进程一个的实时间隔定时器就无能为力了，这个时候我们可以选择POSIX实时扩展中的定时器:
+
+      #include <signal.h>
+       #include <time.h>
+
+       int timer_create(clockid_t clockid, struct sigevent *restrict evp, timer_t *timerid); 
+       int timer_getoverrun(timer_t timerid);
+       int timer_gettime(timer_t timerid, struct itimerspec *value);
+       int timer_settime(timer_t timerid, int flags, const struct itimerspec value, struct itimerspec ovalue);
+
+		struct sigevent
+		{
+			int				sigev_notify; //notificatiotype
+			int				sigev_signo; //signal number
+			union			sigval;//signal value
+			void			(*sigev_notify_function)(union sigval);
+			pthread_attr_t	*sigev_notify_attributes;
+		}
+
+		union sigval
+		{
+			int		sival_int;	//integer value
+			void	*sival_ptr;	//pointer value
+		}
+		
+		struct timespec 
+		{
+		   time_t tv_sec;                /* Seconds */
+		   long   tv_nsec;               /* Nanoseconds */
+        };
+
+	    struct itimerspec 
+		{
+		   struct timespec it_interval;  /* Timer interval */
+		   struct timespec it_value;     /* Initial expiration */
+        };
+
+		
+		
+它实际上就是进程间隔定时器的增强版，除了可以定制时钟源（nanosleep也存在能定制时钟源的版本：clock_nanosleep）和时间精度提高到纳秒外，
+它还能通过将 evp->sigev_notify 设定为如下值来定制定时器到期后的行为：
+
+	SIGEV_SIGNAL: 发送由 evp->sigev_signo 指定的信号到调用进程，evp->sigval 的值将被作为 siginfo_t 结构体中 si_value 的值。
+	SIGEV_NONE：什么都不做，只提供通过 timer_gettime 和 timer_getoverrun 查询超时信息。
+	SIGEV_THREAD: 以 evp->sigev_notify_attributes 为线程属性创建一个线程，在新建的线程内部以 evp->sigval 为参数
+				调用 evp->sigev_notify_function
+	SIGEV_THREAD_ID：和 SIGEV_SIGNAL 类似，不过它只将信号发送到线程号为 evp->sigev_notify_thread_id 的线程，
+				注意：这里的线程号不一定是POSIX线程号，而是线程调用gettid返回的实际线程号,并且这个线程必须实际存在且属于当前的调用进程。
+
+	更新后的程序如下（需要连接实时扩展库: -lrt）:
+
+#include <stdio.h>
+#include <signal.h>
+#include <time.h>
+#include <errno.h>
+#include <sched.h>
+
+int main(int argc, char *argv[])
+{
+        timer_t timer;
+        struct itimerspec timeout;
+        sigset_t block;
+        struct sched_param param;
+
+        sigemptyset(&block);
+        sigaddset(&block, SIGALRM);
+        sigprocmask(SIG_BLOCK, &block, NULL);
+
+        timer_create(CLOCK_MONOTONIC, NULL, &timer);
+        timeout.it_interval.tv_sec = 2;
+        timeout.it_interval.tv_nsec = 0;
+        timeout.it_value = timeout.it_interval;
+        timer_settime(timer, 0, &timeout, NULL);
+
+        while (1) {
+                fprintf(stderr, "%d\n", time(NULL));
+                sigwaitinfo(&block, NULL);
+        }
+
+        return 0;
+}
+
+至于时钟源为什么是CLOCK_MONOTONIC而不是CLOCK_REALTIME，主要是考虑到系统的实时时钟可能会在程序运行过程中更改，所以存在一定的不确定性，而CLOCK_MONOTONIC则不会，较为稳定。
+
+至此为止，我们已经找到了目前Linux提供的精度最高的定时器API，它应该能满足大多数情况的要求了。
+其它问题
+传统信号的不可靠性
+传统UNIX信号是不可靠的，也就是说如果当前的信号没有被处理，那么后续的同类信号将被丢失，而不是被排队，而实时信号则没有这个问题，它是被排队的。联系到当前应用，如果信号丢失，则是因为任务消耗了过多的处理器时间，而这个不确定性是那个任务带来的，需要改进的应该是那个任务。
+系统负载过高
+如果系统的负载过高，使得我们的程序因为不能得到及时的调度导致时间精度降低，我们不妨通过nice提高当前程序的优先级，必要时可以通过sched_setscheduler将当前进程切换成优先级最高的实时进程已确保得到及时调度。
+硬件相关的问题
+硬件配置也极大的影响着定时器的精度，有的比较老的遗留系统可能没有比较精确的硬件定时器，那样的话我们就无法期待它能提供多高的时钟精度了。相反，如果系统的配置比较高，比如说对称多处理系统，那么即使有的处理器负载比较高，我们也能通过将一个处理器单独分配出来处理定时器来提高定时器的精度。
+更高的时间精度
+虽然，Linux的API暗示它能够提供纳秒级的时间精度，但是，由于种种不确定因素，它实际上并不能提供纳秒级的精度，比较脆弱。如果你需要更高强度的实时性，请考虑采用软实时系统、硬实时系统、专有系统，甚至是专业硬件。
+
+注意：
+
+为了简便，以上所有代码都没有出错处理，请读者在现实的应用中自行加入出错处理，以提高程序的健壮性。尤其注意sleep类的返回值，它们可能没到期就返回，这个时候你应该手动计算需要再睡眠多长才能满足原始的睡眠时间要求，如果该API并没有返回剩余的时间的话。

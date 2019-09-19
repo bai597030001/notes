@@ -1,0 +1,62 @@
+https://www.cnblogs.com/yangxiansen/p/7859991.html
+
+分布式Session一致性问题
+
+	传统Session信息保存在服务端进程的内存中，使用微服务设计时，服务端会存在多个服务进程，
+	每个服务端进程会为同一个用户生成各自的Session，导致用户信息在不同微服务之间不同步。
+	
+	解决Session一致性问题，需要让同一个用户的Session应在多个微服务进程之间共享。
+	
+	考虑使用Spring Session代替标准Servlet Session，并将Session信息存储在Redis中，以此解决分布式Session一致性问题。
+	（spring-session-data-redis + spring-boot-starter-data-redis）
+	
+	使用Spring拦截器实现统一的权限验证，并记录用户操作（以此可提供用户操作历史记录功能），
+	鉴权后再转发操作到实际的操作控制器。
+	
+代码操作:
+
+	1.pom文件添加 spring-session-data-redis + spring-boot-starter-data-redis 依赖
+	
+	2.继承实现WebMvcConfigurer接口,重写其 addInterceptors 方法,来注册拦截器
+	
+	3.继承	HandlerInterceptor 接口, 实现spring拦截器
+	
+		这样我们就可以在用户请求到达controller层实现登录拦截了，所有用户请求都会被拦截，
+		在 preHandle 方法进行登录判断，返回true则验证通过，否则失败;
+		
+		鉴权后再转发操作到实际的操作控制器。
+		
+		注意: 	request.getSession(false); 不创建 Session
+				request.getSession(true); 若获取不到,则创建一个Session
+				request.getSession();
+		
+		
+postman调试:
+	
+	1.postman中设置cookies
+	
+		JSESSIONID=03008c91-2044-4418-836b-9f8d87164c1c; path=/; 
+		domain=127.0.0.1; HttpOnly; Expires=Tue, 19 Jan 2038 03:14:07 GMT;
+		
+		
+		SESSION=ZGE2M2ZkZTUtZDI2ZC00MzUwLWI0ODYtYzU3ZWI5YWZmNzM4; path=/; 
+		domain=127.0.0.1; HttpOnly; Expires=Tue, 19 Jan 2038 03:14:07 GMT;
+		
+	2.idea编译代码,端点到拦截器中的 preHandle 方法, 获取到其 session.getId()
+		将 sessionid 填入到postman的cookies设置的 JSESSIONID
+		
+	3.重新调试,可以发现后端可根据请求中cookies中的 JSESSIONID 获取到 同一个session
+		且打开redis客户点可看到spring缓存的session信息
+		
+	4.关闭后端进程,重新打开,再次用postman发送之前的请求,发现后端可以根据前端请求
+		中cookies中的 JSESSIONID 获取到 之前的session,这是因为spring已经将其存入
+		redis,且还没有过期
+		
+如果浏览器设置禁用cookies怎么办
+
+	解决方法: URL重写就是把session id直接附加在URL路径的后面
+	
+		附加方式: 作为查询字符串附加在URL后面, 表现形式为
+				http://...../xxx?jsessionid=ByOK3vjFD75aPnrF7C2HmdnV6QZcEbzWoWiBYEnLerjQ99zWpBng
+				
+		为了在整个交互过程中始终保持状态，就必须在每个客户端可能请求的路径后面都包含这个session id。 

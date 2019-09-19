@@ -1,0 +1,259 @@
+1、文件属性
+	
+	int		stat(const char* restrict pathname, struct stat* restrict buf);
+	
+	int		fstat(int filedes, struct stat* buf);
+	
+	int		lstat(const char* restrict pathname, struct stat* restrict buf);
+	
+	//区别，当命令的文件是一个符号链接时，lstat返回该符号链接的有关信息，而不是
+			该符号链接引用文件信息。
+			
+	struct stat {
+               dev_t     st_dev;     /* ID of device containing file */
+               ino_t     st_ino;     /* inode number */
+               mode_t    st_mode;    /* protection */
+               nlink_t   st_nlink;   /* number of hard links */
+               uid_t     st_uid;     /* user ID of owner */
+               gid_t     st_gid;     /* group ID of owner */
+               dev_t     st_rdev;    /* device ID (if special file) */
+               off_t     st_size;    /* total size, in bytes */
+               blksize_t st_blksize; /* blocksize for file system I/O */
+               blkcnt_t  st_blocks;  /* number of 512B blocks allocated */
+               time_t    st_atime;   /* time of last access */
+               time_t    st_mtime;   /* time of last modification */
+               time_t    st_ctime;   /* time of last status change */
+           };
+
+2、文件类型
+
+普通文件	目录	块特殊文件		字符特殊文件	FIFO	套接字		符号链接
+
+文件类型信息包含在stat结构的st_mode成员中。可用以下宏确定文件类型(这些宏的参数都是st_mode成员)：
+
+		宏					文件类型
+	S_ISREG();				普通文件
+	S_ISDIR();				目录文件
+	S_ISCHR();				字符特殊文件
+	S_ISBLK();				块特殊文件
+	S_ISFIFO();				管道或FIFO
+	S_ISLNK();				符号链接
+	S_ISSOCK();				套接字
+	
+示例：
+	/dev/passwd, /dev, /dev/log, /dev/tty, ...
+	为了在linux上编译程序，必须定义 _GUN_SOURCE 宏，这样就能包括S_ISSOCK宏的定义。
+	
+	
+3、设置用户ID和设置组ID
+
+	实际用户ID			我们实际上是谁
+	实际组ID
+	
+	有效用户ID			用于文件访问权限检查
+	有效组ID
+	附加组ID
+	
+	保存的设置用户ID	由exec函数保存
+	保存的设置组ID
+	
+	通常，有效用户ID等于实际用户ID， 有效组......
+	
+	uid_t     st_uid;     /* user ID of owner */
+    gid_t     st_gid;     /* group ID of owner */
+	
+	设置用户ID位及设置组ID位都包含在st_mode值中，这两位可用常量
+	S_ISUID 和 S_ISGID测试。
+	
+4、文件访问权限
+
+	9个访问权限位，取自<sys/stat.h>
+	st_mode屏蔽				意义
+	S_IRUSR					用户-读
+	S_IWUSR					用户-写
+	S_IXUSR					用户-执行
+	
+	S_IRGRP					组-读
+	S_IWGRP					组-写
+	S_IXGRP					组-执行
+	
+	S_IROTH					其他-读
+	S_IWOTH					其他-写
+	S_IXOTH					其他-执行
+	
+	chmod命令修改文件访问权限
+	
+5、新文件和新目录的所有权
+
+	新文件的用户ID设置为进程的有效用户ID。关于组ID，posix.1实现选择下列之一
+	(1)新文件的组ID可以是进程的有效组ID
+	(2)新文件的组ID可以是它所在目录的组ID
+	
+6、access函数是按实际用户ID和实际组ID进行访问权限测试的。
+
+	int		access(const char* pathname, int mode);
+											R_OK;
+											W_OK;
+											X_OK;	//执行权限	
+											F_OK;	//存在性
+											
+7、umask函数
+	为进程设置文件模式创建屏蔽字，返回以前的值
+	
+	mode_t		umask(mode_t  cmask);
+							//cmask是由9个访问权限位常亮中的若干位按位 或 构成的
+							
+	任何文件模式创建屏蔽字中为1的位，在文件mode中的相应位则一定被关闭。
+	
+	umask访问权限位
+	屏蔽位				意义
+	0400(八进制)		用户读
+	0200				用户写
+	0100				用户执行
+	0040				组读
+	0020				组写
+	0010				组执行
+	0004				其他读
+	0002				其他写
+	0001				其他执行
+	
+	shell 的 内置 umask命令：
+		常用的集中umask值：002(阻止其他用户写你的文件),022(阻止同组和其他用户写你的文件),
+		027(阻止同组写你的文件以及其他用户读，写，执行你的文件)
+		
+8、更改文件访问权限
+	int		chmod(const char* pathname, mode_t mode);
+										//具体表象见书p81
+	
+	int		fchmod(int filedes, mode_t mode);
+	
+	注：修改文件权限位，进程的有效用户ID必须等于文件的所有者ID，或者进程必须
+		具有root权限
+		
+9、粘住位
+	/tmp 和 /var/spool/uucppublic 是设置粘住位的典型候选者
+	
+10、更改文件的用户ID和组ID
+
+	int		chown(const char* pathname, uid_t owner, gid_t group);
+	
+	int		fchown(int filedes, uid_t owner, gid_t group);
+	
+	int		lchown(const char* pathname, uid_t owner, gid_t group);
+			//有符号连接时，更改符号链接本身的所有者，而不是符号链接本身。
+			
+11、文件长度
+
+	stat结构成员st_size表示以字节为单位的文件长度(只针对普通文件)。
+	对于符号链接，文件长度就是文件名中的实际字节数(不包含最后的\0)
+	
+	文件空洞：
+		文件锁设置的偏移量超过文件尾端并写了某些数据。
+		
+12、文件截短
+	
+	int		tracate(const char* pathname, off_t length);
+	
+	int		ftracate(int filedes, off_t length);
+	
+13、链接函数
+	
+	int		link(const char* exitingpath, const char* newpath);
+	
+	int		unlink(const char* pathname);
+	
+	int		remove(const char* pathname);
+			//可以用remove函数解除对一个文件或目录的链接。对于文件，remove的功能与unlink相同，
+				对于目录，remove功能与rmdir相同
+				
+	int		rename(const char* oldname, const char* newname);
+	
+	
+符号链接：	
+	int		symlink(const char* actualpath, const char* sympath);
+			//该函数创建了指向actualpath的新项目sympath，创建时并不要求actualpath存在，
+				并且，两者并不需要位于同一文件系统中
+				
+	因为open函数跟随符号链接，所以需要一种方法打开链接本身，并读取该链接的名字--》readlink
+	
+	ssize_t		readlink(const char* restrict pathname, char* restrict buf, size_t bufsize);
+	
+14、文件的时间：
+	最后访问(read)、修改(write)、更改时间(chmod, chown)。
+	
+	st_atime, st_mtime, st_ctime
+	
+	A:更改文件的访问和修改时间 --> utime()
+		int		utime(const char* pathname, const struct utimbuf* times);
+													//如果times是一个空指针，则访问时间和修改时间都设置为当前时间
+													如果times为非空指针，则将时间设置为其指向的值
+													注意，我们不能对更改状态时间st_ctime指定一个值，当调用utime函数时，
+													此字段被自动更新
+													
+15、目录操作
+
+	int		mkdir();
+				//对于目录通常至少要设置1个执行权限位
+	int 	rmdir();
+	
+	DIR*	opendir(const char* pathname);
+	
+	struct dirent*		readdir(DIR*  dp);
+	
+	void	rewinddir(DIR*  dp);
+	
+	int		closedir(DIR* dp);
+	
+	long	telldir(DIR*  dp);
+	
+	void	seekdir(DIR*  dp, long  loc);
+	
+	
+16、当前工作目录
+	
+	更改当前工作目录
+	int		chdir(const char* pathname);
+	
+	int		fchdir(int filedes);
+	
+	获取当前工作目录：
+	int		getcwd(char* buf, size_t size);
+			readlink(...);
+			realpath(...);
+	
+示例：
+#include<iostream>
+#include<unistd.h>
+using namespace std;
+int main(int argc, char * argv[])
+{
+	char buffer[1024] = {0};
+	getcwd(buffer, 1024);
+	cout << buffer << endl;
+
+	char exec_name[1024] = {0};
+	readlink("/proc/self/exe", exec_name, 1024);
+	cout << exec_name << endl;
+}
+
+
+#include<limits.h>
+#include<stdlib.h>
+#include<string>
+#include<iostream>
+using namespace std;
+
+int main(int argc, char** argv)
+{
+	char relative_path[1024] = "./";
+	char absolute_path[1024] = {0};
+	if ( NULL == realpath(relative_path, absolute_path) )
+	{
+		cout<<"resolve path error"<<endl;
+		 return 0;
+	}
+	
+	cout<<"the absolute path : "<<absolute_path<<endl;
+	cout<<"the relative path : "<<relative_path<<endl;
+	return 0;
+}

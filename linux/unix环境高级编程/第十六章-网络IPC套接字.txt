@@ -1,0 +1,157 @@
+一、
+1、套接字描述符
+
+	int		socket(int domain, int type, int protocal);
+
+		domain:域名、地址簇
+				AF_INET;
+				AF_INET6;
+				AF_LOCAL/AF_UNIX;
+				AF_UNSPEC;
+		
+		type:	套接字类型
+				SOCK_DEGRAM;
+				SOCK_RAW;
+				SOCK_SEQPACKET;
+				SOCK_STREAM;
+		
+		protocal:通常是0，表示按照给定的域和套接字类型选择默认的协议。
+		
+		
+2、套接字通信是双向的，可以通过shutdown来禁止套接字上的输入输出
+
+	int		shutdown(int sockfd, int how);
+	
+		how: SHUT_RD	关闭读端
+			 SHUT_WR	关闭写端
+			 SHUT_RDWR	关闭读写端
+			 
+3、字节序
+
+	uint32_t	htonl(uint32_t  hostint32);
+	
+	uint16_t	htons(uint16_t  hostint16);
+	
+	uint32_t	ntohl(uint32_t  hostint32);
+	
+	uint16_t	ntohl(uint16_t  hostint32);
+	
+4、地址格式
+
+	通用地质结构
+	
+		struct sockaddr {
+			sa_family_t		sa_family;
+			char			sa_data[];
+			...
+		};
+	
+	注：在linux中，该结构定义如下
+	
+		struct sockaddr {
+			sa_family_t		sa_family;
+			char			sa_data[14];
+			...
+		};
+		
+	因特网地址定义在<netinet/in.h>中。IPV4中，套接字地址用sockaddr_in表示
+	
+		struct in_addr {
+			in_addr_t	s_addr;				//uint32_t
+		};
+		
+		struct sockaddr_in{
+			sa_family		sin_family;
+			in_port_t		sin_port;		//uint16_t
+			struct in_addr	sin_addr;
+		};
+		
+	IPV6:	
+		......p441;
+		
+注：
+	有时，需要打印出能被人而不是计算机所理解的地址格式。
+	inet_addr()(点分十进制字符串转换成二进制地址格式) 和 inet_ntoa()(二进制地址格式转换成点分十进制字符串)
+	这两个函数仅用于IPV4
+	
+	可以运用于IPV6的函数
+		inet_ntop(...);
+		inet_pton(...);
+		
+5、
+	int		bind(int sockfd, const struct sockaddr* addr, socklen_t len);
+	
+	INADDR_ANY;
+	
+	可以调用getsockname()来发现绑定到一个套接字的地址
+	
+	int		getsockname(int sockfd, struct sockaddr* restrict addr,
+													socklen_t* restrict alenp);
+													
+	如果套接字已经和对方连接，调用getpeername()来找到对方地址
+	
+	int		getpeername(int sockfd, struct sockaddr* restrict addr,
+													socklen_t* restrict alenp);
+													
+6、数据传输
+
+	ssize_t		send(int sockfd, const void* buf, size_t nbytes, int flags);
+	
+	flags:
+		MSG_DONTROUTE;	//勿将数据路由出本地网络
+		MSG_DONTWAIT;	//允许非阻塞操作(等价于使用于O_NONEBLOCK)
+		MSG_EOR;		//如果协议支持，此为记录结束
+		MSG_OOB;		//如果协议支持，发送带外数据
+		
+		
+	ssize_t		recv(int sockfd, void* buf, size_t nbyte, int flags);
+	
+	flags:
+		MSG_OOB;		如果协议支持，接收带外数据
+		MSG_PEEK;		返回报文内容而不是真正取走报文
+		MSG_TRUNC;		即使报文被截断，要求返回的是报文的实际长度
+		MSG_WAITALL;	等待直到所有数据可用
+		
+		
+7、套接字选项
+
+	int		setsockopt(int sockfd, int level, int option, const void* val, socklen_t len);
+	
+	level:
+		标识了选项应用的协议，如果选项是通用套接字层选项，level设置成 SOL_SOCKET，
+		否则，level设置成控制这个选项的协议号。
+		例如：对于TCP选项，这是IPPROTO_TCP, 对于IP选项，这是IPPROTO_IP。
+		
+	int		getsockopt(int sockfd, int level, int option, void* restrict val,
+																socklen_t* restrict lenp);
+														
+	option:
+		......
+		setsockopt()支持下列选项。其中“类型”表明optval所指数据的类型。
+		选项 				类型 				意义
+		SO_BROADCAST 		BOOL 		允许套接口传送广播信息。
+		SO_DEBUG 			BOOL 		记录调试信息。
+		SO_DONTLINER		BOOL 		不要因为数据未发送就阻塞关闭操作。设置本选项相当于将SO_LINGER的l_onoff元素置为零。
+		SO_DONTROUTE 		BOOL 		禁止选径；直接传送。
+		SO_KEEPALIVE 		BOOL 		发送“保持活动”包。
+		SO_LINGER 			struct linger FAR* 如关闭时有未发送数据，则逗留。
+		SO_OOBINLINE 		BOOL 		在常规数据流中接收带外数据。
+		SO_RCVBUF 			int 		为接收确定缓冲区大小。
+		SO_REUSEADDR 		BOOL 		允许套接口和一个已在使用中的地址捆绑（参见bind()）。
+		SO_SNDBUF 			int 		指定发送缓冲区大小。
+		TCP_NODELAY 		BOOL 		禁止发送合并的Nagle算法。
+		setsockopt()不支持的BSD选项有：
+		选项名				类型 		意义
+		SO_ACCEPTCONN 		BOOL 		套接口在监听。
+		SO_ERROR 			int 		获取错误状态并清除。
+		SO_RCVLOWAT 		int 		接收低级水印。
+		SO_RCVTIMEO 		int 		接收超时。
+		SO_SNDLOWAT 		int 		发送低级水印。
+		SO_SNDTIMEO 		int 		发送超时。
+		SO_TYPE 			int 		套接口类型。
+		IP_OPTIONS 在IP头中设置选项。
+		
+		
+8、带外数据
+	
+	TCP支持， UDP不支持

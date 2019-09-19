@@ -1,0 +1,64 @@
+1.编码问题
+/opt/hadoop-2.7.5/bin/hdfs namenode -format
+
+Caused by: org.xml.sax.SAXParseException; 
+systemId: file:/opt/hadoop-2.7.5/etc/hadoop/mapred-site.xml; 
+lineNumber: 20; columnNumber: 11; 
+Invalid byte 1 of 1-byte UTF-8 sequence.
+
+2. /opt/hadoop-2.7.5/bin/hdfs namenode -format
+
+报错：WARN:
+
+WARN org.apache.hadoop.hdfs.server.common.Util: 
+Path /usr/mywind/name should be specified as a URI in configuration files. 
+Please update hdfs configuration. 
+
+问题原因： 
+1) 不合规范的URI格式 
+解决办法： 
+1) 把dfs.namenode.name.dir、dfs.datanode.data.dir的原路径格式
+如/usr/mywind/name改成file:/usr/mywind/name，即使用完全路径。
+
+3.datanode启动失败
+
+java.io.IOException: Incompatible clusterIDs in /home/data/hadoop/tmp/dfs/data: 
+namenode clusterID = CID-8af3a170-5dac-45bc-b124-bfd1dd4ecc5f; 
+datanode clusterID = CID-2942d952-81c4-4bce-a4fe-bc2cb38d9b57
+
+at org.apache.hadoop.hdfs.server.datanode.DataStorage.doTransition(DataStorage.java:777)
+
+大多数原因。是因为两个namenode节点的clusterID不一致，需要将datanode节点下的VERSION删除，
+然后手动更改其中一台namenode节点clusterID。最后重启。
+
+注意：namenode只需要初始化一次，若多次初始化，则可能出现上述错误。
+
+4.登陆 http://hadoop-cluster01:50070/ 失败
+
+查看日志：
+
+ org.apache.hadoop.hdfs.server.namenode.ha.EditLogTailer: 
+ Unable to trigger a roll of the active NN
+ 
+ org.apache.hadoop.ipc.RemoteException(org.apache.hadoop.ipc.StandbyException): 
+ Operation category JOURNAL is not supported in state standby
+ 
+ 
+=>
+
+该错误是由于hdfs-site.xml中缺少以下配置所致
+<property> 
+	<name>dfs.client.failover.proxy.provider.testcluster</name>
+	<value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+</property>
+
+----------------------------------------------------------------------------
+
+WARN org.apache.hadoop.hdfs.server.namenode.FSEditLog: Unable to determine input 
+streams from QJM to [172.16.1.131:8485, 172.16.1.132:8485, 172.16.1.133:8485, 
+172.16.1.134:8485, 172.16.1.135:8485]. Skipping.
+
+
+Incompatible namespaceID for journal Storage Directory 
+/home/data/hadoop/hdfs/journal/lj-nameservice: NameNode has nsId 1547736847 
+but storage has nsId 352820010

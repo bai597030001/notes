@@ -1,0 +1,39 @@
+1:
+
+在任何一个时间点上，线程是可结合的（joinable）或者是分离的（detached）。
+一个可结合的线程能够被其他线程收回其资源和杀死。在被其他线程回收之前，它的存储器资源（例如栈）是不释放的。
+相反，一个分离的线程是不能被其他线程回收或杀死的，它的存储器资源在它终止时由系统自动释放。
+
+2:
+
+#include<pthread.h>
+#include<stdio.h>
+#include<unistd.h>
+void print_message_function( void *ptr );
+main ( )
+{
+	pthread_t thread1;
+	while(1)
+	{
+		pthread_create(&thread1,NULL,(void *)&print_message_function,(void *)0);
+		printf("%d\n",thread1);
+	}
+	exit (0) ;
+ }
+void  print_message_function( void *ptr )
+{   
+	pthread_detach(pthread_self());
+	static int g;
+	printf("%d\n", g++);
+	pthread_exit(0) ;
+}
+//pthread_detach(pthread_self());
+//使线成分离出来。当这个线程执行完成任务后释放释放资源。不然它会保留退出状态，等待别人来取。
+-------------------------
+pthread_detach(threadid)和pthread_detach(pthread_self())没有什么区别吧！有很严格的区别吗？？？如果非要讲区别不可，我觉得应该是调用他们的线程不同~！
+pthread_detach(threadid)函数的功能是使线程ID为threadid的线程处于分离状态，一旦线程处于分离状态，该线程终止时底 层资源立即被回收；
+否则终止子线程的状态会一直保存（占用系统资源）直到主线程调用pthread_join(threadid,NULL)获取线程的退 出状态。
+
+通常是主线程使用pthread_create()创建子线程以后，一般可以调用pthread_detach(threadid)分离刚刚创建的子线程，这里的threadid是指子线程的threadid；
+如此以来，该子线程止时底层资源立即被回收；
+被创建的子线程也可以自己分离自己，子线程调用pthread_detach(pthread_self())就是分离自己，因为pthread_self()这个函数返回的就是自己本身的线程ID；

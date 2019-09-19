@@ -1,0 +1,17 @@
+一、
+1、出错记录
+有三种方法产生日志消息：
+	(1)内核例程调用log函数
+	(2)大多数用户进程调用syslog函数
+	(3)通过TCP/IP网络将日志发送到另一个进程的UDP 514端口
+	
+2、
+	void	openlog(const char* ident, int option, int facility);
+			//设置facility参数的目的是可以让配置文件说明，来自不同设施的消息将以不同的方式进程处理
+	void	syslog(int priority, const char* format, ...);
+	void	closelog(void);
+	int		setlogmask(int maskpri);
+
+
+单实例守护进程：
+	任意时候只运行该守护进程的一个副本，利用文件和记录锁机制；

@@ -1,0 +1,125 @@
+
+java嵌套类分为 成员内部类、静态嵌套类、方法内部类、匿名内部类
+
+	1.成员内部类:
+	
+		class Outer {
+			class Inner{}
+		}
+		
+		编译上述代码会产生两个文件：Outer.class 和 Outer$Inner.class。
+		
+		成员内部类内不允许有任何静态声明！
+		
+		能够访问成员内部类的唯一途径就是通过外部类的对象！
+			
+			A、从外部类的非静态方法中实例化内部类对象。
+			
+			B、从外部类的静态方法中实例化内部类对象。
+			
+			C、内部类的this引用。
+			
+			D、成员内部类的修饰符。
+		
+	2.静态嵌套类:
+	
+		从技术上讲，静态嵌套类不属于内部类。因为内部类与外部类共享一种特殊关系，更确切地说是对实例的共享关系。
+		
+		而静态嵌套类则没有上述关系。它只是位置在另一个类的内部，因此也被称为顶级嵌套类。
+		
+		静态的含义是该内部类可以像其他静态成员一样，没有外部类对象时，也能够访问它。静态嵌套类不能访问外部类的成员和方法。
+		
+			class Outer{
+				static class Inner{}
+			}
+			class Test {
+				public static void main(String[] args){
+					Outer.Inner n = new Outer.Inner();
+				}
+			}
+	
+	3.方法内部类:
+	
+		class Outer {
+			public void doSomething(){
+				class Inner{
+					public void seeOuter(){
+					}
+				}    
+			}
+		}
+		
+		A、方法内部类只能在定义该内部类的方法内实例化，不可以在此方法外对其实例化。
+
+		B、方法内部类对象不能使用该内部类所在方法的非final局部变量。
+		
+		C、方法内部类的修饰符。与成员内部类不同，方法内部类更像一个局部变量。可以用于修饰方法内部类的只有final和abstract。
+
+		D、静态方法内的方法内部类。
+
+			静态方法是没有this引用的，因此在静态方法内的内部类遭受同样的待遇，即：只能访问外部类的静态成员。
+	
+	4.匿名内部类:
+	
+		顾名思义，没有名字的内部类。表面上看起来它们似乎有名字，实际那不是它们的名字。
+		
+		A、继承式的匿名内部类。
+		
+			class Car {
+				public void drive(){
+					System.out.println("Driving a car!");
+				}
+			}
+			class Test{
+				public static void main(String[] args) {
+					Car car = new Car(){
+						public void drive(){
+							System.out.println("Driving another car!");
+						}
+					};
+					car.drive();
+				}
+			}
+			
+			结果输出了：Driving another car! Car引用变量不是引用Car对象，而是Car匿名子类的对象。
+
+			建立匿名内部类的关键点是重写父类的一个或多个方法。再强调一下，是重写父类的方法，而不是创建新的方法。
+			因为用父类的引用不可能调用父类本身没有的方法！创建新的方法是多余的。简言之，参考多态。
+			
+		B、接口式的匿名内部类。
+		
+			interface  Vehicle {
+				public void drive();
+			}
+			class Test{
+				public static void main(String[] args) {
+					Vehicle v = new Vehicle(){
+						public void drive(){
+							System.out.println("Driving a car!");
+						}
+					};
+					v.drive();
+				}
+			}
+		
+			上面的代码很怪，好像是在实例化一个接口。事实并非如此，
+			接口式的匿名内部类是实现了一个接口的匿名类。而且只能实现一个接口。
+			
+		C、参数式的匿名内部类。
+		
+			class Bar{
+				void doStuff(Foo f){}
+			}
+			interface Foo{
+				void foo();
+			}
+			class Test{
+				static void go(){
+					Bar b = new Bar();
+					b.doStuff(new Foo(){
+						public void foo(){
+							System.out.println("foofy");
+						}
+					});
+				}
+			}

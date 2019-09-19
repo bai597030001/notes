@@ -1,0 +1,124 @@
+一、
+1、SIG_IGN(忽略)		SIG_DFL(默认)		函数地址(自定义)
+
+	注：SIGKILL,	SIGSTOP	这两个信号是不能忽略的；
+	
+2、当调用fork()创新子进程时，其子进程继承父进程的信号处理方式
+	(子进程在开始复制了父进程的存储映像)
+	
+	当执行一个程序时，所有信号的状态都是系统默认或者忽略；除非调用exec
+	系列函数的进程忽略该信号
+	
+3、中断的系统调用
+
+	read() 已接收并传送数据至应用程序缓冲区，但尚未接收到应用程序请求的全部数据
+	此时被中断，操作系统可以认为该系统调用失败，并将 errno 设置为EINTR；
+	与此类似，write()...;
+	
+示例:
+
+again:
+	if((n = read(fd, buf, BUFSIZE)) < 0)
+	{
+		if(errno == EINTR)
+		{
+			goto again;
+		}
+	}
+
+4、可重入函数
+
+	所谓可重入是指一个可以被多个任务调用的过程，任务在调用时不必担心数据是否会出错
+	
+	满足下列条件的函数多数是不可重入的：
+（1）函数体内使用了静态的数据结构；
+（2）函数体内调用了malloc()或者free()函数；
+（3）函数体内调用了标准I/O函数。
+
+	当在信号处理程序中调用可重入函数时，应当在其前保存，其后恢复errno(经常被捕捉到的信号
+	SIGCHLD，其信号处理程序通常要调用一种wait函数，而各种wait函数都会改变errno)
+	
+5、函数
+
+	int		kill(pid_t pid, int signo);		//将信号发送给进程或进程组
+											  当signo为0，通常用来检测一个进程是否仍旧存在
+											
+	int 	raise(int signo);				//允许进程想自身发送信号
+	
+	unsigned int  alarm(unsigned int seconds);
+	
+	int 	pause(void);
+	
+二、
+
+6、信号集
+
+	int		sigemptyset(sigset_t *set);
+
+	int		sigfillset(sigset_t *set);
+
+	int		sigaddset(sigset_t *set, int signo);
+
+	int		sigdelset(sigset_t *set, int signo);
+
+	int		sigismember(const sigset_t *set, int signo);
+
+
+7、
+	sigprocmask();
+	
+	sigpending();
+	
+	sigaction();
+	
+8、
+	int 	sigsetjmp(sigjmp_buf env, int savemask);
+	
+	void 	siglongjmp(sigjmp_buf env, int val);
+	
+	
+	
+9、
+	int		sigsuspend(const sigset_t* sigmask);
+
+示例代码：
+
+1)
+	sigset_t	newmask, oldmask;
+
+	sigemptyset(&newmask);
+	sigaddset(newmask, SIGINT);
+
+	if(sigprocmask(SIG_BLOCK， &newmask, &oldmask) < 0)
+		err_sys("SIG_BLOCK error");
+		
+	if(sigprocmask(SIG_SETMASK, &oldmask, NULL) < 0)
+		err_sys("SIG_SETMASK error");
+		
+	pause();
+	
+	注意：如果在解除阻塞时刻和pause()之间确实发生了信号，那么我们
+			可能不会再见到该信号，此时间窗口发生的信号丢失了，这样
+			pause()永远阻塞
+		  为了纠正该问题，需要在一个原子操作中先恢复信号屏蔽字，
+		  然后使进程进入休眠，这种功能由 sigsuspend()函数提供
+		  
+2)
+	sigsuspend另一种应用是等待一个信号处理程序设置一个全局变量；
+	见书 p271
+	
+10、
+	void	abort(void);
+	//使异常程序终止，SIGABORT信号
+	
+11、
+	system();
+	
+其他：
+	void	psignal(int signo, const char* msg);
+	
+	char*	strsignal(int signo);
+	
+	int		sig2str(...);
+	
+	int 	str2sig(const char* str, int* signop);

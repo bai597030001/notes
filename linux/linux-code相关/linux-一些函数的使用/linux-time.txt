@@ -1,0 +1,120 @@
+1、结构体：
+struct  timeval{
+       long  tv_sec;/*秒*/
+
+       long  tv_usec;/*微妙*/
+}；
+
+struct tm {
+        int tm_sec;     /* seconds after the minute - [0,59] */
+        int tm_min;     /* minutes after the hour - [0,59] */
+        int tm_hour;    /* hours since midnight - [0,23] */
+        int tm_mday;    /* day of the month - [1,31] */
+        int tm_mon;     /* months since January - [0,11] */
+        int tm_year;    /* years since 1900 */
+        int tm_wday;    /* days since Sunday - [0,6] */
+        int tm_yday;    /* days since January 1 - [0,365] */
+        int tm_isdst;   /* daylight savings time flag */
+        };
+
+2、函数：
+
+#include<sys/time.h>
+
+time_t time(time_t *t);
+
+用法：(2种)
+	time_t timep;
+1：	time(&timep);
+2：	time_t tmp = time(NULL);
+	printf("time = %d\n", timep);
+	printf("time = %d\n", tmp);
+	return 0;
+作用：获取当前时间的秒数
+
+int gettimeofday(struct  timeval*tv,struct  timezone *tz/*一般为空*/ );
+用法：
+	  struct timeval tv;
+	  gettimeofday(&tv, NULL);
+	  time_t now = tv.tv_sec;//获取当前时间秒数
+	  
+注意：
+	和time()函数相比，gettimeofday()可以获取更为精准的微妙级的结果；
+	time 与 gettimeofday 两个函数得到的都是从Epoch开始到当前的秒数(tt=tv.tv_sec)，
+	而后者还能得到更精细的微秒级结果，即tv_sec*(10^6)+tv_usec为从Epoch开始到当前的微秒数
+		
+3、
+		
+struct tm *gmtime(const time_t *timep);
+
+struct tm *gmtime_r(const time_t *timep, struct tm *result);
+
+struct tm *localtime(const time_t *timep);
+
+struct tm *localtime_r(const time_t *timep, struct tm *result);
+		
+注意：localtime是 把从1970-1-1零点零分到当前时间系统所偏移的秒数时间转换为本地时间，
+	  而gmtime函数转换后的时间没有经过时区变换，是UTC时间 。
+	  
+用法：
+A:	time_t timep;
+	struct tm *p;
+	time(&timep);
+	p=gmtime(&timep);
+	
+B:  time_t timer;//time_t就是long int 类型
+	struct tm *tblock;
+	timer = time(NULL);
+	tblock = localtime(&timer);
+	printf("Local time is: %s\n",asctime(tblock));
+	
+注意：
+localtime是直接返回strcut tm*指针（如果成功的话）；这个指针是指向一个静态变量的；
+因此，返回的指针所指向的静态变量有可能被其他地方调用的localtime改掉，例如多线程使用的时候。
+localtime_r则是由调用者在第二个参数传入一个struct tm result指针，该函数会把结果填充到这个传入的指针所指内存里面；
+成功的返回值指针也就是struct tm result。
+其他的时间函数，如asctime，asctime_r；ctime，ctime_r；gmtime，gmtime_r都是类似的，
+*******************所以，时间函数的 _r 版本都是线程安全的。******************
+	  
+4、
+  
+time_t mktime(struct tm * timeptr);
+函数说明：
+	mktime()用来将参数timeptr所指的tm结构数据转换成从公元1970年1月1日0时0分0 秒算起至今的本地时间所经过的秒数
+用法：
+	time_t timep;
+    struct tm* p = localtime(&timep);
+    timep=mktime(p);
+	  
+	  
+5、	
+	char *asctime(const struct tm *tm);
+	char *asctime_r(const struct tm *tm, char *buf);
+	
+	char *ctime(const time_t *timep);
+	char *ctime_r(const time_t *timep, char *buf);	
+注意:
+	asctime是把时间换成ascii码。
+	ctime是把时间转换成字符串。
+	
+示例：
+	int	main(void)
+	{
+		time_t t;
+		t=time(&t);
+		printf("Today's	date and time:%s\n",ctime(&t));
+		return 0;
+	}
+	  
+6、
+	double difftime(time_t time2, time_t time1);
+	
+	功 能:返回两个time_t型变量之间的时间间隔，即 计算两个时刻之间的时间差。
+	
+	示例：
+	time_t first, second;
+	system("cls");
+	first = time(NULL);
+	Sleep(2000);
+	second = time(NULL);
+	printf("The difference is: %f seconds\n",difftime(second,first));

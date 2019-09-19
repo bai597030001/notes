@@ -1,0 +1,101 @@
+linux的定时器（timer_create，timer_gettime，timer_delete，SIGEV_SIGNAL） 
+
+系统中的一个模块需要频繁的获取系统时间，使用linux中内置的函数开销过大，因为需要的精度不是很高（毫秒级），
+索性用signal函数配合setitimer实现了个简易的全局时钟。 
+但是后来发现，SIGALRM的中断信号回终止sleep，因为sleep就是用SIGALRM信号量实现的，得另想方案。 
+这个替代方案就是POSIX中内置的定时器：timer_create()(创建)、timer_settime()(初始化)以及 timer_delete(销毁)，
+将自己的时间信号处理函数用timer_create注册为SIGUSR2，这样就不会中断sleep了。 
+
+以下内容转载自smart的BLOG，很详细。 
+
+POSIX定时器:timer_settime() 
+最强大的定时器接口来自POSIX时钟系列，其创建、初始化以及删除一个定时器的行动被分为三个不同的函数：
+	timer_create()(创建定时器)、timer_settime()(初始化定时器)以及timer_delete(销毁它)。
+
+创建一个定时器： 
+int timer_create(clockid_t clockid, struct sigevent *evp, timer_t *timerid) 
+
+描述
+	timer_create() 创建每个进程间隔计时器。 新计时器的 ID 由指向 timerid 的指针参数返回，这个参数必须是一个非空指针。
+	这个ID 在计时器被删除前在进程内是唯一的。初始化的计时器是未启动的。
+	
+	参数 clockid 指出新的计时器使用何种来测度时间。它能被指定为以下值之一：
+	
+	CLOCK_REALTIME
+	一个可设置的系统范围内的实时时钟，计算从1970年1月1日午夜0点起的毫秒数。
+	
+	CLOCK_MONOTONIC
+	一个不可设置的单调增加时钟，它测度系统启动后某个非特定时间点起的时间。
+	
+	CLOCK_PROCESS_CPUTIME_ID ( Linux 2.6.12 起有效)
+	这个时钟测量调用进程（包含其中所有线程）所消耗的 (用户和系统) CPU 时间。
+	
+	CLOCK_THREAD_CPUTIME_ID (Linux 2.6.12 起有效)
+	这个时钟测量调用线程所消耗的 (用户和系统) CPU 时间。
+
+	除了以上参数， clockid 可以指定为clock_getcpuclockid(3) 或 pthread_getcpuclockid(3)的返回值
+
+	struct sigevent
+	{
+		int				sigev_notify; //notificatiotype
+		int				sigev_signo; //signal number
+		union			sigval sigev_value;//signal value
+		void			(*sigev_notify_function)(union sigval);
+		pthread_attr_t	*sigev_notify_attributes;
+	}
+
+		union sigval
+		{
+			int		sival_int;	//integer value
+			void	*sival_ptr;	//pointer value
+		}
+		
+	通过将evp->sigev_notify 设定为如下值来定制定时器到期后的行为：
+	SIGEV_NONE：什么都不做，只提供通过timer_gettime和timer_getoverrun查询超时信息。
+	SIGEV_SIGNAL: 当定时器到期，内核会将 sigev_signo 所指定的信号传送给进程。在信号处理程序中, sivalue 会被设定会 sigev_value
+	SIGEV_THREAD: 当定时器到期，内核会(在此进程内)以 sigev_notify_attributes 为线程属性创建一个线程，
+					并且让它执行 sigev_notify_function ,传入 sigev_value 作为为一个参数。
+					
+
+启动一个定时器：
+timer_create()所创建的定时器并未启动。要将它关联到一个到期时间以及启动时钟周期，可以使用 timer_settime()。
+int timer_settime(timer_t timerid, int flags, const struct itimerspec *value, struct itimerspec *ovalue);
+
+	struct itimerspec
+	{
+		struct timespec it_interval;
+		struct timespec it_value;
+	};
+	如同settimer()， it_value 用于指定当前的定时器到期时间。当定时器到期， it_value 的值会被更新成 it_interval 的值。
+	如果 it_interval 的值为0，则定时器不是一个时间间隔定时器，一旦 it_value 到期就会回到未启动状态。timespec的结构提供了纳秒级分辨率：
+	struct timespec
+	{
+		time_t tv_sec;
+		long tv_nsec;
+	};
+	如果flags的值为 TIMER_ABSTIME ，则 value 所指定的时间值会被解读成绝对值(此值的默认的解读方式为相对于当前的时间)。
+	这个经修改的行为可避免取得当前时间、计算“该时间”与“所期望的未来时间”的相对差额以及启动定时器期间造成竞争条件。
+	如果 ovalue 的值不是NULL，则之前的定时器到期时间会被存入其所提供的 itimerspec 。如果定时器之前处在未启动状态，
+	则此结构的成员全都会被设定成0。
+	
+获得一个活动定时器的剩余时间：
+int timer_gettime(timer_t timerid,struct itimerspec *value);
+
+
+取得一个定时器的超限运行次数：
+	有可能一个定时器到期了，而同一定时器上一次到期时产生的信号还处于挂起状态。在这种情况下，其中的一个信号可能会丢失。
+	这就是定时器超限。程序可以通过调用timer_getoverrun来确定一个特定的定时器出现这种超限的次数。
+	定时器超限只能发生在同一个定时器产生的信号上。由多个定时器，甚至是那些使用相同的时钟和信号的定时器，所产生的信号都会排队而不会丢失。
+	
+	int timer_getoverrun(timer_t timerid);
+	
+	执行成功时， timer_getoverrun()会返回定时器初次到期与通知进程(例如通过信号)定时器已到期之间额外发生的定时器到期次数。
+	举例来说，在我们之前的例子中，一个1ms的定时器运行了10ms，则此调用会返回9。如果超限运行的次数等于或大于 DELAYTIMER_MAX,
+	则此调用会返回 DELAYTIMER_MAX
+	执行失败时，此函数会返回-1并将errno设定会EINVAL，这个唯一的错误情况代表timerid指定了无效的定时器。
+	
+	
+删除一个定时器：
+int timer_delete (timer_t timerid);
+	一次成功的timer_delete()调用会销毁关联到timerid的定时器并且返回0。
+	执行失败时，此调用会返回-1并将errno设定会 EINVAL，这个唯一的错误情况代表timerid不是一个有效的定时器。

@@ -1,0 +1,121 @@
+https://blog.csdn.net/dtjiawenwang88/article/details/73251911	
+	
+	1.abstract class
+	
+		声明方法的存在而不去实现它的类被叫做抽象类（ abstract class ），它用于要创建一个体现某些基本行为的类，
+			并为该类声明方法，但不能在该类中实现该类的情况。
+			
+		不能创建abstract 类的实例。然而可以创建一个变量，其类型是一个抽象类，并让它指向具体子类的一个实例。
+		
+		abstract class类中定义抽象方法必须在具体(Concrete)子类中实现，所以，不能有抽象构造方法或(抽象)静态方法。
+		
+		含有 abstract 方法的类必须定义为 abstract class
+		
+		abstract class中除抽象方法不可以是 private 修饰符外，其它成员任意;
+		
+		Abstract 类的子类为它们父类中的所有抽象方法提供实现，否则它们也是抽象类。
+	
+	
+		抽象类的作用：
+			
+			（1）代码重用：子类可以重用抽象父类中的属性和非抽象方法(抽象方法需要子类自己实现)；
+			（2）规划：子类中通过抽象方法的重写来实现父类中规划的功能。
+			
+		eg:
+			public abstract class Animal {
+
+			  private int age ;
+
+			  public void setAge(int age){
+
+				this.age = age;
+
+			  }
+
+			  public int getAge(){
+
+				return age;
+
+			  }
+
+			  public abstract void sleep();
+
+			}
+
+			 
+
+			public class Person extends Animal{
+
+			  private String name;
+
+			  public void setName(String name){
+
+				this.name = name;
+
+			  }
+
+			  public String getName(){
+
+				return name;
+
+			  }
+
+			  public void sleep(){
+
+				System.out.println("people can sleep!");
+
+			  }
+
+			}
+
+			 
+
+			public class Cat extends Animal{
+
+			  public void sleep(){
+
+				System.out.println("cat can sleep!");
+
+			  }
+
+			  public void catchMouse(){
+
+				System.out.println("cat also catch mouse");
+
+			  }
+
+			}
+
+			 
+
+			public class Test{
+
+			  public static void main (String[] args){
+
+				Animal a = new Person();
+
+				a.setAge(18);
+
+				a.sleep();
+
+			  }
+
+			}
+
+	
+	2.interface
+	
+		可以理解为是一种极端的抽象类。该类中只有常量和抽象方法的定义，而不提供变量和方法的实现。
+		
+		接口中所有的方法都是抽象方法，接口中方法都会自动用 public abstract 修饰，即接口中只有全局抽象方法。
+		
+		接口中可以定义常量，不能定义变量 如果你在接口中定义属性，那么通过反编译可以看见他会自动
+			用 public static final 修饰，接口中的属性都是全局静态常量，接口中的常量必须在定义时指定初始值。
+		
+		接口可以被多个类实现，而且必须实现接口中的所有抽象方法，否则只能声明为抽象类。
+		
+		接口可以多重实现，即一个接口可以同时实现多个接口。
+		
+		接口中所有成员的修饰符都为 public
+		
+		接口之间可以通过 extends 实现继承关系，一个接口可以继承多个接口，但接口不能继承类。

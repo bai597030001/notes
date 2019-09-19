@@ -1,0 +1,106 @@
+https://blog.csdn.net/swing2008/article/details/60869183
+
+https://blog.csdn.net/databatman/article/details/53023818#3-rdd-%E5%88%9D%E8%AF%86
+
+1.概念
+	RDD(Resilient Distributed Datasets) [1]  ,弹性分布式数据集， 是分布式内存的一个抽象概念
+	
+	对开发者而言，RDD可以看作是Spark的一个对象，它本身运行于内存中，如读文件是一个RDD，对文件计算是一个RDD，
+	结果集也是一个RDD ，不同的分片、 数据之间的依赖 、key-value类型的map数据都可以看做RDD。
+	
+	通俗形象的语言解释：
+		如果你有一箱苹果，让三个人拿回家吃完（只能举这种神经兮兮的例子了），如果不拆箱子就会很麻烦对吧~一个箱子嘛，
+		当然只有一个人才能抱走了。这时候智商正常的人都知道不如把箱子打开，苹果倒出来，
+		分别拿三个小箱子重新装起来，喏，各自抱回家去啃吧。
+		Spark和很多其他分布式计算系统都借用了这种思想来实现并行：把一个超大的数据集，切切切分成N个小堆，
+		找M个执行器（M < N），各自拿一块或多块数据慢慢玩，玩出结果了再收集在一起，这就算执行完啦。
+		那么Spark做了一项工作就是：凡是能够被我算的，都是要符合我的要求的，所以spark无论处理什么数据先
+		整成一个拥有多个分块的数据集再说，这个数据集就叫RDD。
+		
+	当你自己写一个spark应用时，在代码上拥有了一个RDD，这个RDD是不包含任何待处理数据的
+	（详情可以参考spark数据用户空间和集群空间的概念），真正的数据在执行时才会加载，加载时要么来自spark外，
+	例如hdfs这样，要么来自spark内，前提是你已经对它做了cache。
+	
+	Spark的计算执行可以认为是一个这样的过程：从一个RDD读取数据，做处理，然后依照action的不同把结果发回用户空间。
+	这个过程中可能会有很多中间临时的RDD，假如你对这些RDD设置了cache，那么在它所在的计算环节结束后的中间结果就会被缓存起来，
+	缓存有个缓存管理器，spark里被称作blockmanager。注意哦，这里还有一个误区是，很多初学的同学认为调用了cache或者persist的
+	那一刻就是在缓存了，这是完全不对的，真正的缓存执行指挥在action被触发，job被提交开始计算，
+	在计算的中间过程中才会执行。那么回过头来看，RDD由多个partition组成，那就是被切成小块的数据啦，
+	然后每个partition才能对应一个任务，才能并行。而partition的数据，刚刚有说可以来自spark内或者spark外，
+	而即使来自spark内，也可能来
+
+	如果你熟悉数据库，那么RDD从表现形式上讲最类似于数据库的视图（View)去除这个RDD在物理结构上的特色，
+	单从逻辑上的表现来说，他就是一个数据集合。什么是数据集合？可以理解为Java中的一个list，或者是数据库里
+	的一张表（或者视图）等等。既然是一张表，我们可以理解Spark对RDD的操作，其实类似于SQL里面对表的一些操作。
+	在最开始的时候我说RDD最类似数据库的视图，那为什么是视图而不是表呢？这就要说说RDD里面的这个R（弹性），
+	什么叫弹性呢，就是一个RDD的数据并不一定是物理上真是存在的，注意是不一定，就像数据库里的视图（view），
+	只有你在query的时候他才会真正计算出这些数据。RDD里的数据也一样，比如一张全是大写地名的表-- {S: SHANGHAI, BEIJING, ...}，
+	可能在RDD里是这样一种形式  {S = S1:{Shanghai, BEIJing, ...}. toUPPERcase }. 前面提到的两个数集合在物理上
+	的内容其实是不一样的，但是你能看到的两个集合是一样的。在Spark里面，类似于toUPPERcase 这样的操作我们叫算子。
+	好了，这样你就理解了这个R，也是RDD最难懂的一个地方。再说说中间的那个D（分布式），这个很好理解，
+	就是一个数据集分别放在几个机器上，而RDD只要存储这些数据的元信息（如那一片在哪个机器上）即可。
+	这样也就不难理解之前“仲晟”的回答：“RDD，包含一组分区列表（实际上是分区到block的映射，具体数据可以是分布式的
+	存储在HDFS各个节点上）以及一组transformation或action算子等。”不过这样解释似乎缺了些什么，就是为什么RDD要如此麻烦呢？
+	这里我说最明显的两个亮点。1，容错：比如你有一个表，里面是一个公司12个月的平均销售额，存储在12个机器上，
+	突然存储8月数据的机器坏了，那么你通常选择的做法是把整一年的销售资料拿出来，再以月份分组，再把8月的算出来，
+	存在一个好的机器里。而RDD存储8月的数据可能就是（select avg（sales）from t where month = 8） ，
+	在你需要的时侯，如果发现8月数据不在了，可以自动从原数据里把这个数据恢复出来。
+	（这个例子并不是特别真实，只不过很简单的帮你理解容错这个特性）。
+	另一个优点是执行效率优化。假设有这么一个情况，有一个数据表，先把里面的数据都+1，再-1，再+1，再-1. 
+	这样显然数据应该都是不变的。如果你每次都把这个数据表都算出来，这样就要执行4次O(n）效率的查找。
+	然而用RDD的思路，{S'} = {S}+1-1+1-1  => {S'} = {s} + 0, 这样就大大提高了效率。(同样这个例子很弱智，
+	但是能帮助你理解RDD为什么要用数据+算子的形式去描述一个数据集).在所有解释中我忽略了Spark平台，
+	HDFS等因为穿在一起真的很难讲的通俗易懂。只是尽可能的用大白话来讲。若要深入了解还需要结合Spark的运行机制，
+	Hadoop的HDFS，Scala的语法共同来理解RDD这样东西。
+	
+	rdd中有两种算子：
+
+	Transformation: 返回一个新rdd，可以对返回的rdd继续做transformation操作。因为一个rdd的不同分区可以存在不同节点上，
+	所以transformation是可以并行的，一个task对应一个rdd的块。另外，transformation 操作是lazy的，不会马上执行，
+	只有触发了Action算子时才会执行。
+
+	Action: 返回值不是rdd，返回值是一个集合、值或者返回为空。返回的结果要么传给driver，要么保存到文件系统。
+	
+	
+	算子的定义：RDD中定义的函数，可以对RDD中的数据进行转换和操作
+		1. value型算子
+		 从输入到输出可分为一对一（包括cache）、多对一、多对多、输出分区为输入分区自激
+			1)一对一，
+				map,简单的一对一映射，集合不变；
+				flatMap，一对一映射，并将最后映射结果整合；
+				mappartitions,对分区内元素进行迭代操作，例如过滤等，然后分区不变
+				glom,将分区内容转换成数据
+			2）多对一，
+				union，相同数据类型RDD进行合并，并不去重
+				cartesian,对RDD内的所有元素进行笛卡尔积操作
+			3）多对多，
+				groupBy，将元素通过函数生成相应的Key，然后转化为Key-value格式
+			4）输出分区为出入分区子集，
+				filter，对RDD进行过滤操作，结果分区不调整
+				distinct，对RDD进行去重操作，
+				subtract，RDD间进行减操作，去除相同数据元素
+				sample/takeSample 对RDD进行采样操作
+			5）cache,
+				cache,将RDD数据原样存入内存
+				persist，对RDD数据进行缓存操作
+		2. Key-Value算子
+			Key-Value算子大致可分为一对一，聚集，连接三类操作
+			1）一对一，
+				mapValues，针对数值对中的Value进行上面提到的map操作
+			2）聚集操作
+				combineByKey、reduceByKey、partitionBy、cogroup
+			3）连接
+				join、leftOutJoin、rightOutJoin
+		3. Actions算子
+			该算子通过SparkContext执行提交作业操作，出发RDD DAG的执行
+			1）foreach， 对RDD中每个元素进行操作，但是不返回RDD或者Array，只返回Unit
+			2）存入HDFS,saveAsTextFile，saveAsObjectFile
+			3）scala数据格式，collect，collectAsMap，reduceByKeyLocally， lookup， count， top， reduce， fold， aggregate
+			
+	RDD其实是不存储真是数据的，存储的的只是 真实数据的分区信息getPartitions，还有就是针对单个分区的读取方法 compute
+
+	transformation is lazy:
+		
+		we can realize that a dataset created through map will be used in a reduce and 
+		return only the result of the reduce to the driver, rather than the larger mapped dataset.
+		By default, each transformed RDD may be recomputed each time you run an action on it

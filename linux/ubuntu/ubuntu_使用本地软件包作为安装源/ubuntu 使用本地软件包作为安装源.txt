@@ -1,0 +1,104 @@
+http://forum.ubuntu.org.cn/viewtopic.php?f=131&t=197805
+
+https://www.debian.org/doc/manuals/apt-howto/ch-basico.zh-cn.html
+
+
+ubuntu 使用本地软件包作为安装源
+
+新手重新系统的概率很高，每次重装系统后都要经过漫长的apt-get install来装回那些我们自己所需要的，但系统安装光盘里又没有的软件，实在是件痛苦的事。
+
+方法一：
+
+每一次install时系统下载的软件包,包括各个软件所依赖的包都会保存在 /var/cache/apt/archives/目录下，选定某一次通过网络安装完自己所常用到的所有软件之后，将该文件夹下的所有文件都复制到一个不常格式化的分区里面，作为以后重装系统时的本地源，可谓省时省心省力。
+
+以下为操作过程，为验证，特意重装一次系统，无语。
+
+一、在自己的根目录下建立一个目录，用于放所有下载的软件包，目录名随自己喜欢,建议新手在自己的根目录下进行以下操作，以避免操作权限问题的困扰。
+
+mkdir ~/ packs
+
+二、复制文件到packs文件夹下，目录依各人情况变化。
+
+sudo cp /var/cache/apt/archives/* ~/packs
+
+三、将建立Packages.gz包，里面记录了packs文件夹下面的软件包信息，包括依赖信息。
+
+dpkg-scanpackages packs /dev/null |gzip > packs/Packages.gz
+
+完成此操作后，将packs文件夹复制到一个不常格式化的分区中，作为长久使用，比如我将它放在一个fat32的分区时面，路径是 /media/hda6/linux/soft/packs
+
+四、加本地源
+
+sudo gedit /etc/apt/sources.list
+
+加入 deb file:///media/hda6/linux/soft/packs/ edgy main ,注意，这里只是我电脑上的路径，请依实际位置修改.edgy 是我的ubuntu版本(7.04's version feisty)，main也不是固定的，也可以用restricted等，只是在下面第五步中的操作中对应建立的目录结构不同而已，这里只举 main的例子。有兴趣的同仁可以加一个试试，系统的出错提示会有文件夹设置信息。
+
+五、设置packs目录下的目录结构
+
+在packs目录下建立这样的结构
+
+packs/dists/edgy/main/binary-i386/
+
+packs/packs/ #也就是在packs下再建立一个packs
+
+以上这两层的目录用于放置不同类型的包，据我电脑上试验过程中的提示，好像 binary-386目录下放的是各种软件的安装包，packs/packs/ 目录下放的是各个依赖的包以及系统更新的包，基本上是以lib开头的，最保险的办法是把所有包都复制到这两个文件夹下面。
+
+六、设置完成
+
+完成以上设置和文件复制之后，就可以开始正常使用本地的源了和使用网络上的源一样操作。
+
+sudo apt-get update
+
+sudo apt-get dist-upgrade
+
+sudo apt-get install XXX
+
+方法二：
+
+一下更简单的办法，完第一个目录结构后，把Packages.gz那个包放在binary-i386文件夹下面，然后把所有的deb包复制到/var/cache/apt/archives/下就可以了。
+
+估计apt-get install的工作原理是这样的，先从Packages.gz包里读取软件列表和包依赖信息，安装某个软件时先扫描本地archieves目录，如果可以找到对应的包，就开始安装，否则从源里下载该包。
+
+其实我实现这些操作的思路很简单啊
+
+1、备份手上已有的软件包
+
+2、建立这些软件列表和依赖信息 packages.gz
+
+3、建立目录结构,可随意在本地源地址后加上 main、 restricted之类的关键字，然后apt-get update，系统会给出出错提示，里面就包含了各个关键字对应的目录结构，
+
+4、添加本地源 deb file:/// dir/dir/dir/...
+
+建议大家在碰到系统错误时认真看系统的提示，linux的系统出错提示可不像比尔先生的那样都是说废话
+
+方法三：
+
+下载DVD版本,然后把它作为源. 有两种方式:
+
+1. 可以直接放在硬盘上,然后mount到某个目录里,比如: sudo mount -t iso9660 -o loop xxx.iso /mnt
+
+然后修改sources.list,改成 deb file:///mnt edgy main .... 后面和你的原来的格式一样.
+
+2. 刻盘.然后在新立得里面用将CD Rom设置为源
+
+下次要是再sudo apt-get update时，有可能有新的包文件，是不是还要这样添加呢，
+
+还有如果自己从别的站点下载的包，可否也加入到其中而用sudo apt-get install xxx来安装呢？
+
+它的原理是从Packages.gz里面读取软件包及依赖信息，如果你往里面加了新的包，就要重新执行
+
+dpkg-scanpackages packs /dev/null |gzip > packs/Packages.gz
+
+来更新里面的文件信息了，然后再
+
+sudo apt-get udpate
+
+应该就OK了，
+
+如果是你自己下载的包，那必須是deb的包，而且保证把它所依赖的包都 下到本地。
+
+最好是在那准备重装系统之前把/var/cache/apt/archives/下面的文件都保存下来，再建立这些文件的packages.gz
+
+把你下载的东西放一个地方，然后用sudo ln -s 到/var/cache/apt/archives
+
+一切

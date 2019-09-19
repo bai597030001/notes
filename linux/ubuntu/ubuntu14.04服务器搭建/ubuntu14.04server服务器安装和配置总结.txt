@@ -1,0 +1,116 @@
+一、BIOS中设置raid流程：
+
+system setting ->
+				storage ->
+						LSIRAID ->
+								configure ->
+											create...照此往下
+
+											
+二、系统安装完毕后，apt update时，出现GPG证书出错，无法继续，原因是原地址配置不当
+
+解决：
+	/etc/apt/source.list 文件中，删除全部 deb_src开头的原地址
+
+	
+三、磁盘阵列柜安装和配置完毕，进行LVM设置
+
+1、fdisk -l 命令查看
+	
+	/dev/sdb	看看这个大小是否正确(7T)
+	
+2、 parted 	/dev/sdb
+
+	mklabel	gpt
+
+	对于容量大于2T的，用parted工具进行分区；
+	对整个 /dev/sdb 创建分区(gpt分区[分区表类型])
+	
+	mkpart primary 0 -1 //为整个磁盘划分一个分区
+	
+	注：也可以分看设置，如下
+	mkpart //
+	partition name ->空格即可
+	file system type ->ext4
+	start			-> 0
+	end				-> -1 //整个磁盘
+	
+至此，fdisk -l 查看一下，应该有如下显示
+device   boot   start  end   block   id    system
+/dev/sdb 								    GPT
+	
+	
+3、创建物理卷
+pvcreate 	/dev/sdb1
+
+pvdisplay	//显示
+
+pvremove	//删除物理卷
+
+
+4、创建卷组
+vgcreate	卷组名	物理卷路径
+
+示例：vgcreate	data	/dev/sdb1
+
+注：卷组名会作为物理路径存在，是可见的，
+	比如 /dev/data
+
+
+5、创建逻辑卷
+lvcreate	-L 大小		-n 逻辑卷名称		卷组名
+
+示例：
+lvcreate	-L 3T		-n 	raid0			data
+lvcreate	-L 3T		-n 	raid1			data
+
+
+6、创建文件系统
+mkfs.ext4	逻辑卷路径
+(ext4文件系统)
+
+示例：
+mkfs.ext4	/dev/data/raid0
+mkfs.ext4	/dev/data/raid1
+	
+	
+7、查看分区id
+
+blkid	//命令 
+将raid0和raid1对应的 UUID 写入文件
+
+vim 	/etc/fstab	//将UUID写入到末尾
+
+
+8、重启，reboot,系统会自动挂载
+
+df 	-h		//查看raid0和raid1是否挂在
+	
+	
+	
+	
+	
+四、proftpd安装配置
+vim		/etc/proftpd/proftpd.conf
+
+修改：
+DefaultRoot		/mnt/ftp
+
+
+
+
+五、mysql-server配置
+注：因为刚装好系统安装了mysql,系统已经进行了配置，挂在到了/var/lib/mysql；
+	而现在已经将磁盘阵列柜挂在到了 /var/lib/mysql ,所以原来的配置会失效，需要重新配置；
+	
+mysql_install_db	--user=mysql	--basedir=/usr	--datadir=/var/lib/mysql	//		
+
+配置文件：/etc/mysql/my.cnf
+
+
+	
+	
+	
+	
+	
+	

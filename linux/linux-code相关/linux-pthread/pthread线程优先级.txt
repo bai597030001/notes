@@ -1,0 +1,274 @@
+linux 线程调度策略：
+
+Linux 线程优先级
+2015-01-19 17:18 by Imapla, 2424 阅读, 0 评论, 收藏, 编辑
+
+
+Linux内核的三种调度策略：
+
+      1、SCHED_OTHER 分时调度策略
+
+      2、SCHED_FIFO实时调度策略，先到先服务。一旦占用cpu则一直运行。一直运行直到有更高优先级任务到达或自己放弃
+
+      3、SCHED_RR实时调度策略，时间片轮转。当进程的时间片用完，系统将重新分配时间片，并置于就绪队列尾。放在队列尾保证了所有具有相同优先级的RR任务的调度公平
+
+Linux线程优先级设置：
+
+    首先，可以通过以下两个函数来获得线程可以设置的最高和最低优先级，函数中的策略即上述三种策略的宏定义：
+
+　　int sched_get_priority_max(int policy);
+　　int sched_get_priority_min(int policy);
+
+注意：SCHED_OTHER 是不支持优先级使用的，而 SCHED_FIFO 和 SCHED_RR 支持优先级的使用，他们分别为1和99，数值越大优先级越高。
+
+    设置和获取优先级通过以下两个函数：
+
+int pthread_attr_setschedparam(pthread_attr_t *attr, const struct sched_param *param);
+int pthread_attr_getschedparam(const pthread_attr_t *attr, struct sched_param *param);
+  param.sched_priority = 51; //设置优先级
+
+    系统创建线程时，默认的线程是 SCHED_OTHER。所以如果我们要改变线程的调度策略的话，可以通过下面的这个函数实现。
+
+int pthread_attr_setschedpolicy(pthread_attr_t *attr, int policy);
+
+    上面的param使用了下面的这个数据结构：
+
+struct sched_param
+{
+    int __sched_priority; // 所要设定的线程优先级
+};
+
+    我们可以通过下面的测试程序来说明，我们自己使用的系统的支持的优先级：
+
+
+复制代码
+#include <stdio.h>
+#include <pthread.h>
+#include <sched.h>
+#include <assert.h>
+
+static int api_get_thread_policy (pthread_attr_t *attr)
+{
+    int policy;
+    int rs = pthread_attr_getschedpolicy (attr, &policy);
+    assert (rs == 0);
+
+    switch (policy)
+    {
+        case SCHED_FIFO:
+            printf ("policy = SCHED_FIFO\n");
+            break;
+        case SCHED_RR:
+            printf ("policy = SCHED_RR");
+            break;
+        case SCHED_OTHER:
+            printf ("policy = SCHED_OTHER\n");
+            break;
+        default:
+            printf ("policy = UNKNOWN\n");
+            break; 
+    }
+    return policy;
+}
+
+static void api_show_thread_priority (pthread_attr_t *attr,int policy)
+{
+    int priority = sched_get_priority_max (policy);
+    assert (priority != -1);
+    printf ("max_priority = %d\n", priority);
+    priority = sched_get_priority_min (policy);
+    assert (priority != -1);
+    printf ("min_priority = %d\n", priority);
+}
+
+static int api_get_thread_priority (pthread_attr_t *attr)
+{
+    struct sched_param param;
+    int rs = pthread_attr_getschedparam (attr, &param);
+    assert (rs == 0);
+    printf ("priority = %d\n", param.__sched_priority);
+    return param.__sched_priority;
+}
+
+static void api_set_thread_policy (pthread_attr_t *attr,int policy)
+{
+    int rs = pthread_attr_setschedpolicy (attr, policy);
+    assert (rs == 0);
+    api_get_thread_policy (attr);
+}
+    
+int main(void)
+{
+    pthread_attr_t attr;       // 线程属性
+    struct sched_param sched;  // 调度策略
+    int rs;
+
+    /* 
+     * 对线程属性初始化
+     * 初始化完成以后，pthread_attr_t 结构所包含的结构体
+     * 就是操作系统实现支持的所有线程属性的默认值
+     */
+    rs = pthread_attr_init (&attr);
+    assert (rs == 0);     // 如果 rs 不等于 0，程序 abort() 退出
+
+    /* 获得当前调度策略 */
+    int policy = api_get_thread_policy (&attr);
+
+    /* 显示当前调度策略的线程优先级范围 */
+    printf ("Show current configuration of priority\n");
+    api_show_thread_priority(&attr, policy);
+
+    /* 获取 SCHED_FIFO 策略下的线程优先级范围 */
+    printf ("show SCHED_FIFO of priority\n");
+    api_show_thread_priority(&attr, SCHED_FIFO);
+
+    /* 获取 SCHED_RR 策略下的线程优先级范围 */
+    printf ("show SCHED_RR of priority\n");
+    api_show_thread_priority(&attr, SCHED_RR);
+
+    /* 显示当前线程的优先级 */
+    printf ("show priority of current thread\n");
+    int priority = api_get_thread_priority (&attr);
+
+    /* 手动设置调度策略 */
+    printf ("Set thread policy\n");
+
+    printf ("set SCHED_FIFO policy\n");
+    api_set_thread_policy(&attr, SCHED_FIFO);
+
+    printf ("set SCHED_RR policy\n");
+    api_set_thread_policy(&attr, SCHED_RR);
+
+    /* 还原之前的策略 */
+    printf ("Restore current policy\n");
+    api_set_thread_policy (&attr, policy);
+
+    /* 
+     * 反初始化 pthread_attr_t 结构
+     * 如果 pthread_attr_init 的实现对属性对象的内存空间是动态分配的，
+     * phread_attr_destory 就会释放该内存空间
+     */
+    rs = pthread_attr_destroy (&attr);
+    assert (rs == 0);
+
+    return 0;
+}
+
+复制代码
+
+ 
+
+下面是测试程序的运行结果：
+
+
+复制代码
+policy=SCHED_OTHER
+Show current configuration of priority
+max_priority=0
+min_priority=0
+show SCHED_FIFO of priority
+max_priority=99
+min_priority=1
+show SCHED_RR of priority
+max_priority=99
+min_priority=1
+show priority of current thread
+priority=0Set thread policy
+set SCHED_FIFO policy
+policy= SCHED_FIFO
+set SCHED_RR policy
+policy= SCHED_RRRestore current policy
+policy=SCHED_OTHER
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+linux内核的三种调度方法：
+1，SCHED_OTHER 分时调度策略，
+2，SCHED_FIFO实时调度策略，先到先服务
+3，SCHED_RR实时调度策略，时间片轮转 
+
+ 
+实时进程将得到优先调用，实时进程根据实时优先级决定调度权值，分时进程则通过nice和counter值决定权值，nice越小，counter越大，被调度的概率越大，也就是曾经使用了cpu最少的进程将会得到优先调度。
+
+
+SHCED_RR和SCHED_FIFO的不同：
+
+     当采用SHCED_RR策略的进程的时间片用完，系统将重新分配时间片，并置于就绪队列尾。放在队列尾保证了所有具有相同优先级的RR任务的调度公平。    
+
+    SCHED_FIFO一旦占用cpu则一直运行。一直运行直到有更高优先级任务到达或自己放弃。
+
+    如果有相同优先级的实时进程（根据优先级计算的调度权值是一样的）已经准备好，FIFO时必须等待该进程主动放弃后才可以运行这个优先级相同的任务。而RR可以让每个任务都执行一段时间。
+
+
+相同点：
+
+    RR和FIFO都只用于实时任务。
+
+    创建时优先级大于0(1-99)。
+
+    按照可抢占优先级调度算法进行。
+
+    就绪态的实时任务立即抢占非实时任务。
+
+
+所有任务都采用linux分时调度策略时。
+
+1，创建任务指定采用分时调度策略，并指定优先级nice值(-20~19)。
+
+2，将根据每个任务的nice值确定在cpu上的执行时间(counter)。
+
+3，如果没有等待资源，则将该任务加入到就绪队列中。
+
+4，调度程序遍历就绪队列中的任务，通过对每个任务动态优先级的计算(counter+20-nice)结果，选择计算结果最大的一个去运行，当这个时间片用完后(counter减至0)或者主动放弃cpu时，该任务将被放在就绪队列末尾(时间片用完)或等待队列(因等待资源而放弃cpu)中。
+
+5，此时调度程序重复上面计算过程，转到第4步。
+
+6，当调度程序发现所有就绪任务计算所得的权值都为不大于0时，重复第2步。
+
+
+所有任务都采用FIFO时，
+
+1，创建进程时指定采用FIFO，并设置实时优先级rt_priority(1-99)。
+
+2,如果没有等待资源，则将该任务加入到就绪队列中。
+
+3，调度程序遍历就绪队列，根据实时优先级计算调度权值(1000+rt_priority),选择权值最高的任务使用cpu，该FIFO任务将一直占有cpu直到有优先级更高的任务就绪(即使优先级相同也不行)或者主动放弃(等待资源)。
+
+4，调度程序发现有优先级更高的任务到达(高优先级任务可能被中断或定时器任务唤醒，再或被当前运行的任务唤醒，等等)，则调度程序立即在当前任务堆栈中保存当前cpu寄存器的所有数据，重新从高优先级任务的堆栈中加载寄存器数据到cpu，此时高优先级的任务开始运行。重复第3步。
+
+5，如果当前任务因等待资源而主动放弃cpu使用权，则该任务将从就绪队列中删除，加入等待队列，此时重复第3步。
+
+
+所有任务都采用RR调度策略时
+
+1，创建任务时指定调度参数为RR，并设置任务的实时优先级和nice值(nice值将会转换为该任务的时间片的长度)。
+
+2，如果没有等待资源，则将该任务加入到就绪队列中。
+
+3，调度程序遍历就绪队列，根据实时优先级计算调度权值(1000+rt_priority),选择权值最高的任务使用cpu。
+
+4，如果就绪队列中的RR任务时间片为0，则会根据nice值设置该任务的时间片，同时将该任务放入就绪队列的末尾。重复步骤3。
+
+5，当前任务由于等待资源而主动退出cpu，则其加入等待队列中。重复步骤3。
+
+
+系统中既有分时调度，又有时间片轮转调度和先进先出调度
+
+
+1，RR调度和FIFO调度的进程属于实时进程，以分时调度的进程是非实时进程。
+
+2，当实时进程准备就绪后，如果当前cpu正在运行非实时进程，则实时进程立即抢占非实时进程。
+
+3，RR进程和FIFO进程都采用实时优先级做为调度的权值标准，RR是FIFO的一个延伸。FIFO时，如果两个进程的优先级一样，则这两个优先级一样的进程具体执行哪一个是由其在队列中的位置决定的，这样导致一些不公正性(优先级是一样的，为什么要让你一直运行?),如果将两个优先级一样的任务的调度策略都设为RR,则保证了这两个任务可以循环执行，保证了公平。
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+在pthread_attr_setschedpolicy之前调用pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED)就可以了。
+PTHREAD_EXPLICIT_SCHED表示使用在schedpolicy和schedparam属性中显式设置的调度策略和参数，
+如果不设置这项的话则表示新线程将继承创建线程的调度策略和参数。
+使用pthread_attr_setschedparam进行设置的时候值越大代表优先级也越高。
+编译的时候一定要加-lpthread选项，不然设置调度策略是不起作用的。

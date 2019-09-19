@@ -1,0 +1,70 @@
+一：
+MySQL数据库的文件结构是怎么样的呢，对于这样子创建的数据库命令：
+
+　　CREATE DATABASE mysqldb
+　　在默认的数据库存储位置下就会有个文件夹mysqldb。要操作数据库首先得停止数据库进程：
+
+　　$sudo /etc/init.d/mysql stop
+　　本文以转移到/home/mysql这个位置为例，下面命令将原有数据库转移到新位置：
+
+　　$sudo cp –R –p /var/lib/mysql /home/mysql
+　　编辑MySQL配置文件：
+
+　　$gksu gedit /etc/mysql/my.cnf
+　　在 gedit中找到datadir这一行，将后面等于号之后的内容更改为/home/mysql然后保存退出。自Ubuntu 7.10开始，
+　　Ubuntu就开始使用一种安全软件叫做AppArmor，这个安全软件会在你的文件系统中创建一个允许应用程序访问的区域(专业术语：应 用程序访问控制)。如果不为MySQL修改AppArmor配置文件，永远也无法为新设置的数据库存储位置启动
+　　数据库服务。配置AppArmor：
+
+　　$sudo nano /etc/apparmor.d/usr.sbin.mysqld
+　　在gedit中找到/var/lib/mysql/这两行，注释掉这两行，在这两行前分别添加一个符号“#”即可注释，在这两行之前或
+　　之后加上下面内容：
+
+　　/home/mysql/ r, 
+	/home/mysql/** rwk,
+	
+	
+*******************************************************************************************************************
+	
+二：
+ubuntu下如何更改mysql数据存放路径
+ 
+很多时候，mysql的数据会非常大，数据默认放在/var/lib/mysql，由于/var所划分的
+空间不够大，所以我们需要将mysql数据存放路径修改一下，放到大分区里面，以便
+可以应付mysql数据增长。
+  www.2cto.com  
+1.设置新的存放路径
+ 
+mkdir -p /data/mysql 
+ 
+2.复制原有数据
+ 
+cp -R /var/lib/mysql/* /data/mysql 
+ 
+3.修改权限
+ 
+chown -R mysql:mysql /data/mysql 
+  www.2cto.com  
+4.修改配置文件
+ 
+vim /etc/mysql/my.cnf
+datadir&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; = /data/mysql
+ 
+5.修改启动文件
+ 
+vim /etc/apparmor.d/usr.sbin.mysqld
+#把
+/var/lib/mysql r,
+/var/lib/mysql/** rwk, 
+ 
+#改成
+/data/mysql r,
+/data/mysql/** rwk, 
+ 
+6.重启服务
+ 
+重启apparmor
+ 
+/etc/init.d/apparmor restart
+/etc/init.d/mysql restart 
+ 
+完成

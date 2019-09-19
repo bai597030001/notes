@@ -1,0 +1,171 @@
+最近做cache lab 用到了getopt函数, 用man 3 getopt查看了下用法, 做个总结.
+
+描述：getopt函数是用来解析命令行参数的, 以‘-’或‘--’开头的参数为选项元素，除去‘－’或‘--’的选项元素
+
+为选项字符。如果getopt函数被重复调用，则它将会依次返回每个选项元素中的选项字符。
+
+使用getopt函数需要包含以下头文件:
+
+#include <unistd.h>
+
+#include <getopt.h>
+
+有几个全局变量与getopt函数解析参数有关:
+
+optind: int型, 指示下一个要解析的参数位置，初始时为1.
+
+optarg: char *, 必须接参数的选项元素的参数, 如上面的-nxzz, optarg 就指向"xzz"字符串.
+
+opterr: int 型, 设为0将不打印错误信息.
+
+
+
+函数原型为:  int getopt(int argc, char * const argv[], const char *optstring);
+
+
+参数说明: 前两个参数与main函数参数相同, argc保存参数个数，argv[]保存参数数组，第三个参数optstring是你定义
+
+的选项字符组成的字符串, 如"abc",表示该命令有三个选项元素 -a, -b, -c, 选项字符后面如果有一个冒号说
+
+明该选项元素一定有一个参数, 且该参数保存在optarg中, 如"n:t", 表示选项元素n后要接参数, 选项元素t后
+
+不接参数，如 -n xzz -t 或 -nxzz t,有两个冒号说明该选项可接可选参数, 但可选参数不保存在optarg中.
+
+
+
+返回值: 如果当前处理的参数为选项元素，且该选项字符在optstring字符串中, 即为你定义的选项, 则返回该
+
+选项字符，如果该选项字符不是你定义的, 那么返回字符'?', 并更新全局变量optind, 指向argc数组中的下一
+
+个参数. 如果当前处理的参数不是选项元素, 则optind偏移向下一个参数, 直到找到第一个选项元素为止,  然后
+
+再按之前描述的操作,如果找不到选项元素, 说明解析结束, 则返回-1.
+
+下面看例子: 
+
+[plain] view plaincopy?
+#include <unistd.h>                                                                                                         
+#include <getopt.h>  
+  
+int main(int argc, char * const argv[])  
+{  
+        int opt;  
+        while ((opt = getopt(argc, argv, "nb:o::t")) != -1) {  
+                printf("opt = %c, optarg = %s, optind = %d, argv[%d] = %s\n",   
+                                opt, optarg, optind, optind, argv[optind]);  
+        }  
+        return 0;  
+}  
+
+假设编译好的可执行文件名为test, test有3个有效参数-n, -b, -t, 其中-n, -t后不接参数, -b后一定要接参数, -o后接可选参数.
+
+# ./test -x -y -z                <------ 无效参数, 会打印错误信息, 并返回字符'?'
+
+输出:
+
+[plain] view plaincopy?
+./getopt: invalid option -- 'x'  
+opt = ?, optarg = (null), optind = 2, argv[2] = -y  
+./getopt: invalid option -- 'y'  
+opt = ?, optarg = (null), optind = 3, argv[3] = -z  
+./getopt: invalid option -- 'z'  
+opt = ?, optarg = (null), optind = 4, argv[4] = (null)  
+
+# ./test -n -b xzz -t
+
+[plain] view plaincopy?
+opt = n, optarg = (null), optind = 2, argv[2] = -b  
+opt = b, optarg = xzz, optind = 4, argv[4] = -t                <----------- optarg 指向选项元素的参数, 并且optind跳过了该参数, 直接指向了-t参数  
+opt = t, optarg = (null), optind = 5, argv[5] = (null)  
+
+# ./test -n -bxzz -t                            <------------- 也可将选项参数与其接的参数写在一起
+
+[plain] view plaincopy?
+opt = n, optarg = (null), optind = 2, argv[2] = -bxzz  
+opt = b, optarg = xzz, optind = 3, argv[3] = -t                <----------- optind 同样将指向下一个参数-t  
+opt = t, optarg = (null), optind = 4, argv[4] = (null)  
+
+
+# ./test -b -t
+[plain] view plaincopy?
+opt = b, optarg = -t, optind = 3, argv[3] = (null)      <----------- 将-t当成了选项元素-b的参数, 之后就不再解析-t, optind为3  
+
+# ./test -t -b         <---- -b缺少参数
+
+[plain] view plaincopy?
+opt = t, optarg = (null), optind = 2, argv[2] = -b  
+./getopt: option requires an argument -- 'b'  
+opt = ?, optarg = (null), optind = 3, argv[3] = (null)  
+
+# ./test -t a -b xzz           <------- 命令行中有一个无用参数 a, 解析时被忽略了, 因为-t不需要接参数
+[plain] view plaincopy?
+opt = t, optarg = (null), optind = 2, argv[2] = a  
+opt = b, optarg = xzz, optind = 5, argv[5] = (null)  
+
+# ./test -ntb xzz               <--------- 还可以把参数连在一起写
+[plain] view plaincopy?
+opt = n, optarg = (null), optind = 1, argv[1] = -ntb  
+opt = t, optarg = (null), optind = 1, argv[1] = -ntb  
+opt = b, optarg = xzz, optind = 3, argv[3] = (null)  
+
+# ./test -t -o -b xzz    <----- -o选项不接参数
+
+[plain] view plaincopy?
+opt = t, optarg = (null), optind = 2, argv[2] = -o  
+opt = o, optarg = (null), optind = 3, argv[3] = -b  
+opt = b, optarg = xzz, optind = 5, argv[5] = (null)  
+
+# ./test -t -o 10 -b xzz   <------ -o选项接参数10
+[plain] view plaincopy?
+opt = t, optarg = (null), optind = 2, argv[2] = -o  
+opt = o, optarg = (null), optind = 3, argv[3] = 10          <------------------ <strong><span style="color:#ff0000;">可以看到10并没有保存在optarg中</span></strong>  
+opt = b, optarg = xzz, optind = 6, argv[6] = (null)        <-----------------  而-b的参数则保存在optarg中了  
+
+
+常用用法: 
+
+一般是用while循环配合switch语句来使用getopt函数解析参数, 如下:
+
+[plain] view plaincopy?
+/*  
+ *  得到参数信息  
+ */  
+int getinfo(int argc,  char * const argv[], int *ps, int *pE, int *pb, char *trace_name, int *vflag)  
+{  
+        int opt;  
+        int count_arg = 0;  
+        opterr = 0;  
+        while ((opt = getopt(argc, argv, "vs:E:b:t:")) != -1) {  
+                switch (opt) {  
+                case 'v':  
+                        *vflag = 1;       
+                        break;  
+                case 's':  
+                        ++count_arg;  
+                        *ps = atoi(optarg);       
+                        break;  
+                case 'E':  
+                        ++count_arg;  
+                        *pE = atoi(optarg);  
+                        break;  
+                case 'b':  
+                        ++count_arg;  
+                        *pb = atoi(optarg);  
+                        break;  
+                case 't':  
+                        ++count_arg;  
+                        strcpy(trace_name, optarg);  
+                        break;  
+                default:        /* '?' */  
+                        Usage();  
+                        exit(-1);  
+                        break;  
+                }  
+        }  
+          
+        if (count_arg < 4) {  
+                Usage();   
+				exit(-1);  
+        }  
+        return 0;  
+}  

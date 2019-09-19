@@ -1,0 +1,60 @@
+java 三大方向：
+	
+	java SE 主要面向开发桌面程序
+	java EE 主要面向开发WEB应用
+	java ME 主要面向开发手机应用
+	java SE 是java的核心也是基础，java EE只是在SE基础上SUN公司研发的API，提供给WEB开发者使用的平台。 
+
+
+	SE(J2SE),standard edition,标准版，是我们通常用的一个版本，从JDK5.0开始，改名为JavaSE。
+	EE(J2EE),enterprise edition,企业版，使用这种JDK开发J2EE应用程序，从JDK5.0开始，改名为JavaEE。
+	ME(J2ME),micro edtion,主要用于移动设备、嵌入式设备上的java应用程序,从JDK5.0开始，改名为JavaME。
+	
+	取经: 
+		j2ee是对j2se的扩展,例如：tomcat
+	
+SDK : (Software development kit) 软件开发工具包
+
+JDK : (Java Development Kit) 是太阳微系统针对Java开发人员发布的免费软件开发工具包(SDK，Software development kit)。
+
+用途 : 
+	作为Java语言的SDK，普通用户并不需要安装JDK来运行Java程序，而只需要安装JRE（Java Runtime Environment）。
+	而程序开发者必须安装JDK来编译、调试程序。
+	
+包含组件:
+	JDK包含了一批用于Java开发的组件，其中包括：
+	javac：编译器，将后缀名为.java的源代码编译成后缀名为“.class”的字节码
+	java：运行工具，运行.class的字节码
+	jar：打包工具，将相关的类文件打包成一个文件
+	javadoc：文档生成器，从源码注释中提取文档，注释需匹配规范
+	jdb debugger：调试工具
+	jps：显示当前java程序运行的进程状态
+	javap：反编译程序
+	appletviewer：运行和调试applet程序的工具，不需要使用浏览器
+	javah：从Java类生成C头文件和C源文件。这些文件提供了连接胶合，使Java和C代码可进行交互。[2]
+	javaws：运行JNLP程序
+	extcheck：一个检测jar包冲突的工具
+	apt：注释处理工具[3]
+	jhat：java堆分析工具
+	jstack：栈跟踪程序
+	jstat：JVM检测统计工具
+	jstatd：jstat守护进程
+	jinfo：获取正在运行或崩溃的java程序配置信息
+	jmap：获取java进程内存映射信息
+	idlj：IDL-to-Java编译器。将IDL语言转化为java文件[4]
+	policytool：一个GUI的策略文件创建和管理工具
+	jrunscript：命令行脚本运行
+	JDK中还包括完整的JRE（Java Runtime Environment），Java运行环境，也被称为private runtime。
+		包括了用于产品环境的各种库类，如基础类库rt.jar，以及给开发人员使用的补充库，如国际化与本地化的类库、IDL库等等。
+	JDK中还包括各种样例程序，用以展示Java API中的各部分。
+	
+JRE : (Java Runtime Environment，Java运行环境)，也就是Java平台。所有的Java程序都要在JRE下才能运行。
+	JDK的工具也是Java程序，也需要JRE才能运行。为了保持JDK的独立性和完整性，在JDK的安装过程中，
+	JRE也是安装的一部分。所以，在JDK的安装目录下有一个名为jre的目录，用于存放JRE文件。
+	
+JVM : (Java Virtual Machine，Java虚拟机）是JRE的一部分。它是一个虚构出来的计算机，
+	是通过在实际的计算机上仿真模拟各种计算机功能来实现的。JVM有自己完善的硬件架构，
+	如处理器、堆栈、寄存器等，还具有相应的指令系统。Java语言最重要的特点就是跨平台运行。
+	使用JVM就是为了支持与操作系统无关，实现跨平台。 
+	
+所以，JAVA虚拟机JVM是属于JRE的，而现在我们安装JDK时也附带安装了JRE（当然也可以单独安装JRE）。

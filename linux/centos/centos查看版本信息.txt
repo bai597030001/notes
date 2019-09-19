@@ -1,0 +1,25 @@
+http://www.linuxidc.com/Linux/2016-11/137550.htm
+
+查看位数命令
+	
+	uname -a
+
+	file /bin/ls
+
+	cat /proc/version
+
+	getconf LONG_BIT
+
+查看系统版本
+
+	lsb_release -a
+
+	cat /etc/os-release
+
+	cat /etc/redhat-release
+
+查看内核版本
+
+	cat /proc/version
+
+	uname -a

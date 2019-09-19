@@ -1,0 +1,9 @@
+/usr/share/zoneinfo/Asia/ 下保存着系统各个时区信息
+/etc/localtime 保存当前系统时区及时间信息
+
+cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime	//更改为CST
+
+
+我们也可以通过rh系统中的命令来修改：
+[root@localhost ~]# tzselect // tzselect – select a time zone
+比较人性化，可以根据提示直接修改即可。 

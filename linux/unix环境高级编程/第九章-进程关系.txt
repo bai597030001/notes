@@ -1,0 +1,31 @@
+一、
+	终端登录
+	网络登录
+	
+二、
+1、
+	进程组
+	
+	每个进程除了有一个进程ID之外，还属于一个进程组。
+	
+	pid_t	getpgrp(void);
+	
+	pid_t	getpgid(pid_t pid);
+	
+2、
+	进程组长：进程组ID等于其进程ID；
+	
+	加入一个现有的组或创建一个新的组 setpgid;
+	
+	int		setpgid(pid_t pid, pid_t pgid);
+	
+3、	会话
+
+	会话，是一个或多个进程组的集合
+	
+	pid_t	setsid(void);	//建立一个新会话
+	
+	注意：如果该调用进程已经是一个进程组的组长，则此函数返回出错
+		所以通常先调用fork(),然后使其父进程终止，而子进程继续
+		
+	pid_t	getsid(pid_t pid);

@@ -1,0 +1,182 @@
+ Linux网络编程——I/O复用之poll函数
+
+一、回顾前面的select
+select优点：
+目前几乎在所有的平台上支持，其良好跨平台支持也是它的一个优点
+select缺点：
+1.每次调用 select()，都需要把 fd 集合从用户态拷贝到内核态，这个开销在 fd 很多时会很大，同时每次调用 select() 都需要在内核遍历传递进来的所有 fd，这个开销在 fd 很多时也很大。
+
+2.单个进程能够监视的文件描述符的数量存在最大限制，在 Linux 上一般为 1024，可以通过修改宏定义甚至重新编译内核的方式提升这一限制，但是这样也会造成效率的降低
+
+二、poll函数概述
+select() 和 poll() 系统调用的本质一样，poll() 的机制与 select() 类似，与 select() 在本质上没有多大差别，管理多个描述符也是进行轮询，根据描述符的状态进行处理，但是 poll() 没有最大文件描述符数量的限制（但是数量过大后性能也是会下降）。poll() 和 select() 同样存在一个缺点就是，包含大量文件描述符的数组被整体复制于用户态和内核的地址空间之间，而不论这些文件描述符是否就绪，它的开销随着文件描述符数量的增加而线性增大。
+poll()函数介绍
+头文件：
+[csharp] view plain copy
+#include <poll.h>  
+
+函数体：
+[csharp] view plain copy
+int poll(struct pollfd *fds, nfds_t nfds, int timeout);  
+功能：
+监视并等待多个文件描述符的属性变化
+参数：
+
+fds:指向一个结构体数组的第0个元素的指针，每个数组元素都是一个struct pollfd结构，用于指定测试某个给定的fd的条件
+
+
+[csharp] view plain copy
+struct pollfd{  
+    int fd;         //文件描述符  
+    short events;   //等待的事件  
+    short revents;  //实际发生的事件  
+};  
+
+fd：每一个 pollfd 结构体指定了一个被监视的文件描述符，可以传递多个结构体，指示 poll() 监视多个文件描述符。
+
+events：指定监测fd的事件（输入、输出、错误），每一个事件有多个取值，如下：
+
+
+
+
+revents：revents 域是文件描述符的操作结果事件，内核在调用返回时设置这个域。events 域中请求的任何事件都可能在 revents 域中返回.
+
+
+
+注意：每个结构体的 events 域是由用户来设置，告诉内核我们关注的是什么，而 revents 域是返回时内核设置的，以说明对该描述符发生了什么事件
+
+
+
+nfds:用来指定第一个参数数组元素个数
+
+timeout: 指定等待的毫秒数，无论 I/O 是否准备好，poll() 都会返回.
+
+
+
+
+
+
+返回值：
+
+成功时，poll() 返回结构体中 revents 域不为 0 的文件描述符个数；如果在超时前没有任何事件发生，poll()返回 0；
+
+
+失败时，poll() 返回 -1，并设置 errno 为下列值之一：
+
+EBADF：一个或多个结构体中指定的文件描述符无效。
+
+EFAULT：fds 指针指向的地址超出进程的地址空间。
+
+EINTR：请求的事件之前产生一个信号，调用可以重新发起。
+
+EINVAL：nfds 参数超出 PLIMIT_NOFILE 值。
+
+ENOMEM：可用内存不足，无法完成请求。
+
+
+
+三、poll示例举例
+用poll实现udp同时收发
+代码：
+[csharp] view plain copy
+#include <string.h>  
+#include <stdio.h>  
+#include <stdlib.h>  
+#include <unistd.h>  
+#include <sys/select.h>  
+#include <sys/time.h>  
+#include <sys/socket.h>  
+#include <netinet/in.h>  
+#include <arpa/inet.h>  
+#include <poll.h>  
+  
+int main(int argc,char *argv[])  
+{  
+    int udpfd = 0;  
+    int ret = 0;  
+    struct pollfd fds[2];//监测文件描述结构体数组：2个  
+    struct sockaddr_in saddr;  
+    struct sockaddr_in caddr;  
+  
+    bzero(&saddr,sizeof(saddr));  
+    saddr.sin_family = AF_INET;  
+    saddr.sin_port   = htons(8000);  
+    saddr.sin_addr.s_addr = htonl(INADDR_ANY);  
+      
+    bzero(&caddr,sizeof(caddr));  
+    caddr.sin_family  = AF_INET;  
+    caddr.sin_port    = htons(8000);  
+      
+    //创建套接字  
+    if( (udpfd = socket(AF_INET,SOCK_DGRAM, 0)) < 0)  
+    {  
+        perror("socket error");  
+        exit(-1);  
+    }  
+      
+    //套接字端口绑字  
+    if(bind(udpfd, (struct sockaddr*)&saddr, sizeof(saddr)) != 0)  
+    {  
+        perror("bind error");  
+        close(udpfd);         
+        exit(-1);  
+    }  
+  
+    printf("input: \"sayto 192.168.220.X\" to sendmsg to somebody\033[32m\n");    
+    fds[0].fd = 0;      //标准输入描述符  
+    fds[1].fd = udpfd;  //udp描述符  
+      
+    fds[0].events = POLLIN; // 普通或优先级带数据可读    
+    fds[1].events = POLLIN; // 普通或优先级带数据可读  
+      
+    while(1)  
+    {     
+        // 监视并等待多个文件（标准输入，udp套接字）描述符的属性变化（是否可读）    
+        // 没有属性变化，这个函数会阻塞，直到有变化才往下执行，这里没有设置超时    
+        ret = poll(fds, 2, -1);   
+          
+        write(1,"UdpQQ:",6);  
+          
+        if(ret == -1){ // 出错    
+            perror("poll()");    
+        }  
+        else if(ret > 0){ // 准备就绪的文件描述符    
+            char buf[100] = {0};    
+            if( ( fds[0].revents & POLLIN ) ==  POLLIN ){ // 标准输入    
+                  
+                fgets(buf, sizeof(buf), stdin);  
+                buf[strlen(buf) - 1] = '\0';  
+                if(strncmp(buf, "sayto", 5) == 0)  
+                {  
+                    char ipbuf[16] = "";  
+                    inet_pton(AF_INET, buf+6, &caddr.sin_addr);//给addr套接字地址再赋值.  
+                    printf("\rsay to %s\n",inet_ntop(AF_INET,&caddr.sin_addr,ipbuf,sizeof(ipbuf)));  
+                    continue;  
+                }  
+                else if(strcmp(buf, "exit")==0)  
+                {  
+                    close(udpfd);  
+                    exit(0);  
+                }  
+                sendto(udpfd, buf, strlen(buf),0,(struct sockaddr*)&caddr, sizeof(caddr));    
+                    
+            }  
+            else if( ( fds[1].revents & POLLIN ) ==  POLLIN ){ //udp套接字    
+                struct sockaddr_in addr;  
+                char ipbuf[INET_ADDRSTRLEN] = "";  
+                socklen_t addrlen = sizeof(addr);  
+                  
+                bzero(&addr,sizeof(addr));  
+                  
+                recvfrom(udpfd, buf, 100, 0, (struct sockaddr*)&addr, &addrlen);  
+                printf("\r\033[31m[%s]:\033[32m%s\n",inet_ntop(AF_INET,&addr.sin_addr,ipbuf,sizeof(ipbuf)),buf);    
+            }    
+                
+        }  
+        else if(0 == ret){ // 超时    
+            printf("time out\n");    
+        }    
+    }  
+      
+    return 0;  
+}  

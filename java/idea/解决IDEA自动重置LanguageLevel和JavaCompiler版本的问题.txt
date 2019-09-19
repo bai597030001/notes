@@ -1,0 +1,26 @@
+
+	解决IDEA自动重置LanguageLevel和JavaCompiler版本的问题
+	
+使用IDEA时，导入的Maven项目默认的LanguageLevel和JavaCompiler都是1.5，1.5的情况下连最简单的@Override注解都不支持，所以项目可能出现一堆错。
+
+虽然在项目上F4可以修改LanguageLevel，在settings中可以修改JavaCompiler版本，但是一旦Maven项目有变化，发生自动的update时，这里做的修改就都白费了。IDEA会重置这些配置。
+
+经过Google搜索，最后找到解决办法，参考如下地址：
+
+http://stackoverflow.com/questions/27037657/stop-intellij-idea-to-switch-java-language-level-everytime-the-pom-is-reloaded
+
+解决办法就是在pom.xml中指定maven-compiler-plugin的版本，该版本会同时影响LanguageLevel和JavaCompiler，修改后默认就成了这里设置的版本。
+
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <version>2.3.2</version>
+            <configuration>
+                <source>1.8</source>
+                <target>1.8</target>
+            </configuration>
+        </plugin>
+    </plugins>
+</build>

@@ -1,0 +1,38 @@
+
+1. asList
+
+	数组转换成List
+	
+2. sort 排序和 parallelSort 并行排序
+
+3. binarySearch
+
+	查找目标元素所在的位置，注意需要先进行排序。
+	
+4. copyOf
+
+5. equals 比较
+
+6. deepEquals 深度比较、deepHashCode 生成hashcode、deepToString 深度打印
+
+7. fill 基于目标元素填充数组
+
+8. toString
+		
+	打印数组元素
+	
+9. toStream
+	
+	把数组转换成stream,然后可以使用java8的stream特性了
+	
+10. parallelPrefix
+
+	有点像spark的reduceByKey，即根据传入的方法一次计算
+	
+11. parallelSetAll
+
+	相当于stream.map会挨个元素遍历执行方法
+	
+12. setAll
+	
+	与上面类似，只不过不是并行的

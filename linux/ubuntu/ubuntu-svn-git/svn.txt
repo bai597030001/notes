@@ -1,0 +1,87 @@
+1、	# sudo apt-get install subversion
+
+2、	# sudo mkdir /home/svn   
+
+	# sudo svnadmin create /home/svn/repos(仓库名)
+	
+3、conf  db  format  hooks  locks  README.txt
+
+	# 我们主要关心的是conf和db文件，conf文件夹下是存放主配置文件和用户、权限位置，db文件夹是存放svn转储后的数据。
+
+	# cd conf/
+
+	# ls
+
+	authz  passwd  svnserve.conf
+
+	# authz文件是设置用户权限，passwd文件是存储用户及密码，svnserve.conf是主配置文件，先配置主配置文件。
+
+	4.3 配置版本库
+
+	 # sudo vi svnserve.conf  #将以下参数去掉注释
+	[general]
+	anon-access = none     #匿名访问权限，默认read，none为不允许访问
+	auth-access = write   #认证用户权限  
+	password-db = passwd  #用户信息存放文件，默认在版本库/conf下面，也可以绝对路径指定文件位置
+	authz-db = authz
+	  # sudo vi passwd     #格式是用户名=密码，采用明文密码
+	  [users]
+	  baijd = 123456
+	  gamrlab = gamrlab
+	  
+	 # sudo vi authz 
+	[groups]           #定义组的用户
+	admin = baijd
+	user = gamrlab
+	[repos:/]          #以根目录起始的repos版本库manager组为读写权限
+	@manager = rw
+	[repos:/media]     #core_dev对repos版本库下media目录为读写权限
+	@user = rw
+	
+4、启动svn服务
+
+	# sudo svnserve -d -r /home/svn
+	  注：该目录一定要是仓库名目录的上级目录
+		
+	# 查看是否启动成 功，可看的监听3690端口
+
+	# sudo netstat -antp |grep svnserve
+
+	tcp     0      0 0.0.0.0:3690     0.0.0.0:*      LISTEN     28967/svnserve
+
+	# 如果想关闭服务，可使用pkill svnserve
+	
+注意：
+	对于svn仓库管理，应该是在ubuntu中建立 一个/多个 仓库，然后在仓库中建立对应的 branch,trunk,tag,
+	最后将对应的代码提交到对应的 分支/主干/节点。
+	
+	trunk : 开发主要呆的地方，一般情况下里边是最新代码
+	tag   : 节点，当开发到某一个版本上线时，将其对应代码提交到该目录
+	branch: 当需要对之前的稳定版本的代码做修改时，将修改过的代码放到该目录
+	
+
+客户端登陆：
+	如果服务器有多ip的话–listen-host来指定监听 的ip地址.我们可以在Subversion客户端中通过svn://10.19.3.103来访问Subversion服务器 
+	对于多个代码仓库,我们在启动时也可以用-r选项来指定服务器根目录,但访问时 需要写上每个仓库相对于svn根目录的相对路径. 
+	比如,我们有两个代码仓库/var/vss/repo1和/var/vss/repo2,我们用 svnserve -d -r /var/vss –listen-host 10.19.3.103来启动,
+	那么在客户端访 问时可以用svn://10.19.3.103/repo1和svn://10.19.3.103/repo2来分别访问两个项目。
+	
+	
+添加svn到开机自启动
+	1.问题描述
+	今天服务器重启了之后，在手动启动svn服务的时候，想写个脚本，让ubuntu的开机自启动svn服务。
+
+	2.解决方法
+	2.1.写个脚本startsvn.sh
+	#!/bin/bash
+	svnserve -d -r /home/svn
+	2.2.将脚本放置到/etc/init.d/
+	2.3.使用ubuntu工具update-rc.d
+	update-rc.d starsvn.sh defaults（这个命令等效于update-rc.d startsvn.sh start 20 2 3 4 5 . stop 20 0 1 6 . ）
+	20是默认的启动顺序号，可以手动修改，当然也可以在defaults后面加一个启动顺序号。0\1\2\3\4\5\6是ubuntu的运行级别。
+
+	3.备注
+	update-rc.d 可以生成或者移除System-V启动模式下的初始化脚本的链接，System-V是Ubuntu采用的一种启动方式
+	（好像记得更先进的启动方式是System-d），update-rc.d会在/etc/rcrunlevel.d/目录下生成/etc/init.d/目录下的启动脚本的链接。
+
+	本文永久更新地址：http://www.linuxdiyf.com/linux/19588.html

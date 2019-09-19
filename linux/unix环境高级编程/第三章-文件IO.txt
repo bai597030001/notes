@@ -1,0 +1,95 @@
+1、文件描述符，open,creat,内核返回的文件标识。
+	其中：0，标准输入，STDIN_FILENO, 
+		  1，标准输出，STDOUT_FILENO，
+		  2，标准错误，STDERR_FILENO。
+2、系统调用
+	int		open();
+	int		creat();
+	int		close();
+	int		lseek();
+	int		read();
+	int		write();
+	
+3、IO的效率
+	linux  ext2文件系统，其块长度为4096字节，系统CPU时间的最小值出现在BUFFSIZE为4096处。
+	继续增加缓冲区长度对此时间几乎没有影响。
+	当BUFFSIZE为128KB后，预读停止了，这对读操作的性能产生了影响。
+	
+4、原子操作
+	早起UNIX并不支持 O_APPEND,
+	
+	if(lseek(fd, 0L, 2) < 0)
+		err_sys("lseek error");
+	if(write(fd, buf, 100) != 100)
+		err_sys("lseek error");
+		
+	pread 和 pwrite
+	ssize_t		pread(......);	//相当于顺序调用了 lseek和read
+	
+	ssize_t		pwrite(......);
+	
+5、dup 和 dup2
+	复制文件描述符
+
+6、	sync		fsync		fdatasync
+	UNIX实现在内核中缓冲区高速缓存 或 页面高速缓存，大多数磁盘IO都通过缓存进行。
+	当将数据写入文件时，内核先将数据复制到其中一个缓冲区中，如果该缓冲区尚未写满
+	，则并不将其排入输出队列，而是等待其写满或者当内核需要重用该缓冲区以便存放其
+	他磁盘数据时，再将该缓冲排入输出队列，然后等待期到达队首时，才进行实际的IO操作。
+	这种方式成为延时写。
+	延迟写减少了磁盘的读写次数，但是却降低了文件内容的更新速度。当系统发生故障时，
+	这种延时写可能造成文件更新内容的丢失，为了保证磁盘上实际文件系统与缓冲区高速
+	缓存中内容的一致性，提供了上述三个函数。
+	
+	void	sync(void);
+		//只是将所有修改过的块缓冲区排入写队列，然后就返回，并不等待实际写磁盘操作的结束
+			通常update守护进程会周期性的调用sync()函数，这就保证了定期冲洗内核的块缓冲区。
+			sync命令也调用sync()函数。
+	
+	int		fsync(int  filedes);
+		//fsync,只是对指定文件描述符的单一文件起作用，并且等待写磁盘操作的结束
+		
+	int		fdatasync(int  filedes);
+		//类似于fsync，但他只影响文件的数据部分。而 fsync还会同步更新文件的属性。
+		
+7、	int		fcntl(...);
+
+8、	int		ioctl(...);
+
+9、	/dev/fd
+		//打开文件/dev/fd/n 相当于复制描述符n，(假设描述符n是打开的)。
+	
+	
+A、文件空洞：
+	lseek将文件读写位置偏移到了文件大小之外，即文件偏移量大于文件当前长度。
+	这种情况下，对该文件的下一次读写将加长该文件，并且在文件中构成一个空洞。
+	位于文件中但没有写过的字节都被读为0
+	
+B、od命令：
+	od	-c	文件名
+	// -c 以字符方式打印文件内容(每行开头是八进制表示的字节偏移量)
+	
+	
+补充：
+(1)fdopen()函数：将文件描述词转为文件指针
+fdopen取一个现存的文件描述符，并使一个标准的I / O流与该描述符相结合。
+此函数常用于由创建管道和网络通信通道函数获得的描述符。因为这些特殊类型
+的文件不能用标准I/O fopen函数打开，首先必须先调用设备专用函数以获得一个
+文件描述符，然后用fdopen使一个标准I/O流与该描述符相结合。
+
+(2)freopen: 用于重定向输入输出流。
+freopen是被包含于C标准库头文件<stdio.h>中的一个函数，用于重定向输入输出流。
+该函数可以在不改变代码原貌的情况下改变输入输出环境，但使用时应当保证流是可靠的。
+eg:
+#include <stdio.h>
+int main(void)
+{
+    int i;
+    if (freopen ("D:\\output.txt", "w", stdout) == NULL)
+        fprintf(stderr, "error redirecting stdout\n");
+    for (i = 0; i < 10; i++)
+        printf("%3d", i);
+    printf("\n");
+    fclose(stdout);
+    return 0;
+}

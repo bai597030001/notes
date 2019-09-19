@@ -1,0 +1,414 @@
+https://www.cnblogs.com/ygj0930/p/5827509.html
+
+1.File类
+
+	IO包中唯一代表磁盘文件本身的对象。通过File来创建，删除，重命名文件。File类对象的主要作用就是用来
+	
+	获取文本本身的一些信息。如文本的所在的目录，文件的长度，读写权限等等。（有的需要记忆，比如isFile(),
+	
+	isDirectory(),exits();有的了解即可。使用的时候查看API）
+	
+	
+	1.1 文件名称过滤器的概述及使用
+	
+		public String[] list():获取指定目录下的所有文件或者文件夹的名称数组
+
+　　	public File[] listFiles():获取指定目录下的所有文件或者文件夹的File数组
+	
+		文件名称过滤器的概述
+		
+	　　　　public String[] list(FilenameFilter filter)
+	　　　　public File[] listFiles(FileFilter filter)
+	
+		eg
+		
+			package com.ningmeng;
+
+			import java.io.File;
+			import java.io.FilenameFilter;
+
+			public class FileTest {
+				public static void main(String[] args){
+					File file=new File("C:\\Users\\biehongli\\Pictures\\Camera Roll");
+					
+					String[] str=file.list(new FilenameFilter() {//过滤器，匿名内部类
+						
+						@Override
+						public boolean accept(File dir, String name) {
+							// TODO Auto-generated method stub
+							//System.out.println(dir);//获取文件的路径
+							//System.out.println(name);//获取文件的名字
+							File f=new File(dir,name);
+							return f.isFile() && f.getName().endsWith(".jpg");
+						}
+					});
+					for(String s : str){
+						System.out.println(s);
+					}
+					
+				}
+			}
+
+2. 字节输入输出流
+
+	read()方法读取的是一个字节,为什么返回是int,而不是byte
+		字节输入流可以操作任意类型的文件,比如图片音频等,这些文件底层都是以二进制形式的存储的,
+		如果每次读取都返回byte,有可能在读到中间的时候遇到111111111；那么这11111111是byte类型的-1,
+		我们的程序是遇到-1就会停止不读了,后面的数据就读不到了,所以在读取的时候用int类型接收,
+		如果11111111会在其前面补上；24个0凑足4个字节,那么byte类型的-1就变成int类型的255了这样可以
+		保证整个数据读完,而结束标记的-1就是int类型
+			
+	FileInputStream的单个字节读取：
+
+	FileOutputStream的单个字节写入：
+	
+	
+	eg
+		
+		package com.ningmeng;
+
+		import java.io.FileInputStream;
+		import java.io.FileOutputStream;
+
+		public class FileTest {
+
+			public static void main(String[] args) throws Exception{
+				FileInputStream fis = new FileInputStream("aaa.txt");
+				FileOutputStream fos = new FileOutputStream("bbb.txt");
+				int len;
+				byte[] arr = new byte[1024 * 8];//自定义字节数组
+				
+				while((len = fis.read(arr)) != -1) {
+					//fos.write(arr);
+					fos.write(arr, 0, len);//写出字节数组写出有效个字节个数
+				}
+				//IO流(定义小数组)
+				//write(byte[] b)
+				//write(byte[] b, int off, int len)写出有效的字节个数
+
+				fis.close();
+				fos.close();
+			}
+		}
+	
+3. BufferedInputStream 和 BufferOutputStream
+
+	* A:缓冲思想
+	
+	　　* 字节流一次读写一个数组的速度明显比一次读写一个字节的速度快很多，
+	
+	　　* 这是加入了数组这样的缓冲区效果，java本身在设计的时候，
+	
+	　　* 也考虑到了这样的设计思想，所以提供了字节缓冲区流
+	
+	* B.BufferedInputStream
+	
+	　　* BufferedInputStream内置了一个缓冲区(数组)
+	
+	　　* 从BufferedInputStream中读取一个字节时
+	
+	　　* BufferedInputStream会一次性从文件中读取8192个, 存在缓冲区中, 返回给程序一个
+	
+	　　* 程序再次读取时, 就不用找文件了, 直接从缓冲区中获取
+	
+	　　* 直到缓冲区中所有的都被使用过, 才重新从文件中读取8192个
+	
+	* C.BufferedOutputStream
+	
+	　　* BufferedOutputStream也内置了一个缓冲区(数组)
+	
+	　　* 程序向流中写出字节时, 不会直接写到文件, 先写到缓冲区中
+	
+	　　* 直到缓冲区写满, BufferedOutputStream才会把缓冲区中的数据一次性写到文件里
+	
+	eg:
+	
+		package com.ningmeng;
+
+		import java.io.BufferedInputStream;
+		import java.io.BufferedOutputStream;
+		import java.io.FileInputStream;
+		import java.io.FileOutputStream;
+
+		public class FileTest {
+
+			public static void main(String[] args) throws Exception{
+				FileInputStream fis = new FileInputStream("aaa.txt");
+				FileOutputStream fos = new FileOutputStream("bbb.txt");
+				
+				BufferedInputStream bis=new BufferedInputStream(fis);
+				//使用装饰模式，把fis装饰进去bis中。使用缓冲读取速度变快
+				BufferedOutputStream bos=new BufferedOutputStream(fos);
+				
+				int b;
+				while((b=bis.read())!=-1){
+					bos.write(b);
+				}
+				bis.close();
+				bos.close();
+			}
+		}
+		
+	面试题：小数组的读写和带Buffered的读取哪个更快?
+
+	　　定义小数组如果是8192个字节大小和Buffered比较的话
+	　　定义小数组会略胜一筹,因为读和写操作的是同一个数组而Buffered操作的是两个数组
+	
+4. IO流(flush和close方法的区别) 
+
+		flush()方法： 用来刷新缓冲区的,刷新后可以再次写出
+		（字节缓冲流内置缓冲区，如果没有读取出来，可以使用flush()刷新来）
+
+		close()方法：用来关闭流释放资源的的,如果是带缓冲区的流对象的close()方法,
+		不但会关闭流,还会再关闭流之前刷新缓冲区,关闭后不能再写出
+		
+5. 字符流FileReader和FileWriter
+
+	字符流是什么
+	
+		* 字符流是可以直接读写字符的IO流
+　　	
+		* 字符流读取字符, 就要先读取到字节数据, 然后转为字符. 如果要写出字符, 需要把字符转为字节再写出.　　
+		
+	IO流(什么情况下使用字符流)
+		
+		* 字符流也可以拷贝文本文件, 但不推荐使用. 因为读取时会把字节转为字符, 写出时还要把字符转回字节.
+		
+		* 程序需要读取一段文本, 或者需要写出一段文本的时候可以使用字符流
+		
+		* 读取的时候是按照字符的大小读取的,不会出现半个中文
+		
+		* 写出的时候可以直接将字符串写出,不用转换为字节数组
+ 
+	IO流(字符流是否可以拷贝非纯文本的文件)
+		
+		* 不可以拷贝非纯文本的文件
+		
+		* 因为在读的时候会将字节转换为字符,在转换过程中,可能找不到对应的字符,就会用?代替,写出的时候会将字符转换成字节写出去
+		
+		* 如果是?,直接写出,这样写出之后的文件就乱了,看不了了
+		
+		
+7. 文件流的使用
+	
+	FileInputStream、FileOutputSteam、FileReader、FileWriter
+	
+8. 转换流的使用
+
+	转换流是将字节流变成字符流的流。
+	
+	OutputStreamWriter和InputStreamReader类
+	
+		OutputStreamWriter:是Writer的子类。将输出的字符流变成字节流：即将字符流的输入对象变成字节流输入对象。
+
+		InputStreamReader:是Reader的子类。将输入的字节流变成字符流，即将一个字节流的输入对象变成字符流输入对象。
+		
+		
+	因为outputStreamWriter中接收的类型是OutputStream，只要是字节输出流都可以使用字符的形式操作。
+	而InputStreamReader中接收的类型是InputStream。只要是字节输入流，都可以使用字符的输入流操作。
+	
+	不管如何，虽然是以字符的输出流形式，操作字节流输出流，但是实际上还是以字节的形式输出。
+	而字符的输入流虽然是以字符的形式操作，但是还是使用了字节流，也就是说，
+	在传输或者从文件读取数据的时候，文件里真正保存的数据永远是字节。　
+
+9. 缓冲流的使用
+
+	BufferedReader和BufferedWriter
+	
+	BufferedInputStream和BufferedOuputStream
+
+10. 对象流的使用
+
+	对象的读写 使用 ObjectInputStream 和 ObjectOutputStream 读写对象(序列化与反序列化)。
+	
+	只有字节流没有字符流
+	
+		1).类必须实现Serializable接口
+		2).给类加个序列化编号，给类定义一个标记，新的修改后的类还可以操作曾经序列化的对象
+		3).静态是不能被序列化的，序列化只能对堆中的进行序列化 ，不能对“方法区”中的进行序列化
+		4).不需要序列化的字段前加 transient
+
+11. 内存流的使用
+
+	ByteArrayInputStream 和 ByteArrayOutputStream
+	
+12. RandomAccessFile 类
+
+	该类主要是对文件内容进行操作，可以随机的读取一个文件中指定位置的数据；
+	但是如果想实现这样的功能，则每个数据的长度应该保持一致；
+	
+	12.1 构造
+	
+		接受File类中的对象，但是在设置时需要设置模式，r：只读；w：只写；rw：读写（常用）
+		
+			public RandomAccessFile(File file, String mode)throws FileNotFoundException
+		
+		不再使用File类对象表示文件，而是直接输入了一个固定的文件路径
+		
+			public RandomAccessFile(String name,String mode)throws FileNotFoundException
+			
+			
+		"r"    以只读方式打开。调用结果对象的任何 write 方法都将导致抛出 IOException。  
+		"rw"   打开以便读取和写入。
+		"rws"  打开以便读取和写入。相对于 "rw"，"rws" 还要求对“文件的内容”或“元数据”的每个更新都同步写入到基础存储设备。  
+		"rwd"  打开以便读取和写入，相对于 "rw"，"rwd" 还要求对“文件的内容”的每个更新都同步写入到基础存储设备。  
+		
+	12.2 常用功能
+	
+		关闭操作
+		
+			public void close()throws IOException
+		
+		将一个字符串写入到文件中，按字节的方式处理
+		
+			public final void writeBytes(String s)throws IOException
+		
+		将一个int型数据写入文件，长度为4位
+		
+			public final void writeInt(int v)throws IOException
+		
+		指针跳过多少个字节
+		
+			public int skipBytes(int n)throws IOException
+		
+		将内容读取到byte数组中
+		
+			public int read(byte[] b)throws IOException
+		
+		读取一个字节
+		
+			public final byte readByte()throws IOException
+		
+		从文件中读取整型数据
+		
+			public final int readInt()throws IOException
+		
+		设置读指针的位置
+		
+			public void seek(long pos)throws IOException
+			
+13 Properties 类
+
+	properties介绍
+
+		java中的properties文件是一种配置文件，主要用于表达配置信息，文件类型为*.properties，
+		格式为文本文件，文件的内容是格式是"键=值"的格式，在properties
+
+		文件中，可以用"#"来作注释，properties文件在Java编程中用到的地方很多，操作很方便。
+		该类是是HashTable的子类因此Map结合的基本使用方法它都有，但是我们需要的是下面
+	
+	特殊方法:
+	
+		a． getProperty ( String key)，用指定的键在此属性列表中搜索属性。也就是通过参数 key ，得到 key 所对应的 value。
+
+　　　　b． public void load (Reader reader)，从输入流中读取属性列表（键和元素对）。
+
+			通过对指定的文件（比如说上面的 test.properties 文件）进行装载来获取该文件中的
+			
+			所有键 - 值对。以供 getProperty ( String key) 来搜索。
+
+　　　　c． setProperty ( String key, String value) ，调用 Hashtable 的方法 put 。
+
+			只不过是将put(k KEY,V value) 通过显式的指定为String 类型保证了只可以接受String类型的参数，
+			
+			在实际开发时，我们也经常需要使用这种方法，来包装一个父类的方法。
+
+　　　　d． public void store(Writer writer, String comments)  与 load 方法相反，该方法将键 - 值对写入到指定的文件中去。
+
+　　　　e．public Set<String> stringPropertyNames() 返回此属性列表中的键集，其中该键及其对应值是字符串，主要是用于遍历
+
+
+	eg
+	
+		import java.io.FileReader;
+		import java.io.FileWriter;
+		import java.io.IOException;
+		import java.io.Reader;
+		import java.io.Writer;
+		import java.util.Properties;
+
+		/*
+		 * 这里的集合必须是Properties
+		 * public void load(Reader reader) : 把文件中的数据读取到集合中
+		 * public void store(Writer writer, String comments) ： 把集合中的数据存储到文件
+		 * 
+		 * 作用实现游戏进度的保存于加载
+		 */
+		public class PropertiesDemo1 {
+			public static void main(String[] args) throws IOException {
+				// myLoad();  // 将数据加载到集合中，load加载
+				myStore();    // 将集合中的数据存储到文件中， store写入
+			}
+
+			private static void myStore() throws IOException {
+				// 创建集合对象
+				Properties prop = new Properties();
+				prop.setProperty("jav", "1");
+				prop.setProperty("c++", "2");
+				prop.setProperty("jvm", "3");
+				
+				// public void store(Writer writer, String comments) ： 把集合中的数据存储到文件
+				Writer w = new FileWriter("name.txt");
+				prop.store(w, null);
+				w.close();
+			}
+
+			private static void myLoad() throws IOException {
+				// 创建集合对象
+				Properties prop = new Properties();
+
+				// public void load(Reader reader) : 把文件中的数据读取到集合中
+				// 而且这个文件必须是键值对的形式!此处有格式要求
+				Reader r = new FileReader("a.txt");
+				prop.load(r);
+				r.close();
+
+				System.out.println(prop);
+			}
+		}
+		
+		//下面的例子使用的文件就是上面demo创建的a.txt文件。自己在eclipse中创建文件即可在里面下上c=1换行写c++=2换行写java=3欧了。
+		
+		import java.io.FileReader;
+		import java.io.FileWriter;
+		import java.io.IOException;
+		import java.io.Reader;
+		import java.io.Writer;
+		import java.util.Properties;
+		import java.util.Set;
+
+		/*
+		 * 我有一个文本文件(user.txt)，我知道数据是键值对形式的，但是不知道内容是什么。
+		 * 请写一个程序判断是否有“c++”这样的键存在，如果有就改变其实为”100”
+		 * 
+		 * 分析：
+		 *         A:把文件中的数据加载到集合中
+		 *         B:遍历集合，获取得到每一个键
+		 *         C:判断键是否有为"c++"的，如果有就修改其值为"100"
+		 *         D:把集合中的数据重新存储到文件中
+		 */
+		public class PropertiesDemo2 {
+			public static void main(String[] args) throws IOException {
+				// 创建集合对象
+				Properties prop = new Properties();
+				// 读取文件到集合
+				Reader r = new FileReader("name.txt");
+				prop.load(r);
+				r.close();
+				// 遍历获取键和值
+				Set<String> set = prop.stringPropertyNames(); // 获取键的集合
+				for (String key : set) {
+					if (key.equals("c++")) {
+						String value = prop.getProperty(key);
+						prop.setProperty(key, "100"); // 把指定键设置为100
+						//由于键是不可以重复的因此修改一次即可！！
+						break;
+					}
+				}
+
+				// 将修改后的集合元素重新写入到文件中
+				Writer w = new FileWriter("name.txt");
+				prop.store(w, null);
+				w.close();
+			}
+		}

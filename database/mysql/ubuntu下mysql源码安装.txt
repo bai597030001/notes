@@ -1,0 +1,221 @@
+安装了Ubuntu-14.04-desktop-amd64。此过程中，本人犯了一个低级错误，安装Ubuntu中的分区那里，我看也没看就在自由空间里划分了分区，但是，windows分区Ubuntu没有挂在上，也就是自由分区指的是整块儿硬盘，结果原有的引导、win7和所有数据都没了，这里也提醒大家分区要谨慎，看好了再确认下一步。关于win7+Ubuntu双系统的安装就不多说了，按照 http://www.linuxidc.com/Linux/2014-04/100369.htm
+
+来说说Ubuntu14.04源码安装吧。mysql5.X系列的源码安装有了一些小变化，编译源码的时候不再使用configure，换成了cmake。后面按照步骤说吧。
+
+1、准备工作。
+
+1.1 安装cmake
+
+apt-get install cmake
+
+1.2 安装libncurses5-dev
+
+apt-get install libncurses5-dev
+
+1.3 安装bison
+
+apt-get install bison
+
+1.4 安装g++
+
+apt-get install g++
+
+1.5 下载mysql5.5.35源码包
+
+网址：http://dev.mysql.com/downloads/mysql/5.5.html#downloads
+
+这里要说一下，有些朋友说下载的tar包不能用是怎么回事，其实是源码包下错了，看下图，在select platform中一定要选中Source Code，再选下面的tar包下载才可以。
+
+2、安装
+
+2.1 解压mysql源码包。我是把源码包下载到/home/用户名/download/  下面，解压也是解压到相同目录下。
+
+tar zxvf mysql-5.5.35.tar.gz
+
+如果要解压到指定目录，在后面要加上 “-C 路径”。
+
+2.2 cmake源码
+
+cmake . \-DCMAKE_INSTALL_PREFIX=/usr/local/mysql \-DINSTALL_DATADIR=/usr/local/mysql/data \-DMYS
+QL_UNIX_ADDR=/usr/local/mysql/mysqld.sock \-DDEFAULT_CHARSET=utf8 \-DDEFAULT_COLLATION=utf8_gene
+ral_ci \-DEXTRA_CHARSETS=all \-DENABLED_LOCAL_INFILE=1
+ 
+/*************************************************************/
+cmake -DCMAKE_INSTALL_PREFIX=/opt/mysql \
+	-DMYSQL_DATADIR=/opt/mysql/data \
+	-DSYSCONFDIR=/etc/mysql -DWITH_MYISAM_STORAGE_ENGINE=1 \
+	-DWITH_INNOBASE_STORAGE_ENGINE=1 \
+	-DWITH_MEMORY_STORAGE_ENGINE=1 \
+	-DWITH_READLINE=1 \
+	-DMYSQL_UNIX_ADDR=/var/run/mysql/mysql.sock \
+	-DMYSQL_TCP_PORT=3306 \
+	-DENABLED_LOCAL_INFILE=1 \
+	-DEXTRA_CHARSETS=utf8,gbk \
+	-DDEFAULT_CHARSET=utf8 \
+	-DDEFAULT_COLLATION=utf8_general_ci \
+	-DWITH_PARTITION_STORAGE_ENGINE=1 \
+	-DWITH_EMBEDDED_SERVER=0 \
+	-DDOWNLOAD_BOOST=1 \
+	-DWITH_BOOST=/opt/mysql/mysql-5.7.17/boost/
+/*************************************************************/
+ 
+ 
+（这里排版有点问题，凑合看哈）
+
+我把安装路径放在了/usr/local/mysql,也就是默认的路径，data放在/usr/local/mysql/data/下，sock文件放到/usr/local/mysql/mysqld.sock
+
+一些参数如下：根据需要选择吧。
+
+    CMAKE_INSTALL_PREFIX：指定MySQL程序的安装目录，默认/usr/local/mysql 
+    DEFAULT_CHARSET：指定服务器默认字符集，默认latin1 
+    DEFAULT_COLLATION：指定服务器默认的校对规则，默认latin1_general_ci 
+    ENABLED_LOCAL_INFILE：指定是否允许本地执行LOAD DATA INFILE，默认OFF 
+    WITH_COMMENT：指定编译备注信息 
+    WITH_xxx_STORAGE_ENGINE：指定静态编译到mysql的存储引擎，MyISAM，MERGE，MEMBER以及CSV四种引擎默认即被编译至服务器，不需要特别指定。 
+    WITHOUT_xxx_STORAGE_ENGINE：指定不编译的存储引擎 
+    SYSCONFDIR：初始化参数文件目录 
+    MYSQL_DATADIR：数据文件目录 
+    MYSQL_TCP_PORT：服务端口号，默认3306 
+    MYSQL_UNIX_ADDR ：socket文件路径，默认/tmp/mysql.sock
+
+2.3 make&make install
+
+如果cmake报错请检查目录权限，mysql组和用户，一般我都是提前建立好mysql用户组。如果不报错就可以做这一步了。
+
+make
+make install
+
+3、配置
+
+3.1 安装完成后进入安装目录，将配置文件放到/etc下面
+
+cp surpport-files/my-medium.cnf /etc/mysql/my.cnf
+
+3.2 初始化数据库
+
+./bin/mysqld --user=mysql --datadir=/opt/mysql/data/ --initialize
+
+然后我们执行下面的命令
+
+cp surpport-files/mysql.server /etc/init.d/mysql 
+chmod 755 /etc/init.d/mysql
+
+3.2.5 修改配置文件 /etc/mysql/my.conf
+	[mysqld]
+	datadir = /opt/mysql/data
+	port = 3306
+	# server_id = .....
+	#pid-file = /var/run/mysql/mysql.pid
+	#socket = /var/run/mysql/mysql.sock
+	pid-file = /var/lib/mysql/mysql.pid
+	socket = /var/lib/mysql/mysql.sock
+	default-storage-engine=MyISAM
+	
+	注：#socket = /var/run/mysql/mysql.sock，
+		/var/run是一个临时文件系统，存储系统启动以来的信息。当系统重启时，这个目录下的文件应该被删掉或清除
+
+3.3 我们启动mysql服务试一试
+
+/etc/init.d/mysql start 或 service mysql restart
+
+3.4 启动成功后创建root用户密码（路径是安装目录下的bin）
+
+bin/mysqladmin -u root password '*******'
+
+****************************************************************************************
+如果密码错误导致无法登陆：
+	(1)编辑mysql的配置文件/etc/mysql/my.cnf，在[mysqld]段下加入一行“skip-grant-tables”。
+	(2)重启mysql服务 service mysql restart
+	(3)用空密码进入mysql管理命令行，切换到mysql库。
+		abbuggy@abbuggy-ubuntu:~$ mysql   
+		Welcome to the MySQL monitor.  Commands end with ; or \g.  
+		mysql> use mysql  
+		Database changed  
+	(4)执行 update user set authentication_string=password('123456') where user='root'; 把密码重置为 123456,退出数据库管理。
+	(5)回到vim /etc/mysql/my.cnf，把刚才加入的那一行“ skip-grant-tables ”注释或删除掉。
+		再次重启mysql服务sudo service mysql restart，使用新的密码登陆，修改成功。
+****************************************************************************************
+
+3.5 上一步成功后我们赶快使用一下吧
+
+bin/mysql -uroot -p
+
+3.5.1 添加mysql到开机自启动
+
+	#sudo update-rc.d -f mysql.server defaults
+	sudo update-rc.d -f mysql defaults
+
+3.5.2 添加共享库 libmysqlclient.so.20
+	
+	(1)touch /etc/ld.so.conf.d/libmysqlclient.conf
+	
+	(2)vim /etc/ld.so.conf.d/libmysqlclient.conf
+		=> /opt/mysql/lib
+		
+	(2)/sbin/ldconfig
+	
+3.6 navicat无法连接该数据库
+	报错：报错:1130-host ... is not allowed to connect to this MySql server
+	
+	登陆mysql;
+	mysql> SET PASSWORD = PASSWORD('123456');//可能需要重设置密码
+	
+	解决方法：
+
+	1。 改表法。
+
+		可能是你的帐号不允许从远程登陆，只能在localhost。这个时候只要在localhost的那台电脑，登入mysql后，更改 "mysql" 数据库里的 "user" 表里的 "host" 项，从"localhost"改称"%"
+
+		mysql -u root -pvmwaremysql>use mysql;
+
+		mysql>update user set host = '%' where user = 'root';
+		
+		mysql>FLUSH RIVILEGES
+
+		mysql>select host, user from user;
+
+	2. 授权法。
+
+		例如，你想myuser使用mypassword从任何主机连接到mysql服务器的话。
+
+		GRANT ALL PRIVILEGES ON *.* TO 'myuser'@'%' IDENTIFIED BY 'mypassword' WITH GRANT OPTION;
+
+		FLUSH   PRIVILEGES;
+
+		如果你想允许用户myuser从ip为192.168.1.6的主机连接到mysql服务器，并使用mypassword作为密码
+
+		GRANT ALL PRIVILEGES ON *.* TO 'myuser'@'192.168.1.3' IDENTIFIED BY 'mypassword' WITH GRANT OPTION;
+
+		FLUSH   PRIVILEGES;
+
+		如果你想允许用户myuser从ip为192.168.1.6的主机连接到mysql服务器的dk数据库，并使用mypassword作为密码
+
+		GRANT ALL PRIVILEGES ON dk.* TO 'myuser'@'192.168.1.3' IDENTIFIED BY 'mypassword' WITH GRANT OPTION;
+
+		FLUSH   PRIVILEGES;
+
+		我用的第一个方法,刚开始发现不行,在网上查了一下,少执行一个语句 mysql>FLUSH RIVILEGES 使修改生效.就可以了
+
+		另外一种方法,不过我没有亲自试过的,在csdn.net上找的,可以看一下.
+
+		在安装mysql的机器上运行：
+
+		1、d:\mysql\bin\>mysql   -h   localhost   -u   root //这样应该可以进入MySQL服务器
+
+		2、mysql>GRANT   ALL   PRIVILEGES   ON   *.*   TO   'root'@'%'   WITH   GRANT   OPTION //赋予任何主机访问数据的权限
+
+		3、mysql>FLUSH   PRIVILEGES //修改生效
+
+		4、mysql>EXIT //退出MySQL服务器
+
+		这样就可以在其它任何的主机上以root身份登录啦！
+
+Ubuntu14.04下安装mysql5.5.35大体过程就是上面这样了。安装时也遇到不少问题，仔细看错误提示，多查资料，多分析，其实问题都很简单。
+
+好吧，到此结束了，谢谢大家。
+
+PS：可以把bin目录下的命令加到PATH中去，这样就不用每次都进入目录来启动mysql了，其他一些技巧以后有机会在整理下吧，再见。
+
+更多Ubuntu相关信息见Ubuntu 专题页面 http://www.linuxidc.com/topicnews.aspx?tid=2
+
+本文永久更新链接地址：http://www.linuxidc.com/Linux/2016-04/129734.htm

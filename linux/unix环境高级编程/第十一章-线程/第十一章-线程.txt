@@ -1,0 +1,131 @@
+一、
+1、进程中标识线程的线程ID，一组寄存器值，栈，调度优先级和策略，
+	信号屏蔽字，errno变量 以及 线程私有数据
+	
+	进程的所有信息对该进程的所有线程都是共享的，包括可执行的程序文本，
+	程序的全局内存和堆内存，栈以及文件描述符
+	
+2、线程ID
+	只在它所属的进程环境中有效， pthread_t, 实现的时候可以用一个结构来
+	表示pthread_t数据类型，所以可移植的操作系统实现不能把它作为整数处理
+	linux2.4.22中使用无符号长整型表示
+	
+	int		pthread_equal(pthread_t tid1, pthread_t tid2);
+	
+	
+	获取自身的线程ID
+	pthread_t		pthread_self(void);
+	
+3、线程创建
+	pthread_create();
+	
+4、线程终止
+	进程终止(进程中任意线程调用了 exit, _exit, _Exit)
+	
+	单个线程终止：
+		1)线程只是从启动例程中返回
+		2)被同一进程的其他线程取消
+		3)调用 pthread_exit();
+		void	pthread_exit(void*  rval_ptr);
+		
+		注：rval_ptr是一个void指针，进程中的其他线程可以通过调用 pthread_join()
+			函数访问到这个指针
+			
+		int		pthread_join(pthread_t	thread, void** rval_ptr);
+		
+		调用线程将一直阻塞，直到指定的线程调用 pthread_exit()，或从启动例程中返回，
+			或者被取消
+		
+		如果线程只是从它的启动例程中返回，rval_ptr将包含返回码；如果线程被取消，则
+		由rval_ptr指定的内存单元就设置为 PTHREAD_CANCELED
+		
+	注：pthread_create和pthread_exit的无类型指针参数能传递的值不止一个(可以是更加复杂的结构体)
+		但是注意这个结构所使用的内存在调用者完成调用以后必须仍然是有效的否则就会出现内存非法
+		访问；
+		
+		例如：在调用线程的栈上分配了该结构，那么其他线程在使用这个结构的时候内存内容可能已经改变了；
+		又如：线程在自己的栈上分配了一个结构，然后把这个结构的指针传递给pthread_exit,那么当调用
+				pthread_join的线程试图使用该结构时，这个栈可能已经被撤销，这块内存也已经另作他用了。
+				
+5、线程可以通过调用 pthread_cancel来请求取消同一进程的其他线程
+
+	int		pthread_cancel(pthread_t tid);
+	
+	注：pthread_cancel函数会使得tid标识的线程的行为表现为如同调用了参数为PTHREAD_CANCELED的pthread_exit函数；
+		线程可以选择忽略方式或是控制取消方式；
+		pthread_cancel并不等于线程的终止，它仅仅是提出请求
+		
+6、线程清理处理程序
+
+	触发条件：
+		调用pthread_exit();
+		响应取消请求时
+		用非0参数调用pthread_cleanup_pop()
+	
+	1)如同进程的atexit()注册函数；
+	2)记录在栈中，也就是说他们的执行顺序与他们的注册顺序相反
+	
+	void 	pthread_cleanup_push(void (*rtn)(void *), void* arg);
+	
+	void 	pthread_cleanup_pop(int execute);
+	
+7、分离线程
+	phread_detach(pthread_t tid);
+	
+	如果线程已经处于分离状态，线程的底层存储资源可以再线程终止时立即被收回；
+	如果处于分离状态，不能用pthread_join()函数获取其终止状态，这样会产生
+		失败，并且返回EINVAL。
+		
+	应用：
+		如果对现有的某个线程的终止状态不感兴趣的话，可以使用pthread_detach()让
+		操作系统在线程退出时收回它所占用的资源
+二、
+
+1、互斥量
+	pthread_mutex_t类型
+	
+	初始化：
+		可以设置为 PTHREAD_MUTEX_INITIALIZER(只对静态分配的互斥量)
+		也可以调用 pthread_mutex_init()函数初始化
+		
+	注：如果动态分配互斥量(例如malloc调用)，那么在释放内存前需要 pthread_mutex_destroy()
+	
+	int		pthread_mutex_init(pthread_mutex_t* restrict mutex, const pthread_mutexattr_t* restrict attr);	//默认初始化，attr置为NULL
+	
+	int		pthread_mutex_destroy(pthread_mutex_t* mutex);
+	
+	
+	int		pthread_mutex_lock(pthread_mutex_t* mutex);
+	
+	int		pthread_mutex_trylock(pthread_mutex_t* mutex);
+			//不能锁住互斥量，返回EBUSY;
+	
+	int		pthread_mutex_unlock(pthread_mutex_t* mutex);
+	
+2、避免死锁
+	如果所有线程总是在锁住互斥量A之前锁住互斥量B,或者总是在锁住互斥量B之前锁住互斥量A
+	那么都不会出现死锁；只有在一个线程试图与另一个线程相反的顺序锁住互斥量时，才可能出现死锁。
+	
+	避免死锁，可以先释放占有的锁，然后过一段时间再试试。这种情况可以使用pthread_mutex_trylock()
+	
+3、读写锁
+
+	int		pthread_rwlock_init(pthread_rwlock_t* restrict rwlock, const pthread_rwlockattr_t* restrict attr);
+	
+	int		pthread_rwlock_destroy(pthread_rwlock_t* rwlock);
+			//在释放读写锁占用的内存之前，需要调用pthread_rwlock_destroy做清理工作；
+			//如果pthread_rwlock_init为读写锁分配了资源，pthread_rwlock_destroy将释放这些资源
+			
+	int		pthread_rwlock_rdlock(pthread_rwlock_t* rwlock);
+	
+	int		pthread_rwlock_wrlock(pthread_rwlock_t* rwlock);
+	
+	int		pthread_rwlock_unlock(pthread_rwlock_t* rwlock);
+	
+	
+	int		pthread_rwlock_tryrdlock(pthread_rwlock_t* rwlock);
+	
+	int		pthread_rwlock_trywrlock(pthread_rwlock_t* rwlock);
+	//返回错误EBUSY；
+	
+三、条件变量

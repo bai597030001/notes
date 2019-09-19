@@ -1,0 +1,23 @@
+Zookeeper在Hadoop集群中的作用。
+
+Zookeeper是分布式管理协作框架，Zookeeper集群用来保证Hadoop集群的高可用，（高可用的含义是：集群中就算有一部分服务器宕机，也能保证正常地对外提供服务。）
+
+Zookeeper保证高可用的原理。
+
+Zookeeper集群能够保证NamaNode服务高可用的原理是：Hadoop集群中有两个NameNode服务，两个NaameNode都定时地给Zookeeper发送心跳，告诉Zookeeper我还活着，可以提供服务，单某一个时间只有一个是Action状态，另外一个是Standby状态，一旦Zookeeper检测不到Action NameNode发送来的心跳后，就切换到Standby状态的NameNode上，将它设置为Action状态，所以集群中总有一个可用的NameNode，达到了NameNode的高可用目的。
+
+Zookeeper的选举机制。
+
+Zookeeper集群也能保证自身的高可用，保证自身高可用的原理是，Zookeeper集群中的各个机器分为Leader和Follower两个角色，写入数据时，要先写入Leader，Leader同意写入后，再通知Follower写入。客户端读取数时，因为数据都是一样的，可以从任意一台机器上读取数据。
+
+这里Leader角色就存在单点故障的隐患，高可用就是解决单点故障隐患的。Zookeeper从机制上解决了Leader的单点故障问题，Leader是哪一台机器是不固定的，Leader是选举出来的。选举流程是，集群中任何一台机器发现集群中没有Leader时，就推荐自己为Leader，其他机器来同意，当超过一半数的机器同意它为Leader时，选举结束，所以Zookeeper集群中的机器数据必须是奇数。这样就算当Leader机器宕机后，会很快选举出新的Leader，保证了Zookeeper集群本身的高可用。
+
+写入高可用。
+
+集群中的写入操作都是先通知Leader，Leader再通知Follower写入，实际上当超过一半的机器写入成功后，就认为写入成功了，所以就算有些机器宕机，写入也是成功的。
+
+读取高可用。
+
+zookeeperk客户端读取数据时，可以读取集群中的任何一个机器。所以部分机器的宕机并不影响读取。
+
+zookeeper服务器必须是奇数台，因为zookeeper有选举制度，角色有：领导者、跟随者、观察者，选举的目的是保证集群中数据的一致性。

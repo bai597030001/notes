@@ -1,0 +1,264 @@
+
+int select (int maxfdp1,fd_set *readset,fd_set * writeset,fd_set excpetset,const struct timeval *timeout);
+
+	中间的三个参数readset writeset和excpetset指定我们要让内核测试读、写、异常条件所需的描述字！函数select使用描述字集，
+	它一般是一个整型的数组，每个数中的每一位代表一个描述符！
+
+	系统提供了4个宏对描述符集进行操作：
+	#include <sys/select.h>
+	#include <sys/time.h>
+	//设置文件描述符集fdset中对应于文件描述符fd的位
+	void FD_SET(int fd, fd_set *fdset);
+	//清除文件描述符集fdset中对应于文件描述符fd的位（设置为0)
+	void FD_CLR(int fd, fd_set *fdset);
+	//清除文件描述符集fdset中的所有位(既把所有位都设置为0)
+	void FD_ZERO(fd_set *fdset);
+	//在调用select后使用FD_ISSET来检测文件描述符集fdset中对应于文件描述符fd的位是否被设置。
+	void FD_ISSET(int fd, fd_set *fdset);
+	
+	例如下面一段代码：
+	fd_set readset;
+	FD_ZERO(&readset);
+	FD_SET(5, &readset);
+	FD_SET(33, &readset);
+	则文件描述符集readset中对应于文件描述符6和33的相应位被置为1，如图1所示：
+
+	 
+	再执行如下程序后：
+	FD_CLR(5, &readset);
+	则文件描述符集readset对应于文件描述符6的相应位被置为0，如图2所示：
+
+	通常，操作系统通过宏 FD_SETSIZE 来声明在一个进程中select所能操作的文件描述符的最大数目。
+	一般情况下被定义为1024.一个整数占4个字节，既32位，那么就是用包含32个元素的整数数组来表示文件描述符集。
+	我们可以在头文件中修改这个值来改变select使用的文件描述符集的大小，但是需要注意的是：必须重新编译内核才能使修改后的值有效。
+	如果我们对其中的个一不感兴趣的话，可以设置为空指针。如果我们把三个都设为空指针，就实现了一个比sleep更准确的定时器。
+	
+	 注意select函数的第一个参数maxfdp1，是所有加入集合的句柄值的最大那个值还要加1。比如我们的描述符为1 4 5,那么maxfdp1就为6.描述符从0开始。当我们调用函数时，指定我们关心的描述符集，当返回时，指示那些描述符已经准备好了。怎么样才算准备好呢！下面列出几种情况：
+	下列四个条件中的任何一个满足时，套接口准备好读：
+	（1） 套接口接收缓冲区中的数据字节数大于等于套接口接收缓冲区低潮限度的当前值。可以通过SO_REVILOAT来设置此低潮限度。
+	（2）连接的读这一半关闭，也就是接收了FIN的TCP连接，
+	（3）套接口是一个监听套接口且已完成的连接数为非0.
+	（4）有一个套接口错误等处理。
+	下列三个条件中的任一个满足时，套接口准备好写：
+	（1） 套接口发送缓冲区的可用空间字节娄大于等于套接口发送缓冲区低潮限度的当前值且或者（i）套接口已连接，或者（ii）套接口不要求连接。
+	（2）连接的写这一半关闭，对这样的套接口写操作将产生信号SIGPIEP。
+	（3）有一个套接口错误待处理。
+	
+	
+	
+/*
+使用select函数可以以非阻塞的方式和多个socket通信。程序只是演示select函数的使用，
+即使某个连接关闭以后也不会修改当前连接数，连接数达到最大值后会终止程序。
+1. 程序使用了一个数组fd，通信开始后把需要通信的多个socket描述符都放入此数组
+2. 首先生成一个叫sock_fd的socket描述符，用于监听端口。
+3. 将sock_fd和数组fd中不为0的描述符放入select将检查的集合fdsr。
+4. 处理fdsr中可以接收数据的连接。如果是sock_fd，表明有新连接加入，将新加入连接的socket描述符放置到fd。 
+*/ 
+// select_server.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+#define MYPORT 1234 //连接时使用的端口
+
+#define MAXCLINE 5 //连接队列中的个数
+
+#define BUF_SIZE 200
+
+int fd[MAXCLINE]; //连接的fd
+
+int conn_amount; //当前的连接数
+
+
+void showclient()
+{
+  int i;
+  printf("client amount:%d\n",conn_amount);
+  for(i=0;i<MAXCLINE;i++)
+  {
+    printf("[%d]:%d ",i,fd[i]);
+  }
+  printf("\n\n");
+}
+
+
+int main(void)
+{
+  int sock_fd,new_fd; //监听套接字 连接套接字
+
+  struct sockaddr_in server_addr; // 服务器的地址信息
+
+  struct sockaddr_in client_addr; //客户端的地址信息
+
+  socklen_t sin_size;
+  int yes = 1;
+  char buf[BUF_SIZE];
+  int ret;
+  int i;
+  //建立sock_fd套接字
+
+  if((sock_fd = socket(AF_INET,SOCK_STREAM,0))==-1)
+  {
+    perror("setsockopt");
+    exit(1);
+  }
+  //设置套接口的选项 SO_REUSEADDR 允许在同一个端口启动服务器的多个实例
+
+  // setsockopt的第二个参数SOL SOCKET 指定系统中，解释选项的级别 普通套接字
+
+  if(setsockopt(sock_fd,SOL_SOCKET,SO_REUSEADDR,&yes,sizeof(int))==-1)
+  {
+    perror("setsockopt error \n");
+    exit(1);
+  }
+  
+  server_addr.sin_family = AF_INET; //主机字节序
+
+  server_addr.sin_port = htons(MYPORT);
+  server_addr.sin_addr.s_addr = INADDR_ANY;//通配IP
+
+  memset(server_addr.sin_zero,'\0',sizeof(server_addr.sin_zero));
+
+  if(bind(sock_fd,(struct sockaddr *)&server_addr,sizeof(server_addr)) == -1)
+  {
+    perror("bind error!\n");
+    exit(1);
+  }
+
+  if(listen(sock_fd,MAXCLINE)==-1)
+  {
+    perror("listen error!\n");
+    exit(1);
+  }
+
+  printf("listen port %d\n",MYPORT);
+
+  fd_set fdsr; //文件描述符集的定义
+
+  int maxsock;
+  struct timeval tv;
+
+  conn_amount =0;
+  sin_size = sizeof(client_addr);
+  maxsock = sock_fd;
+
+  while(1)
+  {
+    //初始化文件描述符集合
+
+    FD_ZERO(&fdsr); //清除描述符集
+
+    FD_SET(sock_fd,&fdsr); //把sock_fd加入描述符集
+
+    //超时的设定
+
+    tv.tv_sec = 30;
+    tv.tv_usec =0;
+    //添加活动的连接
+
+    for(i=0;i<MAXCLINE;i++) 
+    {
+      if(fd[i]!=0)
+      {
+          FD_SET(fd[i],&fdsr);
+      }
+    }
+    //如果文件描述符中有连接请求 会做相应的处理，实现I/O的复用 多用户的连接通讯
+
+    ret = select(maxsock +1,&fdsr,NULL,NULL,&tv);
+    if(ret <0) //没有找到有效的连接 失败
+
+    {
+      perror("select error!\n");
+      break;
+    }
+    else if(ret ==0)// 指定的时间到，
+
+    {
+      printf("timeout \n");
+      continue;
+    }
+    //循环判断有效的连接是否有数据到达
+
+    for(i=0;i<conn_amount;i++)
+    {
+      if(FD_ISSET(fd[i],&fdsr))
+      {
+        ret = recv(fd[i],buf,sizeof(buf),0);
+        if(ret <=0) //客户端连接关闭，清除文件描述符集中的相应的位
+
+        {
+          printf("client[%d] close\n",i);
+          close(fd[i]);
+          FD_CLR(fd[i],&fdsr);
+          fd[i]=0;
+          conn_amount--;
+          
+        }
+        //否则有相应的数据发送过来 ，进行相应的处理
+
+        else
+        {
+          if(ret <BUF_SIZE)
+            memset(&buf[ret],'\0',1);
+          printf("client[%d] send:%s\n",i,buf);
+        }
+      }
+    }
+
+    if(FD_ISSET(sock_fd,&fdsr))
+      {
+        new_fd = accept(sock_fd,(struct sockaddr *)&client_addr,&sin_size);
+        if(new_fd <=0)
+        {
+          perror("accept error\n");
+          continue;
+        }
+        //添加新的fd 到数组中 判断有效的连接数是否小于最大的连接数，如果小于的话，就把新的连接套接字加入集合
+
+        if(conn_amount <MAXCLINE)
+        {
+          for(i=0;i< MAXCLINE;i++)
+          {
+            if(fd[i]==0)
+            {
+              fd[i] = new_fd;
+              break;
+            }
+          }
+         conn_amount++;
+          printf("new connection client[%d]%s:%d\n",conn_amount,inet_ntoa(client_addr.sin_addr),ntohs(client_addr.sin_port));
+          if(new_fd > maxsock)
+          {
+            maxsock = new_fd;
+          }
+        }
+        
+          else
+          {
+            printf("max connections arrive ,exit\n");
+            send(new_fd,"bye",4,0);
+            close(new_fd);
+            continue;
+          }
+        }
+        showclient();
+      }
+
+      for(i=0;i<MAXCLINE;i++)
+      {
+        if(fd[i]!=0)
+        {
+          close(fd[i]);
+        }
+      }
+      
+      exit(0);
+  } 

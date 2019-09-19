@@ -1,0 +1,70 @@
+1.理解AOP思想
+	
+	https://www.cnblogs.com/Wolfmanlq/p/6036019.html
+	
+	https://www.cnblogs.com/junzi2099/p/8274813.html
+	
+2.AOP 相关概念
+
+	2.1
+		1） Aspect ：切面，切入系统的一个切面。比如事务管理是一个切面，权限管理也是一个切面；
+		
+		2） Join point ：连接点，也就是可以进行横向切入的位置；
+		
+		3） Advice ：通知/增强，切面在某个连接点执行的操作(分为: Before advice , After returning advice ,
+					After throwing advice , After (finally) advice , Around advice )；
+		
+		4） Pointcut ：切点，符合切点表达式的连接点，也就是真正被切入的地方；
+		
+		5)  Target	: 目标对象,就是我们要通知的类。
+		
+		6)  Introduction : 引介. 引介是一种特殊的增强，它为类添加了一些属性和方法 。 
+							这样，即使一个业务类原本没有实现某个接口，通过 AOP 的引介功能，
+							也可以动态的为该类添加接口的实现逻辑，让业务类成为这个接口的实现类 。
+							
+		7)  Weaving : 织入是将通知添加到目标的具体连接点上的过程 。
+		
+					AOP 织入方式：
+					
+						方式				实现									应用
+						
+						编译期织入		特殊的 Java 编译器							AspectJ
+						
+						类装载期织入	特殊的类装载器。							AspectJ
+
+						动态代理织入	在运行期为目标类添加增强生成子类的方式		Spring
+
+
+	2.2
+		
+		AOP分为静态AOP和动态AOP。静态AOP是指 AspectJ 实现的AOP，他是将切面代码直接编译到Java类文件中。
+		
+		动态AOP是指将切面代码进行动态织入实现的AOP。Spring的AOP为动态AOP，实现的技术为： JDK提供的
+		
+		动态代理技术 和 CGLIB(动态字节码增强技术) 。尽管实现技术不一样，但 都是基于代理模式 ， 
+		
+		都是生成一个代理对象 。
+		
+		
+	2.3 AOP 实现库
+	
+		AOP 实现库会把横切的问题模块化，它的核心是连接点模型，还提供了一种定位连接点的机制。
+		
+		2.3.1 AspectJ
+
+		AspectJ 在语言级别实现了 AOP，它扩展了 Java 语言，定义了 AOP 语法，能够在编译期提供横切代码的织入 。 
+		它有一个专门的编辑器用于生成遵循 Java 字节编码规范的 Class 文件。
+
+
+		2.3.2 AspectWerkz
+
+		基于 java 的简单 、 动态和轻量级的 AOP 框架。它拥有一个特殊的类装载器，支持运行期或类装载期织入横切代码。 
+		目前以与 AspectJ 项目合并，发行的第一版是 AspectJ 5。这一版扩展了 AspectJ 语言，支持基于注解的配置方式。 
+
+
+		2.3.3 Spring AOP
+
+		Spring AOP 使用纯的 Java 实现。它在运行期通过代理方式向目标类织入增强代码 。Spring 侧重于提供一种
+		和 Spring IoC 容器整合的 AOP 实现，以解决企业级开发中的常见问题 。 
+
+		在 Spring 中，可以将  Spring AOP、IoC 和 AspectJ 整合起来同时使用

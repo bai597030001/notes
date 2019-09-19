@@ -1,0 +1,22 @@
+关于syslog.conf文件和syslog.d下文件功能解释可以参考下面这篇文章： 
+　　http://www.linuxidc.com/Linux/2012-03/56434.htm
+　　通过查看rsyslog.conf文件，发现所有的配置文件都在/etc/rsyslog.d/文件夹下。 
+　　
+
+# /etc/rsyslog.conf Configuration file for rsyslog. 
+# 
+# For more information see 
+# /usr/share/doc/rsyslog-doc/html/rsyslog_conf.html 
+# 
+# Default logging rules can be found in /etc/rsyslog.d/50-default.conf 
+… … 
+# 
+# Include all config files in /etc/rsyslog.d/ 
+# 
+$IncludeConfig /etc/rsyslog.d/*.conf 
+　　
+
+　　用vim打开/etc/rsyslog.d/50-default.conf文件增加一行内容如下： 
+　　*.info;mail.none;authpriv.none;cron.none /var/log/messages
+
+重启系统，再来查看系统日志，发现已经okay了！！！ ^_^

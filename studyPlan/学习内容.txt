@@ -1,0 +1,53 @@
+1.一种关系型数据库 -> mysql
+	
+	sql语句性能调优/sql优化
+	
+	事务、锁、索引
+	
+	表大小，连接数
+	
+	分库分表mycat
+	
+2.一种持久层框架 -> mybatis, spring data jdbc(jdbcTemplate)
+
+3.非关系型数据库 -> Memcached、Redis、MongoDB、spring cache(springboot)
+
+4.设计模式
+
+5.Spring(IOC,DI,AOP)、SpringMVC、SpringBoot、springCloud等；了解Spring运行基本原理；
+
+6.MQ基本原理和使用（RabbitMQ、ActiveMQ、Kafka等）； 
+
+7.IO，多线程，大数据量、高并发实战经验
+
+	分布式系统设计经验；
+
+8.具备TCP/IP方面的网络编程经验；计算机网络和协议，包括TCP/IP、HTTP/HTTPS协议
+
+9.RPC框架 eg. dubbo
+
+10.常用数据结构，并对普通算法较为理解
+
+11.jvm(java性能调优) jvisualvm
+
+--------------------------------------------------------------------------------
+
+1.java注解的工作方式 -> 自定义注解怎么工作 -> JSR303使用 与 自定义校验使用
+
+2.spring/springboot 全局异常处理
+
+3.类加载(Object this.getclass(), classloder)反射 -> java动态代理 -> (spring)aop
+
+	java动态代理
+		-> WeakCache
+			-> java4中引用类型(强、软、弱、虚)
+
+4.mysql执行计划 explain使用
+
+5.spring事务的几种实现方式
+
+6.jvisualvm
+
+7.spring cache
+
+8.stackoverflow提问

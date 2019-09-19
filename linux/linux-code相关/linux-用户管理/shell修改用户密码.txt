@@ -1,0 +1,189 @@
+1、使用chpasswd
+chpasswd其实是通过用户输入'用户名：密码'来更改一组用户的密码，还是一个可以批量修改密码的工具，具体的用法详见chpasswd用法，这里只做简单的介绍
+格式：# echo 用户名:密码 | chpasswd
+
+比如想要添加一个doiido的帐号，密码为123456，指令如下
+
+
+1
+# echo doiido:123456 | chpasswd
+
+2、使用passwd和--stdin组合
+
+passwd默认是要用终端作为标准输入，而--stdin表示可以用任意文件做标准输入，
+这两个配合可以直接修改密码
+
+格式：# echo '密码'| passwd --stdin 用户名
+
+还是添加一个doiido的帐号，密码为123456，指令如下
+?
+
+1
+# echo '123456'| passwd --stdin doiido
+
+    这样就可以实现在非交互模式下修改密码，但是对于某些嵌入式linux这两种方式都不支持，则可以使用export来实现。
+
+
+
+
+
+工作原理：
+从系统的标准输入读入用户的名称和口令，并利用这些信息来更新系统上已存在的用户的口令
+
+语法：
+1：# echo 用户名:密码 | chpasswd
+
+2：# chpasswd < doiido.txt
+
+参数：
+-e ：如果使用了-e选项，口令将只能以加密的方式传递
+如果未使用-e选项，口令将按明文的形式传递
+
+注意事项
+1：用户名必须是系统上已存在的用户
+2：普通用户没有使用这个指令的权限
+3：如果输入文件是按非加密方式传递的话，请对该文件进行适当的加密。
+4：指令文件不能有空行
+
+实例
+1、直接修改doiido用户的密码为helloboy
+# echo doiido:helloboy |chpasswd
+
+2、使用doiido.txt里面的用户名密码批量修改相应用户的密码
+2.1：首先建立指令文件doiido.txt(格式为[username:passwd])
+# vi doiido.txt
+doiido1:helloboy
+doiido2:hellogirl
+
+2.2：将doiido.txt的内容传输到chpasswd指令来修改相应用户的密码
+# chpasswd < doiido.txt
+
+3、让普通用户使用chpasswd
+默认普通用户是没有chpasswd的权限，但是可以通过修改命令文件权限来修改
+# chmod 4755 /usr/sbin/chpasswd
+这样普通用户就可以使用chpasswd来修改密码
+
+使用chpasswd命令可以批量的修改系统中用户的密码，只有root用户可以执行 chpasswd命令。这些用户必须是系统中已经存在的。chpasswd从一个特定格式文 件中得到信息对用户密码进行修改。
+
+文件格式为：username:passwd. 文件中的每一行都必须如这种格式.
+举例如下：创建一个文件名为a.txt的文件，在里面写入
+test:123456
+boy:123456
+kate:123456
+...........
+ ...........
+...........
+lucy:123456 等。
+然后执行cat a.txt|chpasswd，a.txt文件中所列用户密码都会被改为冒号后所设置的密码。
+
+
+
+帐号管理
+(1).创建新帐号
+   [1].adduser模块:包含adduser,deluser,addgroup,delgroup.这是Perl的版本
+   [2].passwd模块:包含useradd,userdel,groupadd,groupdel,passwd,chpasswd
+       ,chsh,vipw.这是C的版本
+1.1 useradd
+   名称:新建帐号
+   用法:useradd [Option] Login
+   选项:
+       -b,--base-dir Base_Dir:指定新帐号的用户目录的基目录.默认为/home
+       -c,--comment Comment:指定新帐号的注释,位于/etc/passwd文件中第5个字段
+       -d,--home-dir Home_Dir:新建帐号的用户目录
+       -D,--defaults:打印或改变useradd默认的配置.默认配置文件/etc/default/useradd
+       -e,--expiredate Expire_Date:指定帐号的过期时间
+       -f,--inactive Inactive:提示新帐号修改密码的时间
+       -g,--gid Group:指定新帐号的GID或组名
+       -G,--groups Groups:指定新帐号的组列表
+       -h,--help:显示帮助并退出.
+ 
+       -k,--skel Skel_Dir:指定使用的skeleton目录,默认为/etc/skel.在创建新帐号时会
+           将该目录复制到新帐号主目录中作为默认文件.
+       -K,--key Key=Value:覆盖/etc/login.defs的默认配置
+       -l,--no-log-init:不将用户增加到lastlog和faillog的日志文件中
+       -m,--create-home:创建用户主目录
+       -M,--no-create-home:不创建用户的主目录
+       -N,--no-user-group:不创建一个和新帐号同名的组名
+       -o,--non-unique:允许创建的用户ID不是唯一的
+       -p,--password Password:指定新帐号的密码
+       -r,--system:创建一个系统帐号
+       -s,--shell Shell:指定新帐号的登陆shell.
+       -u,--uid Uid:指定新帐号的UID
+ 
+       -U,--user-group:创建一个和新帐号同名的组名
+       -Z,--selinux-user Seuser:创建一个SELinux用户映射的SEUSER
+    实例:
+ 
+       useradd -D -s /bin/sh   #修改/etc/default/useradd的默认shell设置
+1.2 /etc/passwd
+    该文件每行为一个帐号的用户信息,每行由':'隔开的7个字段.
+        帐号:x:UID:GID:用户的注释信息:用户主目录:登陆时使用的shell
+1.3 passwd
+    名称:更新帐号的密码
+    用法:
+         passwd [-k] [-l] [-u [-f]] [-d] [-n Mindays] [-w Warndays]
+                [-i Intivedays] [-S] [--stdin][-x maxdays] [Username]
+    选项:
+        -k:该选项标识仅在用户密码过期时才能更新密码.
+        -l:该选项用来锁住指定的帐号,且仅能由root帐号来制定该选项.锁住
+           帐号即在帐号前加上字符'!'.
+        --stdin:该选项用来指示passwd应该从标准输入或管道中读取新密码
+        -u:该选项和-l选项刚好相反,用来解锁一个被锁的帐号.仅root可用.
+        -d:快速禁用一个帐号的密码.将帐号的密码设置为无密码.仅root可用
+        -n Mindays:设置用户密码最少使用时间.仅在超过该时间后才允许更改
+           密码.
+        -x Maxdays:设置用户密码最长使用时间,超过该时间则必须更改新的密码
+        -w Warndays:设置用户密码在过期前的Warndays天发送警告
+        -i Intivedays:设置密码过期时间.
+        -S:输出一个指定帐号的简短的状态信息.
+   实例:
+        passwd user1 #提示改变user1的密码
+1.4 groupadd
+   名称:创建新的组名.
+   用法:groupadd [Options] Group
+   选项:
+       -f,--force:若创建的组名已存在则成功退出,且若GID已存在则取消-g设置
+       -g,--gid Gid:指定新组的ID
+       -h,--help:显示帮助并退出
+       -K,--key Key=Value:覆盖/etc/login.defs的设置
+       -o,--non-unique:允许创建的组ID可以重复
+       -p,--password Passwd:指定新组的密码
+       -r.--system:创建一个系统组
+  
+  实例:  groupadd newgroup
+ 
+         useradd -g newgroup newuser
+1.5 chpasswd
+   名称:从标准输入中读取 "帐号:密码"对的数据行来修改密码,可用于脚本中修改密码
+   用法: chpasswd [Options]
+   选项:
+       -h,--help:显示帮助并退出
+       -e,--encrypted:加密密码
+       -m,--md5:指定使用MD5算法加密密码
+       -s,--sha-rounds:指定使用SHA*加密算法加密
+       -c,--crypt-method:指定加密方式(可以为NOTE DES MD5 SHA256 SHA512)
+   实例:
+      echo 'user1:newpass' |chpasswd #修改user1的密码为newpass
+1.6 userdel
+   名称:删除帐号
+   用法:userdel [Options] Login
+   选项:
+        -f,--force:强制移除文件
+        -r,--remove:连同帐号的主目录和邮件spool(池)一起删除
+   实例:
+        userdel -r newuser #删除用户newuser连同其主目录
+1.7 groupdel
+   名称:删除组
+   用法:groupdel Group
+
+
+功能：修改帐号和密码的有效期限
+用法：chage[-l][-m mindays][-M maxdays][-I inactive][-E expiredate][-W warndays][-d lastdays]username
+参数：
+-l：列出用户的以及密码的有效期限
+-m:修改密码的最小天数
+-M：修改密码的最大天数
+-I：密码过期后，锁定帐号的天数
+-d：指定密码最后修改的日期
+-E：有效期，0表示立即过期，-1表示永不过期
+-W：密码过期前，开始警告天数

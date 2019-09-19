@@ -1,0 +1,36 @@
+1. bin/hdfs dfs -ls /
+
+	INFO ipc.Client: Retrying connect to server: ns1/211.98.71.195:8020. Already tried 0 time(s); maxRetries=45
+
+	原因：
+		网络服务没有配好，错误提示中 ns1/211.98.71.195:8020 ,该IP不在/etc/hosts配置项中。
+	
+	解决办法：
+		需要配置网络
+		
+		nmtui --> Edit a connection --> Edit --> IPv4 CONFIGURATION<Automatic> 改为 IPv4 CONFIGURATION<Manual>
+		
+2. bin/hdfs dfs -ls /
+	
+	修改完上述问题1后，执行该命令，出现 
+	
+		-ls: java.net.UnknownHostException: ns1
+		Usage: hadoop fs [generic options] -ls [-d] [-h] [-R] [<path> ...]
+	
+	错误原因: 配置出错，仔细检查
+	
+	<!-- 配置失败自动切换实现方式 -->
+	  <property>
+		<name>dfs.client.failover.proxy.provider.ns1</name>
+		<value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+	  </property>
+
+3. namenode自动切换慢
+
+	两个namenode都启动，上传一个文件，只有 active 的namenode 可见,另一个 standby的 namenode 显示 如下：
+	
+	Operation category READ is not supported in state standby;
+	
+	当手动杀掉active 的namenode 后， standby的 namenode 没有立马切换为 active,而是过了一段时间进行的切换
+	
+	且切换以后从 Browse the file System 中可以看到刚才上传的文件，说明文件没丢。

@@ -1,0 +1,36 @@
+1.如果你是直接从cd压制iso文件的，执行 
+sudo umount /dev/cdrom 
+dd if=/dev/cdrom of=file.iso bs=1024 
+
+2.如果你要把某个文件或者目录压到iso文件中，需要使用mkisofs这个工具。
+这个工具非常强大，还可以压缩DVD格式的iso。你想改的参数都可以修改，而且还有-gui这个参数。最简单的用法如下： 
+mkisofs -r -o file.iso your_folder_name/ 
+
+1. 使用cp命令
+cp 命令用来复制文件或目录，如同时指定两个以上的文件或目录，且最后的目的地是一个已经存在的目录，则它会把前面指定的所有文件或目录复制到该目录中。若同 时指定多个文件或目录，而最后的目的地并非是一个已存在的目录，则会出现错误信息。使用cp命令制作iso文件的方法：
+#cp /dev/cdrom my_img.iso
+cp命令只能制作整个光盘的影像文件。cp命令的详细使用方法可以查看其手册页：man cp 。
+2. 使用mkisofs命令
+mkisofs用来将指定的目录与文件做成iso 9660格式的映像文件。mkisofs也提供了对于一些扩展的支持选项，
+下面将详细介绍。
+mkisofs命令可以制作整个光盘的影像文件。命令如下：
+mkisofs -r - o my_img.iso /dev/cdrom
+参数说明：
+-r ：启用 rock ridge 扩展一般的 unix 系统。
+-o：指定映像文件的名称。
+mkisofs 命令还可以把硬盘上一个目录的文件转换为光盘影像文件：
+# mkisofs -o imagefile.iso /path/to/tree
+这个命令将创建一个包含 iso9660 文件系统的 imagefile.iso 文件，它是目录树 /path/to/tree 的一个副本。在处理过程中，它将文件名称映射为标准的 iso9660 文件系统的文件名，将排除那些不典型的 iso 文件系统的文件。应用实例：
+把/tmp/netspeed_applet-0.14 目录的所有文件制作为： my_img.iso ，使用命令：
+mkisofs -o my_img.iso /tmp/netspeed_applet-0.14 
+
+如图为使用mkisofs命令制作iso文件
+mkisofs命令的详细使用方法可以查看其手册页：man mkisofs 。
+
+
+
+
+
+linux respin
+
+	http://blog.csdn.net/milo123456/article/details/71084254?utm_source=itdadao&utm_medium=referral

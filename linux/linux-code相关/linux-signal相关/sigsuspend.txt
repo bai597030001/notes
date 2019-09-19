@@ -1,0 +1,97 @@
+sigsuspend函数 ：
+sigsuspend函数接受一个信号集指针，将信号屏蔽字设置为信号集中的值，在进程接受到一个信号之前，进程会挂起，当捕捉一个信
+号，首先执行信号处理程序，然后从sigsuspend返回，最后将信号屏蔽字恢复为调用sigsuspend之前的值。
+#include <signal.h>
+int sigsuspend(const sigset_t *sigmask);
+// 返回值：－1，并将errno设置为EINTR
+
+pause函数：
+pause函数使调用进程挂起直到捕捉到一个信号。只有执行了一个信号处理程序并从其返回时，pause才返回
+先看个例子：
+1 #include <stdio.h>
+2 #include <signal.h>
+3 #include <unistd.h>
+4 #include <string.h>
+5 
+6 void func(int num)
+7 {
+8         printf("0\n");
+9 }
+10 
+11 int main(void)
+12 {
+13         int i;
+14         sigset_t set;
+15         sigset_t empty;
+16 
+17         sigemptyset(&set);
+18         sigemptyset(&empty);
+19         sigaddset(&set, SIGINT);
+20         signal(SIGINT, func);
+21 
+22         while(1)
+23         {
+24                 sigprocmask(SIG_BLOCK, &set, NULL);
+25                 for(i = 0; i < 5 ; i++)
+26                 {
+27                         write(1, "* ", strlen("* "));
+28                         sleep(1);
+29                 }
+30                 printf("\n");
+31 #if 1 
+32                 sigsuspend(&empty);
+33 #else
+34                 sigprocmask(SIG_UNBLOCK, &set, NULL);
+35                 pause();
+36 #endif
+37         }
+38 
+39         return 0;
+40 }
+
+
+
+[root@localhost lee]# ./a.out          //       31 #if 1 时
+* * * * * 
+0
+* * * * * 
+0
+* * 退出
+[root@localhost lee]# ./a.out           //       31 #if 0 时
+* * * * * 
+0
+0
+* * * * *
+区别：sigsuspend 未打印到5 个星时，中间 ctrl+c 中断，5个到之后会自动换行继续执行。
+            pause 则继续func函数后，不会继续往下执行。需再中断一次。
+程序够明白了，不用再多说。
+sigsuspend的整个原子操作过程为：
+(1) 设置新的mask阻塞当前进程；
+(2) 收到信号，调用该进程设置的信号处理函数；
+(3) 待信号处理函数返回后，恢复原先mask；
+(4) sigsuspend返回
+----------------------------------补充：
+1. sigpromask(SIG_UNBLOCK,&newmask,&oldmask)和
+      sigpromask(SIG_SETMASK,&oldmask,NULL)区别
+sigpromask(SIG_UNBLOCK,&newmask,&oldmask)
+    它的作用有两个:一是设置新的信号掩码(不阻塞newmask所指的信号集).二是保存原来的信号掩码(放在oldmask所指的信号集中)
+sigpromask(SIG_SETMASK,&oldmask,NULL)
+    它的作用只有一个:设置新的信号掩码(信号掩码为oldmask所指的信号集)
+2. sigsuspend 用实参 sigmask 指定的信号集代替调用进程的信号屏蔽， 然后挂起该进程直到某个不属于 sigmask 成员的信号到
+达为止。此信号的动作要么是执行信号句柄，要么是终止该进程。
+如果信号终止进程，则 suspend 函数不返回。如果信号的动作是执行信号句柄，则在信号句柄返回后，sigsuspend 函数返回，并使
+进程的信号屏蔽恢复到 sigsuspend 调用之前的值。
+
+
+
+3. 清晰且可靠的等待信号到达的方法是先阻塞该信号（防止临界区重入，也就是在次期间有另外一个该信号到达），然后使用
+sigsuspend 放开此信号并等待句柄设置信号到达标志。如下所示, 等待 SIGUSR1 信号到来：
+sigemptyset(&zeromask);
+sigaddset(&newmask, SIGUSR1);
+......
+sigprocmask(SIG_BLOCK, &newmask, NULL);
+while(flag)
+      sigsuspend(&zeromask);
+flag = 0;
+......
+sigprocmask(SIG_UNBLOCK, &newmask, NULL);

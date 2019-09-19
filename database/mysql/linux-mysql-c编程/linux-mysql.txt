@@ -1,0 +1,506 @@
+四：c++连接mysql数据库：
+
+、连接Mysql和从MySql中取出数据的API介绍
+
+2.1 mysql_real_connect()
+
+2.1.1 函数原型：
+
+MYSQL *mysql_real_connect(MYSQL *mysql, const char *host, const char *user, const char *passwd, const char *db, unsigned int port, const char *unix_socket, unsigned int client_flag) 
+
+2.1.2 参数说明：
+
+? 第一个参数应该是一个现存MYSQL结构的地址。在调用mysql_real_connect()之前，你必须调用mysql_init()初始化MYSQL结构。见下面的例子。
+
+? host值可以是一个主机名或一个IP地址。如果host是NULL或字符串"localhost"，假定是到本地主机的一个连接。如果OS支持套接字(Unix)或命名管道(Win32)，使用他们而不是TCP/IP与服务器连接。
+
+? user参数包含用户的MySQL登录ID。如果user是NULL，假定是当前用户。在Unix下，它是当前登录名。在Windows ODBC下，必须明确地指定当前用户名字。见16.4 怎样填写ODBC管理程序中各种域。
+
+? passwd参数为user包含口令。如果passwd是NULL，只有在user表中对于有一个空白口令字段的用户的条目将被检查一个匹配。这允许数据库主管设置MySQL权限，使用户获得不同的口令，取决于他们是否已经指定一个口令。注意：不要试图在调用mysql_real_connect()前加密口令；口令加密自动被客户API处理。
+
+? db是数据库名。如果db不是NULL，连接将缺省数据库设置为这个值。
+
+? 如果port不是0，值对于TCP/IP连接将用作端口号。注意host参数决定连接的类型。
+
+? 如果unix_socket不是NULL，字符串指定套接字或应该被使用的命名管道。注意host参数决定连接的类型。
+
+? client_flag值通常是0，但是在很特殊的情况下可以被设置为下列标志的组合：
+
+标志名字 意味着的标志
+
+CLIENT_FOUND_ROWS 返回找到的(匹配的)行数，不是受到影响的行数。
+
+CLIENT_NO_SCHEMA 不允许db_name.tbl_name.col_name语法。这是为了ODBC；如果你使用该语法，导致语法分析器产生一个错误，它是为在一些ODBC程序捕捉错误是有用的。
+
+CLIENT_COMPRESS 使用压缩协议。
+
+CLIENT_ODBC 客户是一个ODBC客户。这使mysqld变得对ODBC更友好。
+
+2.1.3 返回值
+
+如果连接成功，一个 MYSQL*连接句柄。如果连接失败，NULL。对一个成功的连接，返回值与第一个参数值相同，除非你传递NULL给该参数。
+
+2.1.4 错误
+
+CR_CONN_HOST_ERROR 
+
+不能连接MySQL服务器。
+
+CR_CONNECTION_ERROR 
+
+不能连接本地MySQL服务器。
+
+CR_IPSOCK_ERROR 
+
+不能创建一个IP套接字。
+
+CR_OUT_OF_MEMORY 
+
+内存溢出。
+
+CR_SOCKET_CREATE_ERROR 
+
+不能创建一个Unix套接字。
+
+CR_UNKNOWN_HOST 
+
+不能找到主机名的IP地址。
+
+CR_VERSION_ERROR 
+
+由于试图使用一个不同协议版本的一个客户库与一个服务器连接导致的一个协议失配。如果你使用一个非常老的客户库连接一个没有使用--old-protocol选项启动的新服务器，这就能发生。
+
+CR_NAMEDPIPEOPEN_ERROR; 
+
+不能在 Win32 上创建一个命名管道。
+
+CR_NAMEDPIPEWAIT_ERROR; 
+
+不能在 Win32 上等待一个命名管道。
+
+CR_NAMEDPIPESETSTATE_ERROR; 
+
+不能在 Win32 上得到一个管道处理器。
+
+2.2  mysql_select_db()
+
+2.2.1 函数原型
+
+int mysql_select_db(MYSQL *mysql, const char *db) 
+
+2.2.2 参数说明
+
+使得由db指定的数据库成为 在由mysql指定的连接上的缺省(当前)数据库。在随后的查询中，这个数据库对于不包括一个显式的数据库指定符的表的引用是缺省数据库。
+
+除非连接的用户能被认证允许使用数据库，否则mysql_select_db()失败。
+
+2.2.3 返回值
+
+成功，零。如果发生一个错误，非零。
+
+2.2.4  错误
+
+CR_COMMANDS_OUT_OF_SYNC 
+
+命令以一个不适当的次序被执行。
+
+CR_SERVER_GONE_ERROR 
+
+MySQL服务器关闭了。
+
+CR_SERVER_LOST 
+
+对服务器的连接在查询期间失去。
+
+CR_UNKNOWN_ERROR 
+
+发生一个未知的错误。
+
+ 
+
+2.3 mysql_real_query
+
+2.3.1 函数原型 
+
+int mysql_real_query(MYSQL *mysql, const char *query, unsigned int length) 
+
+2.3.2 参数说明
+
+执行由query指向的SQL查询，它应该是一个length个字节的字符串。查询必须由一个单个的SQL语句组成。你不应该在语句后增加一个终止的分号(“;”)或\g。
+
+对于包含二进制数据的查询，你必须使用mysql_real_query()而不是mysql_query()，因为二进制代码数据可能包含“\0”字符，而且，mysql_real_query()比mysql_query()更快，因为它对查询字符串调用strlen()。
+
+2.3.3 返回值
+
+如果查询成功，零。如果发生一个错误，非零。
+
+2.3.4  错误
+
+CR_COMMANDS_OUT_OF_SYNC 
+
+命令以一个不适当的次序被执行。
+
+CR_SERVER_GONE_ERROR 
+
+MySQL服务器关闭了。
+
+CR_SERVER_LOST 
+
+对服务器的连接在查询期间失去。
+
+CR_UNKNOWN_ERROR 
+
+发生一个未知的错误。
+
+ 
+
+2.4 mysql_store_result
+
+2.4.1 函数原型
+
+MYSQL_RES *mysql_store_result(MYSQL *mysql)
+
+2.4.2 返回值
+
+A MYSQL_RES result structure with the results. NULL (0) if an error occurred. 
+
+2.5  mysql_fetch_row()
+
+Description 
+
+Retrieves the next row of a result set. When used after mysql_store_result(), mysql_fetch_row() returns NULL when there are no more rows to retrieve. When used after mysql_use_result(), mysql_fetch_row() returns NULL when there are no more rows to retrieve or if an error occurred. 
+
+The number of values in the row is given by mysql_num_fields(result). If row holds the return value from a call to mysql_fetch_row(), pointers to the values are accessed as row[0] to row[mysql_num_fields(result)-1]. NULL values in the row are indicated by NULL pointers. 
+
+The lengths of the field values in the row may be obtained by calling mysql_fetch_lengths(). Empty fields and fields containing NULL both have length 0; you can distinguish these by checking the pointer for the field value. If the pointer is NULL, the field is NULL; otherwise, the field is empty. 
+
+Return Values 
+
+A MYSQL_ROW structure for the next row. NULL if there are no more rows to retrieve or if an error occurred. 
+
+Errors 
+
+Note that error is not reset between calls to mysql_fetch_row()
+
+?CR_SERVER_LOST
+
+The connection to the server was lost during the query. 
+
+
+?CR_UNKNOWN_ERROR
+
+An unknown error occurred. 
+
+
+参考资料：http://dev.mysql.com/doc/refman/5.6/en/index.html
+
+ 
+
+三、利用Mysql库提供的API编写连接Mysql和从Mysql中取出数据的代码
+
+   1:  #include <windows.h>
+   2:  #include "stdio.h"
+   3:  #include "winsock.h" 
+   4:  #include "mysql.h" 
+   5:   
+   6:   
+   7:  int main()
+   8:  {
+   9:   
+  10:  MYSQL * con; //= mysql_init((MYSQL*) 0); 
+  11:  MYSQL_RES *res;
+  12:  MYSQL_ROW row;
+  13:   
+  14:   
+  15:  char tmp[400];
+  16:   
+  17:  //database configuartion
+  18:  char dbuser[30]="root"; 
+  19:  char dbpasswd[30]="apple";
+  20:  char dbip[30]="localhost";
+  21:  char dbname[50]="excel";
+  22:  char tablename[50]="test";
+  23:  char *query=NULL;
+  24:   
+  25:   
+  26:  int x;
+  27:  int y;
+  28:  int rt;//return value
+  29:  unsigned int t;
+  30:   
+  31:  int count = 0;
+  32:   
+  33:   
+  34:  printf("input x,y\n");
+  35:  scanf("%d,%d",&x,&y);
+  36:  fflush(stdin);
+  37:  printf("input over\n");
+  38:  con = mysql_init((MYSQL*) 0); 
+  39:   
+  40:   
+  41:  if ( con !=NULL && mysql_real_connect(con,dbip,dbuser,dbpasswd,dbname,3306/*TCP IP端口*/,NULL/*Unix Socket 连接类型*/,0/*运行成ODBC数据库标志*/) ) 
+  42:  { 
+  43:      if (!mysql_select_db(con,dbname)) 
+  44:      { 
+  45:          printf("Select successfully the database!\n"); 
+  46:          
+  47:          con ->reconnect = 1; 
+  48:   
+  49:          query = "set names \'GBK\'";
+  50:          //mysql_query(con,"set names \'GBK\'"); 
+  51:          
+  52:          rt=mysql_real_query(con,query,strlen(query));
+  53:          if (rt)
+  54:          {
+  55:              printf("Error making query: %s !!!\n",mysql_error(con));
+  56:          }
+  57:          else
+  58:          {
+  59:              printf("query %s succeed!\n",query);
+  60:          }
+  61:          
+  62:      }
+  63:  }
+  64:   
+  65:  else
+  66:  {
+  67:      MessageBoxA(NULL,"Unable to connect the database,check your configuration!","",NULL);
+  68:   
+  69:  }
+  70:   
+  71:      //sprintf(tmp,"update %s set 商品=\'%s\',卖出=%d,成交=%d,涨跌=%d,买进=%d,总量=%d,涨幅=%f,时间=\'%s\' where  %s",tablename,goods,sold,deal,fluctuate,buy,total,delta,time,UpdateCon);
+  72:      sprintf(tmp,"insert into %s values(%s,%d,%d)",tablename,"null",x,y); //注意如何向具有自增字段的数据库中插入记录
+  73:      //MessageBoxA(NULL,tmp,tmp,MB_OK);
+  74:      //mysql_query(con,tmp);
+  75:   
+  76:      rt=mysql_real_query(con,tmp,strlen(tmp));
+  77:      if (rt)
+  78:      {
+  79:          printf("Error making query: %s !!!\n",mysql_error(con));
+  80:      }
+  81:      else
+  82:      {
+  83:          printf("%s executed!!!\n",tmp);
+  84:      }
+  85:      
+  86:      sprintf(tmp,"select * from %s",tablename);
+  87:      
+  88:      rt=mysql_real_query(con,tmp,strlen(tmp));
+  89:      if (rt)
+  90:      {
+  91:          printf("Error making query: %s !!!\n",mysql_error(con));
+  92:      } 
+  93:      else
+  94:      {
+  95:          printf("%s executed!!!\n",tmp);
+  96:      }
+  97:      
+  98:      res = mysql_store_result(con);//将结果保存在 res 结构体中
+  99:   
+ 100:      while(row = mysql_fetch_row(res))  
+ 101:      {  
+ 102:          /** 
+ 103:          * MYSQL_ROW STDCALL mysql_fetch_row(MYSQL_RES *result); 
+ 104:           * 检索行 
+ 105:          */  
+ 106:   
+ 107:         for(t=0;t<mysql_num_fields(res);t++)  
+ 108:          {  
+ 109:              printf("%s  ",row[t]);  
+ 110:          }  
+ 111:          printf(".............\n");  
+ 112:          count ++;
+ 113:      }  
+ 114:     printf("number of rows %d\n",count);
+ 115:      printf("mysql_free_result...\n");  
+ 116:      mysql_free_result(res);  
+ 117:   
+ 118:      mysql_close(con);
+ 119:      return 0;
+ 120:   
+ 121:  }
+
+ 
+. [代码][C/C++]代码     跳至 [1]  [全屏预览]  
+//下面的代码是一个实现C++连接MYSQL数据库的很好的例子
+//这里用了建表，插入，检索，删表等常用功能
+//我用VC++6.0生成，已经成功连接了。
+//在VC++6.0中要想把做一下两步准备工作才可以。
+//(1)Tools->Options->Directories->Include files中添加C:\Program Files\MySQL\MySQL Server 6.0\include
+//(2)Tools->Options->Directories->Library files中添加C:\Program Files\MySQL\MySQL Server 6.0\lib\opt
+//其实就是将头文件和库文件包含进来
+//我觉得这个例子写的很好，再结合自己的试验，特地介绍给大家！
+ 
+#include <winsock.h>
+#include <iostream>
+#include <string>
+#include <mysql.h>
+using namespace std;
+ 
+#pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "libmysql.lib")
+ 
+//单步执行，不想单步执行就注释掉
+#define STEPBYSTEP
+ 
+int main() {
+    cout << "****************************************" << endl;
+ 
+#ifdef STEPBYSTEP
+    system("pause");
+#endif
+ 
+    //必备的一个数据结构
+    MYSQL mydata;
+ 
+    //初始化数据库
+    if (0 == mysql_library_init(0, NULL, NULL)) {
+        cout << "mysql_library_init() succeed" << endl;
+    } else {
+        cout << "mysql_library_init() failed" << endl;
+        return -1;
+    }
+ 
+#ifdef STEPBYSTEP
+    system("pause");
+#endif
+ 
+    //初始化数据结构
+    if (NULL != mysql_init(&mydata)) {
+        cout << "mysql_init() succeed" << endl;
+    } else {
+        cout << "mysql_init() failed" << endl;
+        return -1;
+    }
+ 
+#ifdef STEPBYSTEP
+    system("pause");
+#endif
+ 
+    //在连接数据库之前，设置额外的连接选项
+    //可以设置的选项很多，这里设置字符集，否则无法处理中文
+    if (0 == mysql_options(&mydata, MYSQL_SET_CHARSET_NAME, "gbk")) {
+        cout << "mysql_options() succeed" << endl;
+    } else {
+        cout << "mysql_options() failed" << endl;
+        return -1;
+    }
+ 
+#ifdef STEPBYSTEP
+    system("pause");
+#endif
+ 
+    //连接数据库
+    if (NULL
+            != mysql_real_connect(&mydata, "localhost", "root", "test", "test",
+                    3306, NULL, 0))
+            //这里的地址，用户名，密码，端口可以根据自己本地的情况更改
+            {
+        cout << "mysql_real_connect() succeed" << endl;
+    } else {
+        cout << "mysql_real_connect() failed" << endl;
+        return -1;
+    }
+ 
+#ifdef STEPBYSTEP
+    system("pause");
+#endif
+ 
+    //sql字符串
+    string sqlstr;
+ 
+    //创建一个表
+    sqlstr = "CREATE TABLE IF NOT EXISTS user_info";
+    sqlstr += "(";
+    sqlstr +=
+            "user_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT 'Unique User ID',";
+    sqlstr +=
+            "user_name VARCHAR(100) CHARACTER SET gb2312 COLLATE gb2312_chinese_ci NULL COMMENT 'Name Of User',";
+    sqlstr +=
+            "user_second_sum INT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'The Summation Of Using Time'";
+    sqlstr += ");";
+    if (0 == mysql_query(&mydata, sqlstr.c_str())) {
+        cout << "mysql_query() create table succeed" << endl;
+    } else {
+        cout << "mysql_query() create table failed" << endl;
+        mysql_close(&mydata);
+        return -1;
+    }
+ 
+#ifdef STEPBYSTEP
+    system("pause");
+#endif
+ 
+    //向表中插入数据
+    sqlstr =
+            "INSERT INTO user_info(user_name) VALUES('公司名称'),('一级部门'),('二级部门'),('开发小组'),('姓名');";
+    if (0 == mysql_query(&mydata, sqlstr.c_str())) {
+        cout << "mysql_query() insert data succeed" << endl;
+    } else {
+        cout << "mysql_query() insert data failed" << endl;
+        mysql_close(&mydata);
+        return -1;
+    }
+ 
+#ifdef STEPBYSTEP
+    system("pause");
+#endif
+ 
+    //显示刚才插入的数据
+    sqlstr = "SELECT user_id,user_name,user_second_sum FROM user_info";
+    MYSQL_RES *result = NULL;
+    if (0 == mysql_query(&mydata, sqlstr.c_str())) {
+        cout << "mysql_query() select data succeed" << endl;
+ 
+        //一次性取得数据集
+        result = mysql_store_result(&mydata);
+        //取得并打印行数
+        int rowcount = mysql_num_rows(result);
+        cout << "row count: " << rowcount << endl;
+ 
+        //取得并打印各字段的名称
+        unsigned int fieldcount = mysql_num_fields(result);
+        MYSQL_FIELD *field = NULL;
+        for (unsigned int i = 0; i < fieldcount; i++) {
+            field = mysql_fetch_field_direct(result, i);
+            cout << field->name << "\t\t";
+        }
+        cout << endl;
+ 
+        //打印各行
+        MYSQL_ROW row = NULL;
+        row = mysql_fetch_row(result);
+        while (NULL != row) {
+            for (int i = 0; i < fieldcount; i++) {
+                cout << row[i] << "\t\t";
+            }
+            cout << endl;
+            row = mysql_fetch_row(result);
+        }
+ 
+    } else {
+        cout << "mysql_query() select data failed" << endl;
+        mysql_close(&mydata);
+        return -1;
+    }
+ 
+#ifdef STEPBYSTEP
+    system("pause");
+#endif
+ 
+    //删除刚才建的表
+    sqlstr = "DROP TABLE user_info";
+    if (0 == mysql_query(&mydata, sqlstr.c_str())) {
+        cout << "mysql_query() drop table succeed" << endl;
+    } else {
+        cout << "mysql_query() drop table failed" << endl;
+        mysql_close(&mydata);
+        return -1;
+    }
+    mysql_free_result(result);
+    mysql_close(&mydata);
+    mysql_server_end();
+ 
+    system("pause");
+    return 0;
+}

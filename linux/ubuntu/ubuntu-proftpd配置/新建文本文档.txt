@@ -1,0 +1,19 @@
+1、
+浏览已安装的程序。要查看已安装的软件包列表，请输入以下命令。请注意你希望卸载的软件包的名称。
+
+dpkg --list
+
+
+2、
+卸载程序和所有配置文件。在终端中输入以下命令，把<programname>替换成你希望完全移除的程序：
+
+sudo apt-get --purge remove <programname>
+
+sudo apt-get autoremove --purge <programname>
+
+sudo dpkg --purge  <programname>
+
+3、
+只卸载程序。如果你移除程序但保留配置文件，请输入以下命令：
+
+sudo apt-get remove <programname>

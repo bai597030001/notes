@@ -1,0 +1,23 @@
+ubuntu 分区一般分为3个,根分区，boot分区和swap分区
+
+如果使用过程中某个分区空间不足，需要进行动态扩容，即挂载一块新硬盘到某个分区(注：该分区必须是独立分区，
+	也就是说在系统安装时独立分配过的分区)。
+	
+sudo fdisk -l	//查看
+mount			//查看现在挂载的磁盘和分区
+df -h			//查看
+lsblk
+blkid
+
+lsusb	(-v)
+lspci
+
+插入磁盘(U盘)后，mount看一下,lsblk看一下，已经有sdb,sdb1块了,然后mount命令进行挂载
+如：mount /dev/sdb1  /home/baijd	,然后mount看一下/dev/sdb1时候挂载到了/home/baijd;
+注意：此时只是临时挂载，如果要实现开机自动挂载,则 blkid命令看一下，然后把 UUID对应的
+内容写入 /etc/fstab文件
+
+
+
+未解决：如果需要把该新硬盘分为若干块进行不同分区的挂载，则需要parted命令进行分离
+，然后再分别挂载，该部分还未实现

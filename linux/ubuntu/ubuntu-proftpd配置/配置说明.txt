@@ -1,0 +1,72 @@
+		baidu.com	----->	ubuntu proftpd 虚拟用户
+
+1、配置文件 /etc/proftpd/proftpd.conf 文件：
+
+	# 不要求有合法shell，直接效果是允许nologin用户和虚拟用户登录
+	RequireValidShell off
+	# AuthOrder指定了权限检查的顺序。这里只使用虚拟用户
+	AuthOrder mod_auth_file.c mod_auth_unix.c
+	AuthUserFile /usr/share/proftpd/etc/passwd
+	AuthGroupFile /usr/share/proftpd/etc/group
+	
+	
+	创建一个虚拟用户test，并指定目录:
+	ftpasswd --passwd --file=/usr/local/etc/proftpd/passwd --name=test --uid=3000 --home=/home/ftpdata --shell=/bin/false
+　　　　　　–passwd 指定建立一个新的虚拟用户，–group则建立一个虚拟组；
+　　　　　　–file 指定存储虚拟用户的文件；
+　　　　　　–name 指定此虚拟用户的用户名，密码会在命令执行时要求输入；
+　　　　　　–uid 指定此虚拟用户对应的系统用户UID，此虚拟用户将以此系统UID的身份读写文件
+　　　　　　–home 指定此虚拟用户的根目录，就是其登陆FTP后的根目录；
+　　　　　　–shell 指定此虚拟用户的shell，为了安全当然指定一个不可登陆的shell了。
+	ftpasswd --passwd --file=/usr/local/etc/proftpd/group --name=test --uid=3000 --home=/home/ftpdata --shell=/bin/false
+	
+	新建一个虚拟用户组
+	root@ubuntu:~# ftpasswd --group --name=testgroup --gid=2014
+	
+	将虚拟用户添加到虚拟用户组
+	root@ubuntu:~# ftpasswd --group --name=testgroup --gid=2014 --member=test
+	
+	如果用户登录后，没有写权限，要使用以下命令增加
+	root@ubuntu:~# chmod 777 -R /home/ftpdata
+	
+****************
+****重点注意****
+****************：
+				/usr/local/etc/proftpd/passwd  文件的用户一定要改成proftpd ，否则无法登陆，出现530错误 ！！！！！！！！！！！！！！！！
+				经过测试，该两个文件的用户必须与proftpd.conf配置文件中的 User 选项(现在为profptd)一致，否则都会无法登陆。
+				
+				
+2、
+　　Limit权限说明:
+
+	CMD ： Change Working Directory 改变目录
+	MKD ： MaKe Directory 建立目录的权限
+	RNFR ： ReName FRom 更改目录名的权限
+	DELE ： DELEte 删除文件的权限
+	RMD ： ReMove Directory 删除目录的权限
+	RETR ： RETRieve 从服务端下载到客户端的权限
+	STOR ： STORe 从客户端上传到服务端的权限
+	READ ：可读的权限，不包括列目录的权限，相当于 RETR ， STAT 等
+	WRITE ：写文件或者目录的权限，包括 MKD 和 RMD
+	DIRS ：是否允许列目录，相当于 LIST ， NLST 等权限，还是比较实用的
+	ALL ：所有权限
+	LOGIN ：是否允许登陆的权限
+	 
+	#limit 中对用户和群组的控制
+	AllowUser 针对某个用户允许的 Limit
+	DenyUser 针对某个用户禁止的 Limit
+	AllowGroup 针对某个用户组允许的 Limit
+	DenyGroup 针对某个用户组禁止的 Limit
+	AllowAll 针对所有用户组允许的 Limit
+	DenyAll 针对所有用户禁止的 Limit
+	
+3、权限限制 示例
+注：
+	DefaultRoot         ~	//这行的注释要打开
+	
+	# 限制 bjyw 用户 删除目录，删除文件，创建目录，上传，重命名 和执行chmod命令(SITE_CHMOD)
+	<Directory /home/gsmrlab/Share>
+		<Limit RMD DELE MKD STOR RNTO SITE_CHMOD>
+			DenyUser bjyw
+		</Limit>
+	</Directory>

@@ -1,0 +1,48 @@
+一：进程终止：
+	
+1、
+		//先执行一些清理处理(调用执行各终止处理程序，关闭IO流)，再进入内核
+	1)	exit();
+		//立即进入内核
+	2)	_exit();
+	3)	_Exit();
+	
+2、
+	atexit();
+
+	on_exit();
+
+二、
+	
+3、环境表：字符指针数组，
+			全局变量：extern 	char** 	environ
+			
+4、size命令
+
+5、环境变量：name=value
+
+	char*	getenv(const char* name);
+	//返回name=value的value值
+	int		putenv(char* str);
+	int		setenv(const char* name, const char* value, int rewrite);
+	int		unsetenv(const char* name);
+	
+			clearenv();
+			
+6、非局部跳转
+
+	int		setjmp(jmp_buf env);
+	
+	int		longjmp(jmp_buf env, int val);
+	
+	注：局部跳转goto， 只能在函数内部，不能跨函数；
+		而这两个函数是在栈上跳过若干帧
+		
+		
+7、进程资源限制
+	每个进程都有对应的资源限制，通常是在系统初始化时由进程0建立的
+	然后由每个后续进程继承
+	
+	int		getrlimit(int	resource, struct rlimit	*rlptr);
+	
+	int		setrlimit(int	resource, const struct rlimit	*rlptr);

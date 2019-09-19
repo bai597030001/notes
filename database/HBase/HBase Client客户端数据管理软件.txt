@@ -1,0 +1,20 @@
+redis和hbase可视化工具介绍
+
+1.hbase:
+
+	1.1
+	
+		https://blog.csdn.net/hy_zhengwei/article/details/78214902
+
+		->
+
+		https://github.com/HY-ZhengWei/HBaseClient
+
+		->
+
+		https://github.com/HY-ZhengWei/HBaseClient-Download/blob/master/发布版本/v1.6.1/HBaseClient_1.6.1_64.exe
+		
+		
+	1.2 hbase可视化工具-squirrel
+	
+		https://blog.csdn.net/wm5920/article/details/78124939

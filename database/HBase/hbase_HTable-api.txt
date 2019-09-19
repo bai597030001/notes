@@ -1,0 +1,139 @@
+HTable
+
+	关系：org.apache.hadoop.hbase.client.HTable
+
+	作用：可以用来和HBase表直接通信。此方法对于更新操作来说是非线程安全的。
+	
+	api:
+		
+		void checkAndPut(byte[] row, byte[] family, byte[] qualifier, byte[] value, Put put)
+		
+			自动的检查row/family/qualifier是否与给定的值匹配
+			
+		void close()
+		
+			释放所有的资源或挂起内部缓冲区中的更新
+			
+		Boolean exists(Get get)
+
+			检查Get实例所指定的值是否存在于HTable的列中
+			
+		Result get(Get get)
+			
+			获取指定行的某些单元格所对应的值
+			
+		byte[][] getEndKeys()
+
+			获取当前一打开的表每个区域的结束键值
+			
+		ResultScanner getScanner(byte[] family)
+
+			获取当前给定列族的scanner实例
+			
+		HTableDescriptor getTableDescriptor()
+
+			获取当前表的HTableDescriptor实例
+
+		byte[] getTableName()
+
+			获取表名
+			
+		static boolean isTableEnabled(HBaseConfiguration conf, String tableName)
+
+			检查表是否有效
+			
+		void put(Put put)
+
+			向表中添加值
+			
+			1、单行插入：put(Put p)
+
+			2、批量插入:put(List<Put> list)
+
+			3、检查并写入： checkAndPut(byte[] row, byte[] family, byte[] qualifier, byte[] value, Put put)
+
+				该方法提供了一种原子性操作，即该操作如果失败，则操作中的所有更改都失效。
+				
+				该函数在多个客户端对同一个数据进行修改时将会提供较高的效率。
+				
+			4、缓存块操作
+
+				2方法虽然提供了批量操作，但实际的RPC请求次数没有任何的减少，因此put(List)和多次put(Put p)方法理论上的速率是相同的。
+				
+				而Put对象提供了一种可以打开Put缓存区的方式来提高数据提交的速率。该方式在客户端的内存中提供一块缓存区域，客户端并设
+				
+				置其大小，然后在用户每次进行提交时并不立刻将数据提交给Hbase集群中，而是当所有该缓存区已经满溢的时候将缓存区中的数
+				
+				据通过一次RPC操作，一次提交到HBase集群中去。所以缓存块在进行大量put请求，且数据量较小时将会明显提高效率。
+				
+					
+					
+					public void startBufferAndInsert(String tableName,String[] rows,String[] families,String[] columns,String[] values)
+
+						{
+
+							Configuration conf=init();
+
+							try {
+
+								//检查制定的表是否村存在
+
+								HBaseAdmin admin=new HBaseAdmin(conf);
+
+								if(!admin.tableExists(Bytes.toBytes(tableName)))
+
+								{
+
+									System.err.println("the table "+tableName+" is not exist");
+
+									System.exit(1);
+
+								}
+
+								admin.close();
+
+								//创建表连接
+
+								HTable table=new HTable(conf,TableName.valueOf(tableName));
+
+								//将数据自动提交功能关闭
+
+								table.setAutoFlush(false);
+
+								//设置数据缓存区域
+
+								table.setWriteBufferSize(64*1024*1024); 
+
+								//然后开始写入数据
+
+								int length=rows.length;
+
+								for(int i=0;i<length;i++)
+
+								{
+
+									Put put=new Put(Bytes.toBytes(rows[i]));
+
+									put.addColumn(Bytes.toBytes(families[i]),Bytes.toBytes(columns[i]),Bytes.toBytes(values[i]));
+
+									table.put(put);
+
+								}
+
+								//刷新缓存区
+
+								table.flushCommits();
+
+								//关闭表连接
+
+								table.close();
+
+							} catch (Exception e) {
+
+								// TODO: handle exception
+
+								e.printStackTrace();
+
+							}
+
+						}

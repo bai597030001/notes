@@ -1,0 +1,105 @@
+java单例模式实现:
+
+
+	public static Singleton getInstance(){
+
+		if(instance == null){
+
+			synchronized(Singleton.class){
+
+				if(instance==null)
+
+					instance = new Singleton();
+
+			}
+
+		}
+
+		return instance;
+
+	}
+
+	这部分代码首先判断instance是否为null，如果确实为null，则进入一个synchronize包围的代码块，
+	
+	相当于上了锁，进入了临界区，为了防止在判断为null到进入临界区的过程中，有线程对其new了一
+	
+	个实例出来，再上锁完成之后，在对instance是否为null进行一次判断，如果这次还是为null，则可
+	
+	以确认确实instance为null，并且此时也不会有其他线程尝试new一个instance出来，因此可以放心地执行new对象的工作。
+	
+	
+	
+	这个代码在单线程的环境下是没错的（废话），但是如果在并发的环境下，会出现严重的问题。
+	
+	
+	
+	问题其实出在java的编译器上，java的编译器会将字节码命令进行重排序以便进行优化，在第五行，
+	
+	构造函数的调用似乎应该在instance得到赋值之前发生，但是在java虚拟机内部，却不是这样的，
+	
+	完全有可能先new出来一个空的未调用过构造函数的instance对象，然后再将其赋值给instance引用，
+	
+	然后再调用构造函数，对instance对象当中的元素进行初始化。
+	
+	这样，就很有可能，当instance被赋值一个空的实例对象的时候，另一个线程调用了getInstance（）
+	
+	这个函数，另一个线程发现，instance并不是空的，于是愉快地return回了那个空的instance对象。
+	
+	这样，一个空的instance对象的引用就被流传到了其他线程当中，为非作歹。
+	
+	
+	
+	那么怎样修改呢？很简单：
+	
+	1.
+	
+	public synchronize static Singleton getInstance(){
+
+		if(instance == null){
+
+			instance = new Singleton();
+
+		}
+
+		return instance;
+
+	}
+
+	直接在命令上加锁，这样就不会有两个线程同时调用此命令，虽然看起来使得并发效率下降，但是保证了正确性。
+	
+	2.
+	
+	
+	public class SingletonDemo {
+
+		private volatile static SingletonDemo instance;
+
+		private SingletonDemo(){
+
+			System.out.println("Singleton has loaded");
+
+		}
+
+		public static SingletonDemo getInstance(){
+
+			if(instance==null){
+
+				synchronized (SingletonDemo.class){
+
+					if(instance==null){
+
+						instance=new SingletonDemo();
+
+					}
+
+				}
+
+			}
+
+			return instance;
+
+		}
+
+	}
+	
+	声明变量是 volatile 的，JVM 保证了每次读变量都从内存中读，跳过 CPU cache, 防止指令重排序.

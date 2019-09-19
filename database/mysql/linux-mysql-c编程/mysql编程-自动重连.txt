@@ -1,0 +1,27 @@
+
+
+最近部署一个系统，后台用线程池来处理请求，而每个线程有一个mysql连接。当系统运行一阶段后，有些请求会出现操作“Internal error”，而操作一次可能又会成功。经过多方调试，发现是MySQL连接超时。如果使用了长连接而长期没有对数据库进行任何操作，那么在 timeout值后，mysql server就会关闭此连接，而客户端在执行查询的时候就会得到一个类似于“MySQL server has gone away“这样的错误。解决方法有两个：
+1） 增大/etc/my.cnf中wait_timeout的值，比如设置wait_timeout=8640000，即100天。这个值缺省是8小时。这个方法简单，但是不能彻底解决问题。推荐第二种解决方法。
+2）使用mysql_ping来自动检查重连。用到两个函数，一个是mysql_ping，另外一个是mysql_options。具体使用方法是在mysql_real_connect之前，mysql_init之后，使用mysql_options。用法如下：
+char value = 1;
+ (void) mysql_init (&mysql);
+ mysql_options(&mysql, MYSQL_OPT_RECONNECT, (char *)&value);
+然后在以后mysql_query之前首先使用mysql_ping进行判断，如果连接已经断开，会自动重连。 
+不过，请注意，自动重新连接也会导致一些副作用，如下：
+    * 任何活动的交易都被回滚，autocommit模式被置为reset。
+    * 所有表锁都释放
+    * 所有临时表是关闭（撤消）
+    * Session variables are reinitialized to the values of the corresponding variables.会话变量被重新初始化为相应的变量。 这也影响那些隐式声明的变量，SET NAMES。比如使用This also affects variables that are set implicitly by statements such as SET NAMES.这也影响了变量，是一套由含蓄的声明，例如订定的名称。
+    * 用户变量设置都将丢失。
+    * 编制报表释放。
+    * 句柄变量被关闭。
+    * LAST_INSERT_ID()被重置为0 。
+    * 使用GET_LOCK()获得的锁被释放 
+
+　　首先，如果使用了长连接而长期没有对数据库进行任何操作，那么在timeout值后，mysql server就会关闭此连接，而客户端在执行查询的时候就会得到一个类似于“MySQL server has gone away“这样的错误。
+
+　　一个好的解决方法是使用mysql_ping。在使用mysql_real_connect连接数据库之后，再使用mysql_options( &mysql, MYSQL_OPT_RECONNECT, … ) 来设置为自动重连。这样当mysql连接丢失的时候，使用mysql_ping能够自动重连数据库。如果是在mysql 5.1.6之前，那么则应在每次执行完real_connect 之后执行mysql_options( &mysql, MYSQL_OPT_RECONNECT, … ) ,如果是mysql 5.1.6+，则在connect之前执行一次就够了。
+
+　　有一种很自然的想法就是，新开一个线程，让它隔一定时间（如20秒）就执行一次mysql_ping.除此而外它什么都不用做。但是显然，这个线程必须与其它线程共享一个mysql连接，共享该mysql句柄。否则这样做一点意义都没有。
+
+　　但是，mysql_ping会改变mysql_affected_rows的返回值。所以最好是给该MYSQL句柄再加一个mutex（最好是读写 锁）。当其它线程准备执行query的时候，就获取锁，执行完就释放。而这个执行mysql_ping的线程在执行ping之间先尝试获取锁，如果获取失 败，则继续sleep，放弃这一轮的ping。  

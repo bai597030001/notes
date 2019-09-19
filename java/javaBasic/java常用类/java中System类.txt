@@ -1,0 +1,47 @@
+System类代表系统，系统级的很多属性和控制方法都放置在该类的内部。该类位于java.lang包。
+
+1、成员变量
+
+	System类内部包含in、out和err三个成员变量，分别代表标准输入流(键盘输入)，标准输出流(显示器)和标准错误输出流(显示器)。
+
+ 2、成员方法
+ 
+	a、arraycopy方法
+	
+		public static void arraycopy(Object src, int srcPos, Object dest, int destPos, int length)
+		
+		该方法的作用是数组拷贝，也就是将一个数组中的内容复制到另外一个数组中的指定位置，由于该方法是native方法，所以性能上比使用循环高效。
+	
+	b、currentTimeMillis方法
+	
+	c、exit方法
+	
+		 public static void exit(int status)
+
+		该方法的作用是退出程序。其中status的值为0代表正常退出，非零代表异常退出。使用该方法可以在图形界面编程中实现程序的退出功能等。
+	
+	d、gc方法
+	
+		public static void gc()
+
+		该方法的作用是请求系统进行垃圾回收。至于系统是否立刻回收，则取决于系统中垃圾回收算法的实现以及系统执行时的情况。
+	
+	e、getProperty方法
+	
+		public static String getProperty(String key)
+
+		该方法的作用是获得系统中属性名为key的属性对应的值。系统中常见的属性名以及属性的作用如下表所示。
+		
+		Java 运行时环境版本		java.version
+
+		Java 安装目录			java.home
+
+		操作系统的名称			os.name
+
+		操作系统的版本			os.version
+
+		用户的账户名称			user.name
+
+		用户的主目录			user.home
+
+		用户的当前工作目录		user.dir

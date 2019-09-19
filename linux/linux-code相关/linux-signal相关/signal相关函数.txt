@@ -1,0 +1,112 @@
+一、发送信号：
+1、raise(signo);
+	给调用者发送信号signo
+	
+2、kill(pid, signo);
+	给pid进程发送信号signo
+	
+3、alarm(seconds);
+	经过seconds秒后发送闹钟信号
+	
+3、int sigqueue(pid_t pid, int sig, const union sigval value);
+	给进程pid发送信号sig， 并且附加数据value
+	
+	union sigval 
+	   {
+		   int   sival_int;
+		   void *sival_ptr;
+	   };
+	
+二、信号注册函数
+1、sighandler_t signal(int signum, sighandler_t handler);
+
+2、int sigaction(int signum, const struct sigaction *act,struct sigaction *oldact);
+	struct sigaction 
+	{
+	   void (*sa_handler)(int);
+	=> 函数指针类型
+	=> 设置对信号的处理方式
+
+	   void (*sa_sigaction)(int, siginfo_t *, void *);
+	=> 函数指针类型
+	=> 设置对信号的处理方式,理解为上述函数指针的增强版
+
+	   sigset_t   sa_mask;
+	=> 信号屏蔽字,信号集类型，支持多个信号的屏蔽
+	=> 主要设置在信号处理期间需要屏蔽的信号,
+	   默认自动屏蔽与所处理的信号相同的信号
+
+	   int  sa_flags;
+	=> SA_SIGINFO 表示选择第二个函数指针处理信号
+	=> SA_NODEFER 表示解除对所处理信号相同信号的屏蔽
+	=> SA_RESETHAND 表示信号第二次到来采用默认处理
+
+	   void     (*sa_restorer)(void);
+	=> 函数指针类型，保留，暂时不使用
+	};
+	
+	
+	
+	
+	siginfo_t 
+	  {
+		 pid_t  si_pid; //发送信号的进程号
+		 sigval_t si_value;//发送信号伴随的附加数据
+	  };
+	
+三、信号集的概念
+1、
+信号集的数据类型：sigset_t 类型   128个字节
+typedef struct
+{
+      unsigned long int __val[(1024/(8*sizeof(unsigned long int)))];
+} __sigset_t;
+typedef __sigset_t sigset_t;
+
+信号集的基本操作
+#include <signal.h>
+sigemptyset() - 清空信号集,本质上就是将二进制置为0
+sigfillset() - 填满信号集,本质就是二进制置为1
+sigaddset() - 填充指定信号到信号集,也就是二进制置为1
+sigdelset() - 删除指定信号，也就是指定二进制置为0
+sigismember() - 判断信号集中是否存在某个信号,存在返回1,不存在返回0,出错返回-1
+
+2、程序在执行某些关键性的功能时，可能不允许被中断,这个时候需要对信号设置屏蔽的处理
+
+	int sigprocmask(int how,const sigset_t *set, sigset_t *oldset);
+	
+	第一个参数：设置方式
+    SIG_BLOCK - 旧+新 ABC+CDE => ABCDE
+    SIG_UNBLOCK - 旧-新 ABC-CDE => AB
+    SIG_SETMASK - 旧->新 ABC CDE => CDE(掌握)
+	
+	
+	int sigpending(sigset_t *set);
+
+
+3、sigsuspend函数 ：
+sigsuspend函数接受一个信号集指针，将信号屏蔽字设置为信号集中的值，在进程接受到一个信号之前，进程会挂起，
+当捕捉一个信号，首先执行信号处理程序，然后从sigsuspend返回，最后将信号屏蔽字恢复为调用sigsuspend之前的值。
+#include <signal.h>
+int sigsuspend(const sigset_t *sigmask);
+// 返回值：－1，并将errno设置为EINTR
+pause函数：
+pause函数使调用进程挂起直到捕捉到一个信号。只有执行了一个信号处理程序并从其返回时，pause才返回
+
+
+#include <signal.h>
+
+int sigwaitinfo(sigset_t *set, siginfo_t *info)
+sigwaitinfo()函数：阻塞一个进程直到特定信号发生，但信号到来时不执行信号处理函数，而是返回信号值。 调用该函数的典型代码为： 
+
+sigwaitinfo()
+sigset_t newmask;
+int rcvd_sig;
+siginfo_t info;
+sigemptyset(&newmask);
+sigaddset(&newmask, SIGRTMIN);
+sigprocmask(SIG_BLOCK, &newmask, NULL);
+rcvd_sig = sigwaitinfo(&newmask, &info);
+if(rcvd_sig == -1){
+…...
+}

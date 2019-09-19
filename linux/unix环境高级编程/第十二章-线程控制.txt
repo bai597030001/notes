@@ -1,0 +1,180 @@
+一、
+POSIX.1 线程属性
+
+名称				描述								FreeBSD5.2.1	linux2.4.22		mac OS10.3		Solaris9
+detachstate		线程分离状态属性											.
+guardsize		线程栈末尾的警戒缓冲区大小(字节数)
+stackaddr		线程栈的最低地址
+stacksize		线程栈的大小(字节数)
+
+	int		pthread_attr_init(pthread_attr_t*	attr);
+	
+	int		pthread_attr_destroy(pthread_attr_t*	attr);
+	
+1、	分离状态属性		(detachstate)
+
+	如果对现有的某个线程的终止状态不感兴趣的话，可以使用pthread_detach()让
+		操作系统在线程退出时收回它所占用的资源
+		
+	那么如果创建线程时就知道不需要了解线程的终止状态，则可以修改pthread_attr_t结构
+		中的detachstate属性(以分离状态启动线程：PTHREAD_CREATE_DETACHED；
+		正常启动线程：PTHREAD_CREATE_JOINABLE，正常启动，则应用程序可以获取其终止状态)
+		
+	int		pthread_attr_getdetachstate(const pthread_attr_t*  restrict attr, int*  detachstate);
+	
+	int		pthread_attr_setdetachstate(pthread_attr_t* attr, int  detachstate);
+	
+示例：
+	...
+	err = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+	...
+	
+2、线程栈属性			(stackaddr,  stacksize)
+
+	pthread_attr_getstack(const pthread_attr_t* restrict attr, 
+									void** restrict stackaddr, size_t* restrict stacksize);
+									
+	pthread_attr_setstack(const pthread_attr_t* attr,
+									void* stackaddr, size_t* stacksize);
+									
+3、线程属性	stacksize
+
+	int		pthread_atr_getstacksize(const pthread_attr_t* restrict attr, size_t* restrict stacksize);
+	
+	int		pthread_attr_setstacksize(pthread_attr_t* attr, size_t stacksize);
+			//如果希望改变栈的默认大小，但是又不想自己处理线程栈的分配问题，这时使用pthread_attr_setstacksize()
+				就非常有用
+				
+4、线程属性 guardsize
+
+	int		pthread_attr_getdetachstate(...);
+	
+	int		pthread_attr_setdetachstate(...);
+	
+5、更多线程属性
+	
+	. 可取消状态
+	. 可取消类型
+	. 并发度
+		控制着用户级线程可以映射的内核线程或进程的数目;
+		如果内核级线程和用户级线程保持一对一关系，则改变并发度不会有什么效果，因为所有用户线程
+			都可能被调度到
+		如果操作系统的实现让用户级线程到内核级线程之间的关系是多对一的话，增加并发度可能会改善性能。
+		
+		int		pthread_getconcurrency(void);
+		
+		int		pthread_setconcurrency(int  level);
+		
+		
+
+二、同步属性
+
+1、进程共享互斥量属性
+
+	int		pthread_mutexattr_getpshared(...);
+	
+	int		pthread_mutexattr_setpshared(...);
+	
+			PTHREAD_PROCESS_PRIVATE,	PTHREAD_PROCESS_SHARED;
+	
+2、类型互斥量属性
+	
+	互斥量类型					没有解锁时再次加锁			不占用时解锁		在已解锁时解锁
+	PTHREAD_MUTEX_NORMAL			死锁						未定义				未定义
+	PTHREAD_MUTEX_ERRORCHECK		返回错误					返回错误			返回错误
+	PTHREAD_MUTEX_RECURSIVE			允许						返回错误			返回错误
+	PTHREAD_MUTEX_DEFAULT			未定义						未定义				未定义
+	
+	int		pthread_mutexattr_gettype(...);
+	
+	int		pthread_mutexattr_settype(...);
+	
+3、读写锁属性
+	
+	读写锁支持的唯一属性是进程共享属性，该属性与互斥量的进程共享属性相同。
+	
+	int		pthread_rwlockaddr_getpshared(...);
+	
+	int		pthread_rwlockaddr_setpshared(...);
+	
+4、条件变量属性
+
+	int		pthread_condattr_init(...);
+	
+	int 	pthread_condattr_destroy(...); 
+
+	条件变量属性支持进程共享属性
+	
+	int		pthread_condattr_getpshared(...);
+	
+	int		pthread_condattr_setpshared(...);
+	
+5、以线程安全的方式管理FILE对象
+	？？？？？？？？？？？？？？？？？？？？？？？？？？？？
+	
+6、线程私有数据
+
+	示例：errno
+	
+	在分配线程私有数据之前，需要创建与该数据关联的键。这个键将用于获取对线程私有数据的访问权。
+	
+	pthread_key_create(pthread_key_t*  keyp,  void  (* destructor)(void *));
+	
+	取消键与线程私有数据之间的关联
+	
+	pthread_key_delete(pthread_key_t* key);
+	
+	
+	pthread_once_t	initflag = PTHREAD_ONCE_INIT;
+	int		pthread_once(pthread_once_t*  initflag, void (*initfn)(void));
+			//initflag必须是一个本地变量(全局变量或静态变量)
+			
+	void	*pthread_getspecific(pthread_key_t  key);
+	
+	int		pthread_setspecific(pthread_key_t  key, const void*  value);
+	
+	
+7、取消选项
+
+	两个线程属性(可取消状态 和 可取消类型)没有包含在 pthread_attr_t结构.
+	
+	int		pthread_setcancelstate(int state, int* oldstate);
+		//PTHREAD_CANCEL_ENABLE, PTHREAD_CANCEL_DISABLE
+		
+	void	pthread_testcancel(void);
+	
+	int		pthread_setcanceltype(int type, int* oldtype);
+	
+8、线程和信号
+
+	int		pthread_sigmask(..);	//类比sigprocmask()
+	
+	int		sigwait(...);		//等待一个或多个信号发生
+	
+	int		pthread_kill(...);	//把信号发送到线程
+	
+9、线程和 fork
+	
+	子进程从fork函数返回以后马上调用某个exec函数；
+		(如果父进程中的线程占有锁，子进程同样战友这些锁，
+		问题是子进程并不包含占有锁的线程的副本，所以子进程没有办法
+		知道它占有了哪些锁并且需要释放哪些锁);
+		
+	要清除锁状态：
+	int		pthread_atfork(void (*prepare)(void),  void (*parent)(void), void (*child)(void));
+	
+10、线程 和 IO
+
+	pread 和 pwrite函数
+	
+	进程中的所有线程共享相同的文件描述符；
+	考虑两个线程在同一时间对同一文件描述符进行读写操作；
+	
+	线程A										线程B
+lseek(fd, 300, SEEK_SET);					lseek(fd, 700, SEEK_SET);
+read(fd, buf1, 100);						read(fd, buf2, 100);
+
+	如果A执行了lseek，然后B在A调用read之前调用lseek,那么两个线程最终会读取同一条记录
+	
+	解决该问题，使用pread()，使偏移量的设定和数据的读取成为一个原子操作
+				使用pwrite来解决并发线程对同一文件进行写操作的问题

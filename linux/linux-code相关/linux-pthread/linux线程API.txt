@@ -1,0 +1,183 @@
+线程管理：创建、销毁、分离、汇合、属性。
+线程同步：互斥量、条件变量、信号量。
+
+	1.int pthread_create (
+	  pthread_t* tid, // 线程ID(Linux: unsigned long)
+	  const pthread_attr_t* attr, // 线程属性，NULL表示缺省
+	  void* (*start_routine) (void*), // 线程过程函数指针
+	  void* arg); // 传递给线程过程函数的参数
+	成功返回0，失败返回错误码。
+	
+	2.int pthread_join (pthread_t tid, void** retval);
+	等待tid参数所标识的线程结束，成功返回0，失败返回错误码。
+	
+	3.获取调用线程的ID
+	pthread_t pthread_self (void);
+	
+	4.判断两个线程ID是否相等
+	int pthread_equal (pthread_t tid1, pthread_t tid2);
+	如果tid1和tid2相等，返回非零，否则返回零。
+	
+	5.终止线程
+	1)从线程过程函数中返回。
+	2)void pthread_exit (void* retval);
+	retval参数就是线程的返回值与线程过程函数return的返回值具
+	有相同语义，可以被pthread_join函数获得。
+	3)在任意线程的任意函数中调用exit，都会立即终止调用进程，
+	而进程一旦终止，其所有的线程都会同时终止。
+	
+	6.分离线程
+	int  pthread_detach (pthread_t tid);
+	使tid参数所标识的线程进入分离状态。处于分离状态的线程终止
+	后其相关资源会被系统自动回收，且不可被pthread_join函数
+	等待。
+	成功返回0，失败返回错误码。
+	
+	typedef struct{    
+		int      detachstate;       //线程的分离状态    
+		int      schedpolicy;       //线程调度策略    
+		struct sched_param   schedparam;   //线程的调度参数    
+		int inheritsched;       //线程的继承性     
+		int scope;              //线程的作用域     
+		size_t guardsize;   //线程栈末尾的警戒缓冲区大小    
+		int stackaddr_set;     void * stackaddr;   //线程栈的位置    
+		size_t stacksize;   // 线程栈的大小
+	}pthread_attr_t;
+	
+	在任何一个时间点上，线程是可结合的（joinable），或者是分离的（detached）。
+	一个可结合的线程能够被其他线程收回其资源和杀死；在被其他线程回收之前，它的存储器资源（如栈）是不释放的。
+	相反，一个分离的线程是不能被其他线程回收或杀死的，它的存储器资源在它终止时由系统自动释放。
+    线程的分离状态决定一个线程以什么样的方式来终止自己。在默认情况下线程是非分离状态的，
+	这种情况下，原有的线程等待创建的线程结束。只有当pthread_join（）函数返回时，创建的线程才算终止，才能释放自己占用的系统资源。
+	而分离线程不是这样子的，它没有被其他的线程所等待，自己运行结束了，线程也就终止了，马上释放系统资源。
+	程序员应该根据自己的需要，选择适当的分离状态。所以如果我们在创建线程时就知道不需要了解线程的终止状态，
+	则可以pthread_attr_t结构中的detachstate线程属性，让线程以分离状态启动。
+	设置线程分离状态的函数为 pthread_attr_setdetachstate （pthread_attr_t *attr, int detachstate）。
+	第二个参数可选为PTHREAD_CREATE_DETACHED（分离线程）和 PTHREAD _CREATE_JOINABLE（非分离线程）。
+	这里要注意的一点是，如果设置一个线程为分离线程，而这个线程运行又非常快，它很可能在pthread_create函数返回之前就终止了，
+	它终止以后就可能将线程号和系统资源移交给其他的线程使用，这样调用pthread_create的线程就得到了错误的线程号。
+	要避免这种情况可以采取一定的同步措施，最简单的方法之一是可以在被创建的线程里调用pthread_cond_timewait函数，
+	让这个线程等待一会儿，留出足够的时间让函数pthread_create返回。设置一段等待时间，是在多线程编程里常用的方法。
+	但是注意不要使用诸如wait（）之类的函数，它们是使整个进程睡眠，并不能解决线程同步的问题。
+	另外一个可能常用的属性是线程的优先级，它存放在结构sched_param中。
+	用函数pthread_attr_getschedparam和函数pthread_attr_setschedparam进行存放，
+	一般说来，我们总是先取优先级，对取得的值修改后再存放回去。
+	
+	 线程等待——正确处理线程终止
+	#include <pthread.h>
+	void pthread_exit(void *retval);
+	void pthread_join(pthread_t th,void *thread_return);//挂起等待th结束,*thread_return=retval;
+	int pthread_detach(pthread_t th);
+	如果线程处于joinable状态，则只能只能被创建他的线程等待终止。
+	在Linux平台默认情况下，虽然各个线程之间是相互独立的，一个线程的终止不会去通知或影响其他的线程。
+	但是已经终止的线程的资源并不会随着线程的终止而得到释放，
+	我们需要调用 pthread_join() 来获得另一个线程的终止状态并且释放该线程所占的资源。（说明：线程处于joinable状态下）
+	调用该函数的线程将挂起，等待 th 所表示的线程的结束。 thread_return 是指向线程 th 返回值的指针。
+	需要注意的是 th 所表示的线程必须是 joinable 的，即处于非 detached（游离）状态；
+	并且只可以有唯一的一个线程对 th 调用 pthread_join() 。如果 th 处于 detached 状态，那么对 th 的 pthread_join() 调用将返回错误。
+	如果不关心一个线程的结束状态，那么也可以将一个线程设置为 detached 状态，从而让操作系统在该线程结束时来回收它所占的资源。
+	将一个线程设置为detached 状态可以通过两种方式来实现。
+	一种是调用 pthread_detach() 函数，可以将线程 th 设置为 detached 状态。
+	另一种方法是在创建线程时就将它设置为 detached 状态，首先初始化一个线程属性变量，然后将其设置为 detached 状态，
+	最后将它作为参数传入线程创建函数 pthread_create()，这样所创建出来的线程就直接处于 detached 状态。
+
+	创建 detach 线程：
+	pthread_t tid;
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+	pthread_create(&tid, &attr, THREAD_FUNCTION, arg);
+	//pthread_attr_destroy( &attr ); //释放内存 
+	总之为了在使用 pthread 时避免线程的资源在线程结束时不能得到正确释放，从而避免产生潜在的内存泄漏问题，
+	在对待线程结束时，要确保该线程处于 detached 状态，否着就需要调用 pthread_join() 函数来对其进行资源回收
+	
+		
+	7.取消线程
+	与线程取消相关的pthread函数   
+	int   pthread_cancel(pthread_t   thread)   
+	发送终止信号给thread线程，如果成功则返回0，否则为非0值。发送成功并不意味着thread会终止。
+	
+	int   pthread_setcancelstate(int   state,   int   *oldstate)   
+	设置本线程对Cancel信号的反应，state有两种值：PTHREAD_CANCEL_ENABLE（缺省）和PTHREAD_CANCEL_DISABLE，
+	分别表示收到信号后设为CANCLED状态和忽略CANCEL信号继续运行；old_state如果不为NULL则存入原来的Cancel状态以便恢复。   
+	
+	int   pthread_setcanceltype(int   type,   int   *oldtype)   
+	设置本线程取消动作的执行时机，type由两种取值：PTHREAD_CANCEL_DEFFERED和PTHREAD_CANCEL_ASYCHRONOUS，
+	仅当Cancel状态为Enable时有效，分别表示收到信号后继续运行至下一个取消点再退出和立即执行取消动作（退出）；
+	oldtype如果不为NULL则存入运来的取消动作类型值。   
+	
+	void   pthread_testcancel(void)   
+	检查本线程是否处于Canceld状态，如果是，则进行取消动作，否则直接返回 
+	相当于设置了一个取消点。
+	
+	int pthread_cancel (pthread_t tid);
+	终止由tid参数所标识的线程。成功返回0，失败返回错误码。
+	该函数只是向指定的线程发送取消指令，并不等待该线程终止。
+	缺省情况下，线程收到取消指令以后，并不会立即终止，而是
+	仍继续运行，直到执行到某个取消点。在取消点处，线程检查其
+	自身的被取消标志，并作出相应动作。通常与I/O有关系统调用
+	中都会包含取消点。
+	
+	8.设置调用线程的可取消状态
+	int pthread_setcancelstate (int state, int* oldstate);
+	成功返回0，并通过oldstate参数输出原来的可取消状态，失败
+	返回错误码。
+	state取值：
+	PTHREAD_CANCEL_ENABLE - 可取消(缺省)
+	PTHREAD_CANCEL_DISABLE - 不可取消
+	
+	9.设置调用线程的取消类型
+	int pthread_setcanceltype (int type, int* oldtype);
+	成功返回0，并通过oldtype参数输出原来的取消类型，失败
+	返回错误码。
+	type取值：
+	PTHREAD_CANCEL_DEFERRED - 延迟取消(缺省)
+	PTHREAD_CANCEL_ASYNCHRONOUS - 异步取消(被取消
+	线程无需在取消点检查取消标志，而是在接收到取消指令以后
+	立即终止)
+	
+	
+	#include<stdio.h>
+	#include<stdlib.h>
+	#include <pthread.h>
+	void *thread_fun(void *arg)
+	{
+		int i=1;
+		printf("thread start \n");
+		while(1)
+		{
+			i++;
+			pthread_testcancel();//如果不取消，则程序一直运行
+		}
+		return (void *)0;
+	}
+	int main()
+	{
+		void *ret=NULL;
+		int iret=0;
+		pthread_t tid;
+		pthread_create(&tid,NULL,thread_fun,NULL);
+		sleep(1);
+		
+		pthread_cancel(tid);//取消线程
+		pthread_join(tid, &ret);
+		
+		return 0;
+		
+	}
+
+	
+	10.pthread_kill
+	int pthread_kill(pthread_t thread, int sig);
+	向指定ID的线程发送sig信号，如果线程代码内不做处理，则按照信号默认的行为影响整个进程，
+	也就是说，如果你给一个线程发送了SIGQUIT，但线程却没有实现signal处理函数，则整个进程退出。
+	pthread_kill(threadid, SIGKILL)也一样，杀死整个进程。
+	如果要获得正确的行为，就需要在线程内实现signal(SIGKILL,sig_handler)了。
+	所以，如果int sig的参数不是0，那一定要清楚到底要干什么，而且一定要实现线程的信号处理函数，
+	否则，就会影响整个进程。
+	OK，如果int sig是0呢，这是一个保留信号，一个作用是用来判断线程是不是还活着。
+	我们来看一下pthread_kill的返回值：
+	成功:0
+	线程不存在：ESRCH
+	信号不合法：EINVAL
+	所以，pthread_kill(threadid,0)就很有用啦。

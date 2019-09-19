@@ -1,0 +1,112 @@
+1、打印彩色输出(p6)
+
+	echo -e "\e[1;42m green background \e[0m"
+	
+	echo -e "\e[1;46m green background \e[0m"
+
+2、查看应用程序进程号
+	
+	pgrep	proftpd
+	
+3、tr命令	
+
+	替换';'为'\n'
+	
+	env | grep LS_COLORS | tr ';' '\n'
+	
+4、获取字符串长度
+		var=HelloWorld
+		echo	${#var}
+		10
+	
+5、shell 脚本添加环境变量
+
+	.bashrc-文件中添加：(p11)
+		prepend()  {  [ -d "$2"  ] && eval $1=\"$2\$\{$1:+':'\$$1}\"  && export  $1;  }
+		
+6、shell进行数学运算
+
+	let、(()) []执行基本算术操作
+	expr和bc  进行高级操作
+	
+7、文件描述符及重定向
+
+	A:
+	ls	2> out.txt
+	
+	cmd 2>&1 output.txt
+	cmd &> output.txt
+	
+	B:	tee命令
+	cmd		|	tee	FILE1  FILE2
+	
+	cat	 a*  | tee out.txt  | cat -n
+	
+8、字段分隔符和迭代器
+
+	IFS
+	
+	3中循环：
+		for
+		while
+		until
+		
+9、比较与测试
+
+A:	if	condition;
+	then
+		commands;
+	fi
+	
+B:
+	if	condition;
+	then
+		commands;
+	else  if	condition; then
+		commands;
+	else
+		commands;
+	fi
+	
+C:算数比较
+
+	[ $var	-eq		0 ]		#当$var等于0，返回真
+	...		-ne ...					非0
+			-gt						大于
+			-lt						小于
+			-ge						大于或等于
+			-le						小于或等于
+			
+	可以按照下面方法结合多个条件进行测试
+	[ $var1  -ne  0   -a   $var2  -gt  2 ]		#使用逻辑与  -a
+	[ $var1  -ne  0   -o   $var2  -gt  2 ]		#使用逻辑或  -o
+	
+	
+	文件系统相关测试
+	[ -f  $file_var ] :如果给定的变量包含正常的文件路径或文件名，则返回真
+	[ -x  $var ]:如果给定的变量包含的文件可执行，返回真
+	[ -d  $var ]:如果给定的变量包含的是目录，返回真
+	[ -e  $var ]:如果给定的变量包含的文件存在，返回真
+	[ -c  $var ]:如果给定的变量包含的文件是一个字符设备文件的路径，返回真
+	[ -b  $var ]:如果给定的变量包含的是一个块设备文件的路径，返回真
+	[ -w  $var ]:如果给定的变量包含的文件可写，返回真
+	[ -r  $var ]:如果给定的变量包含的文件可执读，返回真
+	[ -L  $var ]:如果给定的变量包含的文件是一个符号链接，返回真
+	
+D:字符串比较
+	使用字符串比较时，最好用双中括号
+	[[ $str1 = $str2 ]]:当str1等于str2，返回真
+	[[ $str1 == $str2 ]]:另一种写法
+	
+	[[ $str1 != $str2 ]]
+	[[ $str1 > $str2 ]]
+	[[ $str1 < $str2 ]]
+	
+	[[ -z  $str1 ]]		str1包含的是空字符串，则返回真
+	[[ -n  $str1 ]]		str1包含的是非空字符串，则返回真
+	
+	与逻辑运算符 && || 的组合
+	if	[[ -n  $str1 ]]  &&  [[ -z  $str2 ]];
+	then
+		commands;
+	fi

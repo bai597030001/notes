@@ -1,0 +1,50 @@
+1.namespace
+
+	1.1 
+	namespace命名空间指对一组表的逻辑分组，类似RDBMS中的database，方便对表在业务上划分
+	
+	1.2
+	HBase系统默认定义了两个缺省的namespace
+		
+		hbase：系统内建表，包括namespace和meta表
+		default：用户建表时未指定namespace的表都创建在此
+	
+	1.3
+	创建namespace
+	
+		hbase>create_namespace 'ai_ns'
+	
+	删除namespace
+	
+		hbase>drop_namespace 'ai_ns'
+	
+	查看namespace
+	
+		hbase>describe_namespace 'ai_ns'
+	
+	列出所有namespace
+	
+		hbase>list_namespace
+	
+	在namespace下创建表
+	
+		hbase>create 'ai_ns:testtable', 'fm1'
+	
+	查看namespace下的表
+	
+		hbase>list_namespace_tables 'ai_ns'
+		
+		
+	1.4 授权
+	
+		授权tenant-A用户对ai_ns下的写权限
+
+			hbase>grant 'tenant-A' 'W' '@ai_ns'
+
+		回收tenant-A用户对ai_ns的所有权限
+
+			hbase>revoke 'tenant-A''@ai_ns'
+			
+		......
+		
+		在HBase中启用授权机制	hbase-site.xml

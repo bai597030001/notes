@@ -1,0 +1,103 @@
+Linux 技巧：让进程在后台可靠运行的几种方法
+	
+	我们经常会碰到这样的问题，用 telnet/ssh 登录了远程的 Linux 服务器，运行了一些耗时较长的任务， 
+	结果却由于网络的不稳定导致任务中途失败。如何让命令提交后不受本地关闭终端窗口/网络断开连接的干扰呢？
+	下面举了一些例子， 您可以针对不同的场景选择不同的方式来处理这个问题。
+	
+	nohup/setsid/&
+		
+		nohup ping www.ibm.com &
+		
+		setsid ping www.ibm.com &
+		
+		(ping www.ibm.com &)
+		
+			1. nohup
+				nohup 无疑是我们首先想到的办法。顾名思义，nohup 的用途就是让提交的命令忽略 hangup 信号。
+				让我们先来看一下 nohup 的帮助信息：
+				可见，nohup 的使用是十分方便的，只需在要处理的命令前加上 nohup 即可，
+				标准输出和标准错误缺省会被重定向到 nohup.out 文件中。
+				一般我们可在结尾加上"&"来将命令同时放入后台运行，也可用">filename 2>&1"来更改缺省的重定向文件名。
+				
+				[root@pvcent107 ~]# nohup ping www.ibm.com &
+				[1] 3059
+				nohup: appending output to `nohup.out'
+				[root@pvcent107 ~]# ps -ef |grep 3059
+				root????? 3059?? 984? 0 21:06 pts/3??? 00:00:00 ping www.ibm.com
+				root????? 3067?? 984? 0 21:06 pts/3??? 00:00:00 grep 3059
+				[root@pvcent107 ~]#
+			
+			2。setsid
+				nohup 无疑能通过忽略 HUP 信号来使我们的进程避免中途被中断，但如果我们换个角度思考，
+				如果我们的进程不属于接受 HUP 信号的终端的子进程，那么自然也就不会受到 HUP 信号的影响了。
+				setsid 就能帮助我们做到这一点。让我们先来看一下 setsid 的帮助信息：
+				可见 setsid 的使用也是非常方便的，也只需在要处理的命令前加上 setsid 即可。
+				
+				[root@pvcent107 ~]# setsid ping www.ibm.com
+				[root@pvcent107 ~]# ps -ef |grep www.ibm.com
+				root???? 31094???? 1? 0 07:28 ???????? 00:00:00 ping www.ibm.com
+				root???? 31102 29217? 0 07:29 pts/4??? 00:00:00 grep www.ibm.com
+				[root@pvcent107 ~]#
+				
+			3。&
+				这里还有一个关于 subshell 的小技巧。我们知道，将一个或多个命名包含在“()”中就能让这些命令在子 shell 中运行中，
+				从而扩展出很多有趣的功能，我们现在要讨论的就是其中之一。
+				当我们将"&"也放入“()”内之后，我们就会发现所提交的作业并不在作业列表中，也就是说，是无法通过jobs来查看的。
+				让我们来看看为什么这样就能躲过 HUP 信号的影响吧。
+				从上例中可以看出，新提交的进程的父 ID（PPID）为1（init 进程的 PID），并不是当前终端的进程 ID。
+				因此并不属于当前终端的子进程，从而也就不会受到当前终端的 HUP 信号的影响了。
+				
+	disown
+	
+		场景：
+			我们已经知道，如果事先在命令前加上 nohup 或者 setsid 就可以避免 HUP 信号的影响。
+			但是如果我们未加任何处理就已经提交了命令，该如何补救才能让它避免 HUP 信号的影响呢？ 
+			
+			可以看出，我们可以用如下方式来达成我们的目的。
+			
+				用disown -h jobspec来使某个作业忽略HUP信号。
+				用disown -ah 来使所有的作业都忽略HUP信号。
+				用disown -rh 来使正在运行的作业忽略HUP信号。
+				
+			需要注意的是，当使用过 disown 之后，会将把目标作业从作业列表中移除，
+			我们将不能再使用jobs来查看它，但是依然能够用ps -ef查找到它。
+			但是还有一个问题，这种方法的操作对象是作业，如果我们在运行命令时在结尾加
+			了"&"来使它成为一个作业并在后台运行，那么就万事大吉了，我们可以通过jobs
+			命令来得到所有作业的列表。但是如果并没有把当前命令作为作业来运行，
+			如何才能得到它的作业号呢？答案就是用 CTRL-z（按住Ctrl键的同时按住z键）了！
+			CTRL-z 的用途就是将当前进程挂起（Suspend），然后我们就可以用jobs命令来查询它的作业号，
+			再用bg jobspec来将它放入后台并继续运行。需要注意的是，如果挂起会影响当前进程的运行结果，
+			请慎用此方法。
+			
+			
+				灵活运用 CTRL-z
+					在我们的日常工作中，我们可以用 CTRL-z 来将当前进程挂起到后台暂停运行，
+					执行一些别的操作，然后再用 fg 来将挂起的进程重新放回前台
+					（也可用 bg 来将挂起的进程放在后台）继续运行。这样我们就可以在一个终端
+					内灵活切换运行多个任务，这一点在调试代码时尤为有用。因为将代码编辑器挂起到
+					后台再重新放回时，光标定位仍然停留在上次挂起时的位置，避免了重新定位的麻烦。
+					
+			disown 示例1（如果提交命令时已经用“&”将命令放入后台运行，则可以直接使用“ disown ”）		
+				[root@pvcent107 build]# cp -r testLargeFile largeFile &
+				[1] 4825
+				[root@pvcent107 build]# jobs
+				[1]+? Running???????????????? cp -i -r testLargeFile largeFile &
+				[root@pvcent107 build]# disown -h %1
+				[root@pvcent107 build]# ps -ef |grep largeFile
+				root????? 4825?? 968? 1 09:46 pts/4??? 00:00:00 cp -i -r testLargeFile largeFile
+				root????? 4853?? 968? 0 09:46 pts/4??? 00:00:00 grep largeFile
+				[root@pvcent107 build]# logout
+			
+			disown 示例2（如果提交命令时未使用“&”将命令放入后台运行，可使用 CTRL-z 和“bg”将其放入后台，再使用“disown”）
+				[root@pvcent107 build]# cp -r testLargeFile largeFile2
+				?
+				[1]+? Stopped???????????????? cp -i -r testLargeFile largeFile2
+				[root@pvcent107 build]# bg %1
+				[1]+ cp -i -r testLargeFile largeFile2 &
+				[root@pvcent107 build]# jobs
+				[1]+? Running???????????????? cp -i -r testLargeFile largeFile2 &
+				[root@pvcent107 build]# disown -h %1
+				[root@pvcent107 build]# ps -ef |grep largeFile2
+				root????? 5790? 5577? 1 10:04 pts/3??? 00:00:00 cp -i -r testLargeFile largeFile2
+				root????? 5824? 5577? 0 10:05 pts/3??? 00:00:00 grep largeFile2
+				[root@pvcent107 build]#

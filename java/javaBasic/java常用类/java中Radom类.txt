@@ -1,0 +1,42 @@
+Random类 (java.util)
+
+	Random类中实现的随机算法是伪随机，也就是有规则的随机。在进行随机时，
+	随机算法的起源数字称为种子数(seed)，在种子数的基础上进行一定的变换，
+	从而产生需要的随机数字。
+	
+	相同种子数的Random对象，相同次数生成的随机数字是完全相同的。也就是说，
+	两个种子数相同的Random对象，第一次生成的随机数字完全相同，第二次生成
+	的随机数字也完全相同。这点在生成多个随机数字时需要特别注意。
+	
+Random对象的生成
+
+	a、public Random()
+	
+	 b、public Random(long seed)
+	 
+Random类中的常用方法
+
+	Random类中各方法生成的随机数字都是均匀分布的，也就是说区间内部的数字生成的几率是均等的。
+
+	a、public boolean nextBoolean()
+	
+	b、public double nextDouble()
+	
+	c、public int nextInt()
+	
+	d、public int nextInt(int n)
+	
+		该方法的作用是生成一个随机的int值，该值介于[0,n)的区间，也就是0到n之间的随机int值，包含0而不包含n。
+		
+	e、public void setSeed(long seed)
+	
+其他问题	
+
+	相同种子数Random对象问题
+	
+		相同种子数的Random对象，相同次数生成的随机数字是完全相同的。
+	
+	关于Math类中的random方法
+
+		在Math类中也有一个random方法，该random方法的工作是生成一个[0,1.0)区间的随机小数。
+		Math类中的random方法就是直接调用Random类中的nextDouble方法实现的

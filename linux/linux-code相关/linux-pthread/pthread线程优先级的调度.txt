@@ -1,0 +1,251 @@
+ pthread线程优先级的调度 2011-11-22 23:29:40
+
+分类： C/C++
+
+如果系统定义了 _POSIX_THREAD_PRIORITY_SCHEDULING ，则支持设置线程的实时调度优先级。
+我们可以用下面的编译指令来判断：#if defined(_POSIX_THREAD_PRIORITY_SCHEDULING) 
+
+调度策略 policy: 可以取三个值（SCHED_FIFO、SCHED_RR、SCHED_OTHER）。
+
+    #include <pthread.h>
+
+    int pthread_attr_setschedpolicy(pthread_attr_t *attr, int policy);
+    int pthread_attr_getschedpolicy(pthread_attr_t *attr, int *policy);
+
+函数：int pthread_attr_setschedpolicy(pthread_attr_t *attr, int policy); 用来设置线程属性 attr 的调度策略为 policy，则用 attr 创建的线程，它的调度策略则为 policy 指定的方式。
+函数：int pthread_attr_getschedpolicy(pthread_attr_t *attr, int *policy); 则用来从线程属性 attr 中获得调度策略，保存在 policy 中。
+SCHED_FIFO: 先进先出 调度策略允许一个线程运行直到有更高优先级的线程准备好，或者直到它自愿阻塞自己(比如调用pthread_yield之类的函数)。在该调度策略下，当有一个更高优先级的线程准备好时，它将立即开始执行。
+
+此外SCHED_FIFO是一个非分时的简单调度策略，当一个线程变成可运行状态，它将被追加到对应优先级队列的尾部((POSIX 1003.1)。当所有高优先级的线程终止或者阻塞时，它将被运行。对于相同优先级别的线程，按照简单的先进先运行的规则运行。我们考虑一种很坏的情况，如果有若干相同优先级的线程等待执行，然而最早执行的线程无终止或者阻塞动作，那么其他线程是无法执行的，除非当前线程调用如pthread_yield之类的函数，所以在使用SCHED_FIFO的时候要小心处理相同级别线程的动作。（百度百科）
+
+SCHED_RR：轮循 调度策略，除了考虑优先级之外，还加入了时间片的限制。当一个线程执行完了一个时间片，并且有其它的SCHED_RR或者SCHED_FIFO调度策略的相同优先级的线程准备好时，运行线程将被准备好的线程抢占。
+
+鉴于SCHED_FIFO调度策略的一些缺点，SCHED_RR对SCHED_FIFO做出了一些增强功能。从实质上看，它还是SCHED_FIFO调用策略。它使用最大运行时间来限制当前进程的运行，当运行时间大于等于最大运行时间的时候，当前线程将被切换并放置于相同优先级队列的最后。这样做的好处是其他具有相同级别的线程能在“自私“线程下执行。（百度百科）
+
+SCHED_OTHER：是Linux默认的分时调度策略。
+
+它是默认的线程分时调度策略，所有的线程的优先级别都是0，线程的调度是通过分时来完成的。简单地说，如果系统使用这种调度策略，程序将无法设置线程的优先级。请注意，这种调度策略也是抢占式的，当高优先级的线程准备运行的时候，当前线程将被抢占并进入等待队列。这种调度策略仅仅决定线程在可运行线程队列中的具有相同优先级的线程的运行次序。（百度百科）
+
+优先级 priority: 各个调度策略支持的最大和最小的优先级可以通过下面的两个函数获得。
+
+    #include <sched.h>
+
+    int sched_get_priority_max(int policy);
+    int sched_get_priority_min(int policy);
+
+
+调度参数 sched_param：调度参数由一个结构体给出
+
+    struct sched_param {
+                   //... ....
+                   int sched_priority; /* Scheduling priority */
+                   //... ....
+    };
+
+POSIX 要求结构体sched_param至少包含调度优先级 sched_priority 一个成员。下面两个函数分别用来设置和获得线程属性attr的调度参数param：
+
+    #include <pthread.h>
+
+    int pthread_attr_setschedparam(pthread_attr_t *attr, const struct sched_param *param);
+    int pthread_attr_getschedparam(pthread_attr_t *attr, struct sched_param *param);
+
+
+继承调度属性 inheritsched：当我手动设置了调度策略或优先级时，必须显示的设置线程调度策略的inheritsched属性，因为pthread没有为inheritsched设置默认值。所以在改变了调度策略或优先级时必须总是设置该属性。
+
+    #include <pthread.h>
+
+    int pthread_attr_setinheritsched(pthread_attr_t *attr, int inheritsched);
+    int pthread_attr_getinheritsched(pthread_attr_t *attr, int *inheritsched);
+
+第一个函数中inheritsched的取值为：PTHREAD_INHERIT_SCHED 或者 PTHREAD_EXPLICIT_SCHED。
+前者为继承创建线程的调度策略和优先级，后者指定不继承调度策略和优先级，而是使用自己设置的调度策略和优先级。
+无论何时，当你需要控制一个线程的调度策略或优先级时，必须将inheritsched属性设置为PTHREAD_EXPLICIT_SCHED。
+
+注意：
+1）调度策略和优先级是分开来描述的。前者使用预定义的SCHED_RR、SCHED_FIFO、SCHED_OTHER，后者是通过结果体struct sched_param给出的。
+2）这些设置调度策略和优先级的函数操作的对象是线程的属性pthread_attr_t，而不是直接来操作线程的调度策略和优先级的。函数的第一个参数都是pthread_attr_t。
+
+实例：（《POSIX多线程程序设计》 ）
+
+    #include <unistd.h>
+    #include <pthread.h>
+    #include <sched.h>
+    #include "errors.h"
+
+    void *thread_routine(void *arg)
+    {
+        int my_policy;
+        struct sched_param my_param;
+
+    #if defined(_POSIX_THREAD_PRIORITY_SCHEDULING) && !defined(sun)
+        pthread_getschedparam(pthread_self(), &my_policy, &my_param);
+        printf("thread_routine running at %s/%d\n",
+            (my_policy == SCHED_FIFO ? "FIFO"
+                : (my_policy == SCHED_RR ? "RR"
+                : (my_policy == SCHED_OTHER ? "OTHER"
+                : "unknown"))),
+            my_param.sched_priority);
+    #else
+        printf("thread_routine running\n");
+    #endif
+        return NULL;
+    }
+
+    int main(int argc, char *argv[])
+    {
+        pthread_t thread_id;
+        pthread_attr_t thread_attr;
+        int thread_policy;
+        struct sched_param thread_param;
+        int status, rr_min_priority, rr_max_priority;
+
+        pthread_attr_init(&thread_attr);
+
+    #if defined(_POSIX_THREAD_PRIORITY_SCHEDULING) && !defined(sun)
+        pthread_attr_getschedpolicy(&thread_attr, &thread_policy);
+        pthread_attr_getschedparam(&thread_attr, &thread_param);
+        printf("Default policy is %s, priority is %d\n",
+            (thread_policy == SCHED_FIFO ? "FIFO"
+             : (thread_policy == SCHED_RR ? "RR"
+                : (thread_policy == SCHED_OTHER ? "OTHER"
+                   : "unknown"))),
+            thread_param.sched_priority);
+
+        status = pthread_attr_setschedpolicy(&thread_attr, SCHED_RR);
+        if(status != 0)
+            printf("Unable to set SCHED_RR policy.\n");
+        else{
+            rr_min_priority = sched_get_priority_min(SCHED_RR);
+            if(rr_min_priority == -1)
+                errno_abort("Get SCHED_RR min priority");
+            rr_max_priority = sched_get_priority_max(SCHED_RR);
+            if(rr_max_priority == -1)
+                errno_abort("Get SCHED_RR max priority");
+            thread_param.sched_priority = (rr_min_priority + rr_max_priority)/2;
+            printf("SCHED_RR priority range is %d to %d: using %d\n",
+                rr_min_priority, rr_max_priority, thread_param.sched_priority);
+            pthread_attr_setschedparam(&thread_attr, &thread_param);
+            printf("Creating thread at RR/%d\n", thread_param.sched_priority);
+            pthread_attr_setinheritsched(&thread_attr, PTHREAD_EXPLICIT_SCHED);
+        }
+    #else
+        printf("Priority scheduling not supported\n");
+    #endif
+        pthread_create(&thread_id, &thread_attr, thread_routine, NULL);
+        pthread_join(thread_id, NULL);
+        printf("Main exiting\n");
+        return 0;
+    }
+
+运行结果：
+
+    digdeep@ubuntu:~/pthread/learnthread$ ./sched_attr
+    Default policy is OTHER, priority is 0
+    SCHED_RR priority range is 1 to 99: using 50
+    Creating thread at RR/50
+    Main exiting
+
+
+直接设置正在运行的线程的调度策略和优先级：(动态设置线程的调度策略和优先级)
+上面提到，前面的那些函数只能通过线程的属性对象 pthread_attr_t 来设置线程的调度策略和优先级，不能够直接设置正在运行的线程的调度策略和优先级。下面的函数可以直接设置：
+
+    #include <pthread.h>
+
+    pthread_setschedparam(pthread_t thread, int policy, const struct sched_param *param);
+    pthread_getschedparam(pthread_t thread, int *policy, struct sched_param *param);
+
+但是注意：当pthread_setschedparam函数的参数 policy == SCHED_RR 或者 SCHED_FIFO 时，程序必须要在超级用户下运行！！！
+实例：（《POSIX多线程程序设计》 ）
+
+    /*
+     * sched_thread.c
+     * Demonstrate dynamic scheduling policy use.
+     */
+    #include <unistd.h>
+    #include <pthread.h>
+    #include <sched.h>
+    #include "errors.h"
+
+    #define THREADS 5
+
+    typedef struct thread_tag {
+        int index;
+        pthread_t id;
+    } thread_t;
+
+    thread_t threads[THREADS];
+    int rr_min_priority;
+
+    void *thread_routine(void *arg)
+    {
+        thread_t *self = (thread_t *)arg;
+        struct sched_param my_param;
+        int my_policy;
+        int status;
+
+        my_param.sched_priority = rr_min_priority + self->index;
+        if(pthread_setschedparam(self->id, SCHED_RR, &my_param) != 0)
+            printf("pthread_setschedparam failed\n");
+        pthread_getschedparam(self->id, &my_policy, &my_param);
+        printf("thread_routine %d running at %s/%d\n",
+            self->index,
+            (my_policy == SCHED_FIFO ? "FIFO"
+                : (my_policy == SCHED_RR ? "RR"
+                : (my_policy == SCHED_OTHER ? "OTHER"
+                : "unknown"))),
+            my_param.sched_priority);
+
+        return NULL;
+    }
+
+    int main(int argc, char *argv[])
+    {
+        int count;
+
+        rr_min_priority = sched_get_priority_min(SCHED_RR);
+        if(rr_min_priority == -1){
+            errno_abort("Get SCHED_RR min priority");
+        }
+        for(count = 0; count < THREADS; count++){
+            threads[count].index = count;
+            pthread_create(&threads[count].id, NULL,
+                     thread_routine, (void *)&threads[count]);
+        }
+        for(count = 0; count < THREADS; count++){
+            pthread_join(threads[count].id, NULL);
+        }
+        printf("Main exiting\n");
+
+        return 0;
+    }
+
+运行结果：
+
+    digdeep@ubuntu:~/pthread/learnthread$ gcc -Wall -lpthread -o sched_thread sched_thread.c
+    digdeep@ubuntu:~/pthread/learnthread$ ./sched_threadpthread_setschedparam failed
+    pthread_setschedparam failed
+    pthread_setschedparam failed
+    thread_routine 1 running at OTHER/0
+    thread_routine 3 running at OTHER/0
+    pthread_setschedparam failed
+    pthread_setschedparam failed
+    thread_routine 2 running at OTHER/0
+    thread_routine 4 running at OTHER/0
+    thread_routine 0 running at OTHER/0
+    Main exiting
+    digdeep@ubuntu:~/pthread/learnthread$ sudo ./sched_thread
+    [sudo] password for digdeep:
+    thread_routine 1 running at RR/2
+    thread_routine 3 running at RR/4
+    thread_routine 2 running at RR/3
+    thread_routine 0 running at RR/1
+    thread_routine 4 running at RR/5
+    Main exiting
+    digdeep@ubuntu:~/pthread/learnthread$
+
+从上面的运行结果可以看出：在第一次执行 ./sched_thread 时，函数 pthread_setschedparam(self->id, SCHED_RR, &my_param) 调用失败了，在第二次运行时：
+sudo ./sched_thread (输入密码)时，函数 pthread_setschedparam(self->id, SCHED_RR, &my_param) 调用成功。
+将SCHED_RR换成SCHED_FIFO，结果也是一样的。
+
+另：利pthread_setschedparam 函数改变在运行线程的调度策略和优先级肯定就不用调用函数来设置inheritsched属性了：pthread_attr_setinheritsched(&thread_attr, PTHREAD_EXPLICIT_SCHED); 因为该函数设置的对象是pthread_attr_t !!!
+

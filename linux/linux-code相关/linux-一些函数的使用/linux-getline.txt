@@ -1,0 +1,53 @@
+http://blog.csdn.net/zqixiao_09/article/details/50253883
+
+getline()函数是什么？百度百科这样解释：
+???? getline不是C库函数，而是C++库函数。它会生成一个包含一串从输入流读入的字符的字符串，直到以下情况发生会导致生成的此字符串结束。1）到文件结束，2）遇到函数的定界符，3）输入达到最大限度。
+linux标准C中使用条件：
+#define _GNU_SOURCE
+#include <stdio.h>
+函数声明：
+ssize_t getline(char **lineptr, size_t *n, FILE *stream);
+?
+返回值 
+成功：返回读取的字节数。
+失败：返回-1。
+参数：
+lineptr：指向存放该行字符的指针，如果是NULL，则有系统帮助malloc，请在使用完成后free释放。
+n：如果是由系统malloc的指针，请填0
+stream：文件描述符
+?
+那我们linux c中如何使用getline()函数呢？
+C 有 fgets(), gets() 函数，也有getline.用于读取一行字符直到换行符,包括换行符。这个和我们前面那篇关于标准输入输出函数 流与缓冲区那篇中内容有联系，
+printf() scanf() 属于行缓冲，读取一行数据（遇到'\n'）便会刷新。
+?
+我们可以利用getline()一行一行的读取数据，下面我们做个小实验：首先创建一个文件，在文件中现实一些内容：
+
+
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void)
+{
+	FILE * fp;
+	char * line = NULL;
+	size_t len = 0;
+	ssize_t read;
+	fp = fopen("/home/fs/qiang/getline/test/line.txt", "r");
+	if (fp == NULL)
+		exit(EXIT_FAILURE);
+	while ((read = getline(&line, &len, fp)) != -1)
+	{
+		printf("Retrieved line of length %zu :\n", read);
+		printf("%s", line);
+	}
+	if (line)
+		free(line);
+	exit(EXIT_SUCCESS);
+}
+
+对比一下line.txt中的内容，可以看到每一行都被正确的读取；。
+这里简单提一下fopen()函数，fopen()函数是基于数据流的I/O操作中，用来打开一个文件，
+或者说打开一个数据流，打开数据流以后，就可以对数据流继续拧输入和输出的操作。
+C语言中stdin、stdout、stderr分别是标准输入流、标准输出流及标准出错流的逻辑目的，
+他们都默认对应相应的物理终端。在程序运行伊始，不需要进行open()操作，流自动打开。
+关于文件描述符和数据流的区别，后面会开文章专门写这一篇

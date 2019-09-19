@@ -1,0 +1,115 @@
+一：
+1、
+	getpid(),  -  表示获取当前进程的进程号
+    getppid(), -  表示获取 当前进程的父进程号
+	
+    getuid(),  -  表示获取用户ID
+	geteuid(); -   调用进程的有效用户ID
+	
+    getgid(),  -  表示获取组ID
+	getegid();
+	
+2、创建进程
+	
+	fork();		//fork创建的子进程会复制父进程中除了代码区之外的其他区域，而代码区和父进程共享
+	
+	clone();	//允许调用者控制哪些部分由父子进程共享
+	
+	vfork();	//直接占用父进程的内存空间，使得父进程进入阻塞,目的是执行exec一个新程序
+	
+3、进程终止
+	
+	正常终止：
+	
+		main中	return
+
+		exit()	//ISO C
+
+		_exit()	//POSIX
+
+		_Exit()	//ISO C
+
+		进程的最后一个线程返回
+
+		进程的最后一个线程调用pthread_exit()
+	
+	异常终止：
+		
+		abort() 系统调用		//产生 SIGABRT 信号
+		
+		接收到某个信号
+		
+		最后一个线程对“取消”请求作出响应
+		
+4、进程等待
+
+	pid_t	wait(int* status);		//阻塞
+	
+	pid_t	waitpid(pid_t pid, int status, int options);	//可非阻塞
+	
+	int		waitid(idtype_t idtype, id_t id, siginfo_t* infop, int options);
+	
+	pid_t	wait3(...);
+	
+	pid_t	wait4(...);
+	
+5、exec函数
+
+	int		execl(...);
+	int		execv(...);	
+	
+	int		execle(...);
+	int		execve(...);	
+	
+	int		execlp(...);
+	int		execvp(...);	
+	
+6、更改用户ID和组ID
+
+	int		setuid(uid_t uid);
+	
+	int 	setgid(gid_t gid)
+	
+7、交换实际用户ID和有效用户ID
+
+	int 	setreuid(uid_t ruid, uid_t euid);
+	
+	int 	setregid(gid_t rgid, gid_t egid);
+	
+8、只更改有效用户ID和有效组ID
+
+	int		seteuid(uid_t uid);
+	
+	int 	setegid(gid_t gid);
+	
+9、
+/*****************************************
+*************解释器文件*******************
+*****************************************/
+	awk;	//??
+	
+10、
+	int 	system(const char* cmdstring);	
+	
+11、进程会计
+
+	启用该选项后，每当进程结束时内核就写一个会计记录
+	
+	acct();		//启用和禁止进程会计
+	
+	命令：	accton;
+	
+	启动会计处理，会计记录会写到指定的文件	/var/account  pacct...
+	(文件有所不同)
+	
+12、用户标识
+
+	char*	getlogin(void);
+	
+13、进程时间
+
+	墙上时钟时间，	用户CPU时间，	系统CPU时间
+	
+	clock_t		times(struct tms*  buf);
+	
+	//大多数系统都实现了	getrusage() 函数

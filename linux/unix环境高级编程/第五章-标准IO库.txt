@@ -1,0 +1,104 @@
+1、流和FILE对象
+	改变流的定向：
+	freopen();
+		//清除一个流的定向
+		
+	int		fwide(FILE*  fp, int mode);	
+		//设置流的定向
+		
+2、标准输入，输出，错误
+	文件指针：stdin, stdout, stderr
+	文件描述符：STDIN_FILENO, ...
+	
+3、缓冲
+	
+A:
+	
+	全缓冲
+	行缓冲
+	不带缓冲
+	
+	注：标准IO缓冲惯例。
+		标准出错是不带缓冲的，打开至终端设备的流是行缓冲的，
+			其他流则是全缓冲的。
+B:			
+	更改缓冲类型：
+	
+	void	setbuf(FILE*  restrict fp, char*  restrict buf);
+	
+	void	setvbuf(FILE*  restrict fp, char*  restrict buf, int mode, size_t size);
+															// _IOFBF, 全缓冲
+															   _IOLBF，行缓冲
+															   _IONBF，不带缓冲	
+															   
+C:
+	强制冲洗一个流
+	int		fflush(FILE*  fp);		//使该流所有未写的数据都被传送至内核
+					//若fp=NULL,  将导致所有输出流被冲洗
+					
+4、打开流
+	fopen();
+	freopen();
+	fdopen();
+	
+	close();
+	
+5、读和写流
+
+(1)一次读取一个字符
+	int		getc(FILE* fp);
+	int		putc(FILE* fp);
+	int		getchar(void);
+	
+(2)每个流在FILE对象中维持两个标志：
+	出错标志
+	文件结束标志
+	
+	int		ferror(FILE* fp);
+			//检查是否出错
+	int		feof(FILE* fp);
+			//检查是否到达文件尾端
+	
+	void	clearerr(FILE* fp);
+	
+	调用clearerr清除两个标志
+	void	clearerr(FILE* fp);
+	
+(3)
+	从流中读取数据后，可以调用ungetc将字符再压回流中
+	int		ungetc(int c, FILE* fp);
+		注：读出的顺序与押送的顺序相反
+		
+6、每次一行IO
+	gets();
+	fgets();
+	puts();
+	fputs();
+	
+7、定位流
+	(1)ftell(); fseek();	rewind();
+	(2)ftello(); fseeko();
+	
+	(3)fgetpos(); fsetpos();
+		//ISO C引入的，移植性强
+		
+8、格式化IO
+	printf, sprintf, snprintf;
+	vprintf,......
+	scanf,......
+	
+9、实现细节
+	对一个流调用fileno获取其描述符
+	int		fileno(FILE* fp);
+	
+10、临时文件
+
+	char*	tmpnam(char* ptr);
+			//
+	
+	FILE*	tmpfile(void);
+			//创建临时二进制文件，wb+, 在关闭该文件或程序结束时自动删除
+			
+	char*	tempnam(const char* directory, const char* prefix);
+	
+	int		mkstemp(char* template);

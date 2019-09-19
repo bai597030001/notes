@@ -1,0 +1,38 @@
+findbugs规则整理及解决办法
+
+	https://blog.csdn.net/fbb1995/article/details/80408770
+	
+	
+	
+		Bad practice	不好的习惯
+		
+		Correctness		代码的正确性
+		
+		Dodgy			小问题
+		
+		Malicious code vulnerability	恶意代码
+		
+		Internationalization	国际化问题
+		
+		Performance		性能问题
+		
+		Security		安全性问题
+		
+		Multithreaded currectness		线程问题
+		
+		Experrimental	实验性问题
+
+
+1.
+	A boxed primitive is created from a String, just to extract the unboxed primitive value. 
+	
+	It is more efficient to just call the static parseXXX method.
+	
+	
+		修改建议：使用Long.ParseLong，避免自动装箱再拆箱 
+		
+		问题原因： 
+		
+			Long.ParseLong(String)方法，将 string 参数解析为有符号十进制 ，返回一个long的基本类型值 
+			
+			Long.ValueOf(String) ,方法得到的值非常相似。只是最后被转换为一个Long的包装类
