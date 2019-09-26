@@ -1,4 +1,0 @@
-# git分支本地操作详解
-
-[原文链接](https://www.cnblogs.com/videring/articles/6962005.html)
-
