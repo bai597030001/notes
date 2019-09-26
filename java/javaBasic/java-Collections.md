@@ -1,4 +1,38 @@
+https://www.cnblogs.com/xiaoxi/p/6089984.html
+
+https://blog.csdn.net/u010002184/article/details/74892663
+
+同步容器类：使用了synchronized
+1.Vector
+2.HashTable
+
+并发容器：
+3.ConcurrentHashMap:分段
+4.CopyOnWriteArrayList：写时复制
+5.CopyOnWriteArraySet：写时复制
+
+Queue:
+6.ConcurrentLinkedQueue：是使用非阻塞的方式实现的基于链接节点的无界的线程安全队列，性能非常好。
+（java.util.concurrent.BlockingQueue 接口代表了线程安全的队列。）
+7.ArrayBlockingQueue：基于数组的有界阻塞队列
+8.LinkedBlockingQueue：基于链表的有界阻塞队列。
+9.PriorityBlockingQueue：支持优先级的无界阻塞队列，即该阻塞队列中的元素可自动排序。默认情况下，元素采取自然升序排列
+10.DelayQueue：一种延时获取元素的无界阻塞队列。
+11.SynchronousQueue：不存储元素的阻塞队列。每个put操作必须等待一个take操作，否则不能继续添加元素。内部其实没有任何一个元素，容量是0
+
+Deque:
+(Deque接口定义了双向队列。双向队列允许在队列头和尾部进行入队出队操作。)
+12.ArrayDeque:基于数组的双向非阻塞队列。
+13.LinkedBlockingDeque:基于链表的双向阻塞队列。
+
+Sorted容器：
+14.ConcurrentSkipListMap：是TreeMap的线程安全版本
+15.ConcurrentSkipListSet：是TreeSet的线程安全版本
+
+---
+
 # java之Set接口详解
+
 ---
 ## Set接口
 > Set不允许包含相同的元素，如果试图把两个相同元素加入同一个集合中，add方法返回false。  
@@ -6,9 +40,9 @@
 > HashSet与TreeSet都是基于Set接口的实现类。其中TreeSet是Set的子接口SortedSet的实现类。
 
 			 | SortedSet接口——TreeSet实现类 
-
+	
 	Set接口--|——HashSet实现类
-
+	
 			 |——LinkedHashSet实现类
 
 ### HashSet
@@ -28,7 +62,7 @@
 另外，对象中用作equals比较标准的属性，都应该用来计算 hashCode的值。
 
 ### TreeSet
-	
+
 	TreeSet类型是J2SE中唯一可实现自动排序的类型
 
 - TreeSet是SortedSet接口的唯一实现类，TreeSet可以确保集合元素处于排序状态。
@@ -42,9 +76,9 @@
 	自然排序使用要排序元素的CompareTo（Object obj）方法来比较元素之间大小关系，然后将元素按照升序排列。
 	
 	Java提供了一个Comparable接口，该接口里定义了一个compareTo(Object obj)方法，该方法返回一个整数值，实现了该接口的对象就可以比较大小。
-
+	
 	obj1.compareTo(obj2)方法如果返回0，则说明被比较的两个对象相等，如果返回一个正数，则表明obj1大于obj2，如果是 负数，则表明obj1小于obj2。
-    
+	
 	如果我们将两个对象的equals方法总是返回true，则这两个对象的compareTo方法返回应该返回0
 
 > 定制排序：
