@@ -149,10 +149,22 @@
 			
 			git push -u origin master （注：此操作目的是把本地仓库push到github上面，此步骤需要你输入帐号和密码）
 
+
+			git pull origin master
 			
-3.拉取 github 代码到本地
+3.拉取 github 最新代码到本地
+
+	git fetch origin master:temp
+	
+	git diff temp
+	
+	git merge temp
+	
+	git brach -d temp
 
 4.修改拉取后的代码后提交到 github 
+
+	git push origin master
 	
 4.分支操作
 
