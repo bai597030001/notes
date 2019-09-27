@@ -130,7 +130,7 @@ git@github.com:bai597030001/network_optimize.git
 
 ### 2.1.1本地已经建好了源码文件/文件夹并且已经有了代码,即本地仓库已经存在
 
-?	
+
 
 - 1).将本地的仓库关联到GitHub
 
@@ -150,7 +150,7 @@ $ git pull origin master
 $ git pull origin master  --allow-unrelated-histories
 ```
 
-?	
+
 
 - 3).上传代码到GitHub远程仓库
 
@@ -203,16 +203,20 @@ $ git push -u origin master # （注：此操作目的是把本地仓库push到github上面，此步
 3.拉取 github 最新代码到本地
 
 ```shell
+# 从远程获取最新版本到本地： 从远程的origin仓库的master分支下载到本地并新建一个分支temp
 $ git fetch origin master:temp
 
+# 比较本地的仓库和远程参考的区别
 $ git diff temp
 
+# 合并temp分支到master分支
 $ git merge temp
 
+# 删除此分支
 $ git brach -d temp
 ```
 
-?	
+
 
 # 3.git分支管理
 
