@@ -1447,7 +1447,11 @@ JUC(`java.util.concurrent`)里所有的锁机制都是基于AQS框架上构建�
 
 # juc下的locks
 
+[https://www.cnblogs.com/chenpi/p/5614290.html#_label3]([https://www.cnblogs.com/chenpi/p/5614290.html#_label3]())
 
+[https://segmentfault.com/a/1190000015558984](https://segmentfault.com/a/1190000015558984)
+
+[http://javahao123.com/?p=765](http://javahao123.com/?p=765)
 
 
 
