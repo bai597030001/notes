@@ -35,6 +35,12 @@ public enum State {
 
 ![](img/java-thread1.jpeg)
 
+
+
+![](img/thread1.png)
+
+
+
 - 新建状态（new）:
 
   使用 **new** 关键字和 **Thread** 类或其子类建立一个线程对象后，该线程对象就处于新建状态。它保持这个状态直到程序 **start()** 这个线程。
@@ -433,6 +439,188 @@ Thread类的setPriority()和getPriority()方法分别用来设置和获取线程
 
 - join()方法，等待其他线程终止。在当前线程中调用另一个线程的join()方法，则当前线程转入阻塞状态，直到另一个进程运行结束，当前线程再由阻塞转为就绪状态。
 
+# 线程间通信
+
+## wait/notify
+
+- `wait()`与`notify()`的成对使用， 是一种**线程间通信**的手段。（进一步分析， `wait()` 操作的调用必然是在等待某种条件的成立， 而条件的成立必然是由其他的线程来完成的。）
+- 在Java中，可以通过配合调用`Object`对象的`wait`方法和`notify`方法或`notifyAll`方法来实现**线程间的协作通信**。在线程中调用wait方法，将阻塞等待其他线程的通知(其他线程调用`notify`方法或`notifyAll`方法)，在线程中调用`notify`方法或`notifyAll`方法，将通知其他线程从`wait`方法处返回。
+- 在JDK1.4之后出现了一个**Condition类**，这个类也能够实现**线程间的协作通信**，并且一般建议使用Condition替代`wait,notify,notifyAll`家族，实现更安全的线程间协作通信功能，比如`ArrayBlockingQueue`就是使用`Condition`实现阻塞队列的。
+- 注意
+  - `Object.wait()`与`Object.notify()`**必须要与**同步块或同步方法(**synchronized**块或者`synchronized`方法)一起使用，也就是`wait`与`notify`是针对已经获取了`Object`锁进行操作，从语法角度来说就是说`Object.wait(),Object.notify`必须在同步块或同步方法内。
+  - `wait`：线程在获取对象锁后，主动释放对象锁，同时本线程休眠。直到有其它线程调用对象的`notify()`唤醒该线程，才能继续获取对象锁，并继续执行。
+  - `notify`：对对象锁的唤醒操作。有一点需要注意的是`notify()`调用后，并**不是马上就释放对象锁**的，而是在相应的同步块或同步方法中执行结束，自动释放锁后，JVM会在`wait`()对象锁的线程中随机选取一线程，赋予其对象锁，唤醒线程，继续执行。这样就提供了在线程间同步、唤醒的操作。
+
+### 为什么需要和synchronized一起使用
+
+**每个对象都可以被认为是一个"监视器monitor"，这个监视器由三部分组成（一个独占锁，一个入口队列，一个等待队列）(ps:和AQS的state，同步队列，等待队列好相似)。**注意是一个对象只能有一个独占锁，但是任意线程线程都可以拥有这个独占锁。
+
+- 对于对象的<font color="#dd0000">非同步方法</font>而言，任意时刻可以有任意个线程调用该方法。（即普通方法同一时刻可以有多个线程调用）
+
+- 对于对象的<font color="#dd000">同步方法</font>而言，只有拥有这个对象的独占锁才能调用这个同步方法。如果这个独占锁被其他线程占用，那么另外一个调用该同步方法的线程就会处于阻塞状态，**此线程进入入口队列**。
+
+- 若一个拥有该独占锁的线程调用该对象同步方法的`wait`()方法，则该线程会释放独占锁，并**加入对象的等待队列**。只要该线程在该对象的等待队列中， 就会一直处于闲置状态， 不会被调度执行。（要注意`wait()`方法会强迫线程先进行释放锁操作，所以在调用`wait()`时， 该线程必须已经获得锁，否则会抛出异常。由于`wait()`在`synchonized`的方法内部被执行， 锁一定已经获得， 就不会抛出异常了。）
+
+- 某个线程调用`notify`(),`notifyAll`()方法是**将等待队列的线程转移到入口队列，然后在入口队列中的多个线程就会竞争该对象的锁**，所以这个<font color="00dd00">调用线程本身必须拥有锁</font>。
+- `wait()`与`notify()`的成对使用， 是一种**线程间通信**的手段。（进一步分析， `wait()` 操作的调用必然是在等待某种条件的成立， 而条件的成立必然是由其他的线程来完成的。）所以实际上， 我们调用 wait() 的时候， 实际上希望达到如下的效果
+
+```java
+// 线程A 的代码
+while(!condition){ // 不能使用 if , 因为存在一些特殊情况， 使得线程没有收到 notify 时也能退出等待状态
+    wait();
+}
+// do something
+```
+
+```java
+// 线程 B 的代码
+if(!condition){ 
+	// do something ...
+    condition = true;
+    notify();
+}
+```
+
+现在考虑， 如果`wait()` 和 `notify()` 的操作没有相应的同步机制， 则会发生如下情况
+
+1.【线程A】 进入了 while 循环后（通过了 !condition 判断条件， 但尚未执行 wait 方法）, CPU 时间片耗尽， CPU 开始执行线程B的代码
+2.【线程B】 执行完毕了 condition = true; notify(); 的操作， 此时【线程A】的 wait() 操作尚未被执行， notify() 操作没有产生任何效果
+3.【线程A】执行wait() 操作， 进入等待状态，如果没有额外的 notify() 操作， 该线程将持续在 condition = true 的情形下， 持续处于等待状态得不到执行。
+
+由此看出， 在使用 wait() 和 notify() 这种会挂起线程的操作时， 我们**需要一种同步机制保证， `condition` 的检查与 `wait()` 操作， 以及 `condition` 的更新与 `notify()` 是互斥的。**
+
+那是否简单的将之前的代码包裹在一个 synchronized 代码块中就可以满足需求呢？ 像下面这样。
+
+```java
+// 线程A 的代码
+synchronized(obj_A)
+{
+	while(!condition){ 
+	    wait();
+	}
+	// do something 
+}
+```
+
+```java
+// 线程 B 的代码
+synchronized(obj_A)
+{
+	if(!condition){ 
+		// do something ...
+	    condition = true;
+	    notify();
+	}
+}
+```
+
+乍一看， 上述的代码可以解决问题， 但是仔细分析一下， 由于wait() 操作会挂起当前线程， 那么必然需要在挂起前释放掉 obj_A 的锁， 但如果 obj_A 允许是任意对象， wait() 函数作为一个没有参数输入的方法，无从得知应该释放哪个对象的锁 。于是很自然的， 语法就会被设计成 java 现在的样子。即基于对象的 wait() 与 notify() 的调用， 必须先获得该对象的锁。
+
+```java
+// 线程 A 的代码
+synchronized(obj_A)
+{
+	while(!condition){ 
+	    obj_A.wait();
+	}
+	// do something 
+}
+```
+
+```java
+// 线程 B 的代码
+synchronized(obj_A)
+{
+	if(!condition){ 
+		// do something ...
+	    condition = true;
+	    obj_A.notify();
+	}
+}
+```
+
+
+
+- 使用示例
+
+```java
+public class WaitNotifyTest {
+
+
+    @Test
+    public void test() throws InterruptedException {
+
+        String s = "abc";
+
+        for(int i = 1; i <= 10; i ++){
+            new Thread(new Waiter(s),"waiter" + i).start();
+        }
+
+        // new Thread(new Notifier(s), "notifier").start();
+
+        for(int i = 1; i <= 10; i ++){
+            new Thread(new Notifier(s), "notifier" + i).start();
+        }
+
+        Thread.sleep(3000);
+    }
+}
+
+class Notifier implements Runnable {
+
+    private String msg;
+
+    public Notifier(String msg) {
+        this.msg = msg;
+    }
+
+    @Override
+    public void run() {
+        try {
+            Thread.sleep(200);
+            synchronized (msg) {
+                msg.notify();
+                // msg.notifyAll();
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+}
+
+class Waiter implements Runnable{
+
+    private String msg;
+
+    public Waiter(String m){
+        this.msg=m;
+    }
+
+    @Override
+    public void run() {
+        String threadName = Thread.currentThread().getName();
+        synchronized (msg) {
+            try{
+                System.out.println("thread: " + threadName + " start waiting!");
+                msg.wait();
+            }catch(InterruptedException e){
+                e.printStackTrace();
+            }
+        }
+        System.out.println("thread: " + threadName + " get the notifier!");
+    }
+
+}
+```
+
+
+
+## Condition类
+
+
+
 # 线程同步
 
 ## synchronized
@@ -456,7 +644,7 @@ Thread类的setPriority()和getPriority()方法分别用来设置和获取线程
 
 **使用示例**：
 
-## 原子类
+## Atomic类
 
 AtomicInteger、AtomicBoolean……
 

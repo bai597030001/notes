@@ -161,24 +161,6 @@ JMM定义了**线程和主内存之间的抽象关系**：线程之间的共享�
 
 
 
-
-
-
-
-juc:
-
-[https://www.cnblogs.com/chenpi/p/5614290.html](https://www.cnblogs.com/chenpi/p/5614290.html)
-
-[https://segmentfault.com/a/1190000015558984](https://segmentfault.com/a/1190000015558984)
-
-[http://javahao123.com/?p=765](http://javahao123.com/?p=765)
-
-
-
-# transient
-
-- 保证变量不被序列化
-
 # volatile
 
 - 保证线程可见性
