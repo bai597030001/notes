@@ -165,6 +165,271 @@ JMM定义了**线程和主内存之间的抽象关系**：线程之间的共享�
 
 
 
+# java中的锁
+
+> 说到了锁我们经常会联想到生活中的锁，在我们日常中我们经常会接触到锁。比如我们的手机锁，电脑锁，再比如我们生活中的门锁，这些都是锁。
+>
+> 说了这么多还是不清楚锁到底有什么用处？这一点就要深思我们为什么要使用锁，我们用手机锁是为了保障我们的隐私安全，使用门锁是为了保障我们的财产安全，准确的来说我们使用锁就是为了安全。那么在生活中我们可以加锁来保障自己的隐私和财产安全，那Java中的锁有什么用处呢？
+
+
+
+- Java中的锁准确的来说也是为了保证安全，不过不同的是Java中的锁是为了保证并发所需要的。所以在Java中加锁准确的来说是为了**保证并发安全**，同时也是为了**解决内存中的一致性，原子性，有序性三种问题**。在Java中提供了各式各样的锁，每种锁都有其自身的特点和适用范围。所以我们都要熟悉锁的区别和原理才能正确的使用。
+
+
+
+## 乐观锁和悲观锁
+
+
+
+### 悲观锁
+
+- 悲观锁如其名它是悲观的，它觉得每次访问数据都可能被其他人(线程)修改，所以在访问资源的时候就会对资源进行加锁，用这种方式来保证资源在访问的时候不会被其他线程修改。这样的话其他线程想要获取资源的话就只能阻塞，等到当前线程释放锁后在获取。在Java中悲观锁的实现有`synchronized关键字`和`Lock`的实现类都是悲观锁。我们来看一下悲观锁到底是怎么执行的。
+
+![](img/java-lock1.webp)
+
+
+
+线程A抢占到资源后线程B就陷入了阻塞中,然后就等待线程A释放资源。
+
+![](img/java-lock2.webp)
+
+当线程A释放完资源后线程B就去获取锁开始操作资源˛悲观锁保证了资源同时只能一个线程进行操作。
+
+
+
+### 乐观锁
+
+与悲观锁相反，乐观锁并不会觉得访问数据的时候会有人修改(所以它是乐观的)，所以在访问资源的时候并不会上锁，但是在提交的时候回去判断一下是否有人修改了当前数据，在数据库中我们可以使用`version`版本号去实现。在Java中我们是使用CSA来实现。我们看一下乐观锁的执行过程
+
+![](img/java-lock3.webp)
+
+
+
+### 使用悲观锁和乐观锁
+
+```java
+//悲观锁
+public synchronized void testMethod(){
+    //do something
+}
+
+//乐观锁
+private AtomicLong value = new AtomicLong();
+```
+
+可以使用synchronized关键字来实现悲观锁，乐观锁可以使用并法包下提供的原子类。
+
+
+
+## 公平锁和非公平锁
+
+- 公平锁如其名讲究的是一个公平，所以多个线程同时申请申请锁的话，线程会放入一个队列中，在队列中第一个进入队列的线程才能获取锁资源，讲究的是先到先得。
+
+- 非公平锁先到不一定先得
+
+不过公平锁也是有缺点的，当一个线程获取资源后在队列中的其他的线程就只能在阻塞，CPU的所以公平锁比非公平锁的效率要低很多。因为*CPU唤醒阻塞线程的开销比非公平锁大*。
+
+
+
+在Java中ReentrantLock提供了公平锁和非公平锁的实现。看一下ReentrantLock怎么实现公平锁和非公平锁
+
+```java
+//公平锁
+private ReentrantLock fairLock = new ReentrantLock(true);
+
+//非公平锁
+private ReentrantLock fairLock = new ReentrantLock(false);
+
+//默认是非公平锁
+private ReentrantLock fairLock = new ReentrantLock();
+```
+
+### 使用
+
+ReentrantLock默认就是非公平的锁，我们来看一下公平锁的例子：
+
+![](img/java-lock4.webp)
+
+看一下输出结果：
+
+![](img/java-lock5.webp)
+
+我们可以看到公平锁的输出结果是按照顺序来的，先到先得。
+
+
+
+在看一下非公平锁的例子：
+
+![](img/java-lock6.webp)
+
+输出结果：
+
+![](img/java-lock7.webp)
+
+我们可以看到如果使用非公平锁的话最后输出的结果是完全没有顺序的，先到不一定先得。
+
+
+
+所以在使用公平锁的时候线程1获取到锁之后线程2在请求锁的话就会挂起等待线程1释放锁，然后线程2才能获取锁。如果再有一个线程3想要请求锁的话，这时候如果使用的是非公平锁，那么线程2和线程3中两个有一个会获取到锁，公平锁的情况下线程3只能先挂起，等待线程2获取锁资源释放后在获取。
+
+
+
+## 公平锁与非公平锁效率差异原因
+
+在需要公平资源的场景下使用公平锁，如果不需要特殊的公平对待的话尽量使用非公平锁，因为公平锁会带来性能的开销。
+
+公平锁要维护一个队列，后来的线程要加锁，即使锁空闲，也要先检查有没有其他线程在 wait，如果有自己要挂起，加到队列后面，然后唤醒队列最前面的线程。这种情况下相比较非公平锁多了一次挂起和唤醒
+
+**线程切换的开销**，其实就是非公平锁效率高于公平锁的原因，因为**非公平锁减少了线程挂起的几率**，后来的线程有一定几率逃离被挂起的开销。
+
+
+
+## 独占锁和共享锁
+
+看到独占和共享会联想到什么，对的独占锁就是每次只有一个线程能霸占这个锁资源，而其他线程就只能等待当前获取锁资源的线程释放锁才能再次获取锁，刚刚上面的**ReentrantLock就是独占锁**，那这样看来独占锁不也就是悲观锁吗？因为悲观锁抢占资源后就只能等待释放其他线程才能再次获取到锁资源。其实准确的说<font color="00dd00">独占锁也是悲观锁</font>。
+
+在谈共享锁，共享锁其实也是乐观锁它放宽了锁的策略，<u>允许多个线程同时获取锁</u>。在**并发包中ReadWriteLock就是一个典型的共享锁**。它允许一个资源可以被多个读操作访问，或者被一个 写操作访问，但两者不能同时进行。
+
+
+
+
+
+## 自旋锁
+
+自旋锁其实就是当一个线程获取锁的时候，这个锁已经被其他人获取到了那么这个线程不会立马挂起，反而在不放弃CPU使用权的情况下会尝试再次获取锁资源，默认次数是10次，可以使用`-XX: PreBlockSpinsh`来设置次数。
+
+如果自旋锁获取锁的时间太长，会造成后面的线程CPU资源耗尽释放。并且自旋锁是不公平的。
+
+
+
+**优点：**自旋锁<u>不会使线程状态发生切换</u>，一直处于用户态，即线程一直都是active的；不会使线程进入阻塞状态，减少了不必要的上下文切换，执行速度快。
+
+
+
+## 可重入锁
+
+
+
+### 什么是重入锁
+
+- `java.util.concurrent.locks.ReentrantLock`
+
+这个是 JDK @since 1.5 添加的一种颗粒度更小的锁，它完全可以替代 synchronized 关键字来实现它的所有功能，而且 ReentrantLock 锁的灵活度要远远大于 synchronized 关键字。
+
+![](img/java-lock8.webp)
+
+从类结构图看出，ReentrantLock 实现了 Lock 接口，ReentrantLock 只是 Lock 接口的一个实现而已。
+
+
+
+### 为什么叫重入锁呢
+
+`ReentrantLock`：Re-Entrant-Lock：即表示**可重新反复进入的锁，但仅限于当前线程**；
+
+```java
+public void m() {
+    lock.lock();
+    lock.lock();
+    try {
+      // ... method body
+    } finally {
+      lock.unlock()
+      lock.unlock()
+    }
+}
+```
+
+如示例代码所示，当前线程可以反复加锁，但也需要释放同样加锁次数的锁，即重入了多少次，就要释放多少次，不然也会导入锁不被释放。
+
+
+
+### 重入锁最重要的几个方法
+
+
+
+这几个方法都是 Lock 接口中定义的：
+
+![](img/java-lock9.webp)
+
+
+
+**1）lock()**
+
+获取锁，有以下三种情况：
+
+- 锁空闲：直接获取锁并返回，同时设置锁持有者数量为：1；
+- 当前线程持有锁：直接获取锁并返回，同时锁持有者数量递增1；
+- 其他线程持有锁：当前线程会休眠等待，直至获取锁为止；
+
+**2）lockInterruptibly()**
+
+获取锁，逻辑和 lock() 方法一样，但这个方法在获取锁过程中能响应中断。
+
+**3）tryLock()**
+
+从关键字字面理解，这是在尝试获取锁，获取成功返回：true，获取失败返回：false, 这个方法不会等待，有以下三种情况：
+
+- 锁空闲：直接获取锁并返回：true，同时设置锁持有者数量为：1；
+- 当前线程持有锁：直接获取锁并返回：true，同时锁持有者数量递增1；
+- 其他线程持有锁：获取锁失败，返回：false；
+
+**4）tryLock(long timeout, TimeUnit unit)**
+
+逻辑和 tryLock() 差不多，只是这个方法是带时间的。
+
+**5）unlock()**
+
+释放锁，每次锁持有者数量递减 1，直到 0 为止。所以，现在知道为什么 lock 多少次，就要对应 unlock 多少次了吧。
+
+**6）newCondition**
+
+返回一个这个锁的 Condition 实例，可以实现 synchronized 关键字类似 wait/ notify 实现多线程通信的功能，不过这个比 wait/ notify 要更灵活，更强大！
+
+
+
+### 重入锁大概的用法
+
+```java
+class X {
+
+  private final ReentrantLock lock = new ReentrantLock();
+
+  // ...
+
+  public void m() {
+    lock.lock();  // block until condition holds
+    try {
+      // ... method body
+    } finally {
+      lock.unlock()
+    }
+  }
+
+}}
+```
+
+加锁和释放锁都在方法里面进行，可以自由控制，比 synchronized 更灵活，更方便。但要注意的是，释放锁操作必须在 finally 里面，不然如果出现异常导致锁不能被正常释放，进而会卡死后续所有访问该锁的线程。
+
+
+
+### synchronized 是重入锁吗
+
+
+
+```java
+public synchronized void operation(){
+    add();
+}
+
+public synchronized void add(){
+
+}
+```
+
+`operation`() 方法调用了 `add`() 方法，两个方法都是用 `synchronized` 修饰的，`add`()  方法可以成功获取当前线程 `operation`() 方法已经获取到的锁，**说明 `synchronized` 就是可重入锁**。
+
+
+
 # volatile
 
 - 保证线程可见性
@@ -1431,13 +1696,342 @@ JUC(`java.util.concurrent`)里所有的锁机制都是基于AQS框架上构建�
 
 
 
-# juc下的locks
+# juc并发包
 
-[https://www.cnblogs.com/chenpi/p/5614290.html#_label3]([https://www.cnblogs.com/chenpi/p/5614290.html#_label3]())
+[https://www.cnblogs.com/chenpi/p/5614290.html#_label3]([https://www.cnblogs.com/chenpi/p/5614290.html#_label3)
 
 [https://segmentfault.com/a/1190000015558984](https://segmentfault.com/a/1190000015558984)
 
-[http://javahao123.com/?p=765](http://javahao123.com/?p=765)
+
+
+## juc-locks 锁框架
+
+![](img/java-lock1.png)
+
+
+
+![](img/java-lock2.png)
+
+Lock接口可以视为synchronized的增强版，提供了更灵活的功能。该接口提供了限时锁等待、锁中断、锁尝试等功能。
+
+### 接口定义
+
+该接口的方法声明如下：
+
+```java
+public interface Lock {
+    
+    void lock();
+    
+    void lockInterruptibly() throws InterruptedException;
+    
+    boolean tryLock();
+    
+    boolean tryLock(long time, TimeUnit unit) throws InterruptedException;
+    
+    void unlock();
+    
+    Condition newCondition();
+}
+```
+
+需要注意`lock()`和`lockInterruptibly()`这两个方法的区别：
+
+```pro
+lock()方法类似于使用synchronized关键字加锁，如果锁不可用，出于线程调度目的，将禁用当前线程，并且在获得锁之前，该线程将一直处于休眠状态。
+
+lockInterruptibly()方法顾名思义，就是如果锁不可用，那么当前正在等待的线程是可以被中断的，这比synchronized关键字更加灵活。
+```
+
+
+
+### 使用示例
+
+```java
+Lock lock = ...;
+if (lock.tryLock()) {
+    try {
+        // manipulate protected state
+    } finally {
+        lock.unlock();
+    }
+} else {
+    // perform alternative actions
+}
+```
+
+
+
+## Condition接口
+
+### 接口定义
+
+```java
+public interface Condition {
+    
+    void await() throws InterruptedException;
+    
+    void awaitUninterruptibly();
+    
+    long awaitNanos(long nanosTimeout) throws InterruptedException;
+    
+    boolean await(long time, TimeUnit unit) throws InterruptedException;
+    
+    boolean awaitUntil(Date deadline) throws InterruptedException;
+    
+    void signal();
+    
+    void signalAll();
+}
+```
+
+
+
+### 使用示例
+
+Oracle官方文档中给出了一个缓冲队列的示例：
+
+*假定有一个缓冲队列，支持 put 和 take 方法。如果试图在空队列中执行 take 操作，则线程将一直阻塞，直到队列中有可用元素；如果试图在满队列上执行 put 操作，则线程也将一直阻塞，直到队列不满。*
+
+```java
+class BoundedBuffer {
+    final Lock lock = new ReentrantLock();
+    final Condition notFull = lock.newCondition();
+    final Condition notEmpty = lock.newCondition();
+ 
+    final Object[] items = new Object[100];
+    int putptr, takeptr, count;
+ 
+    public void put(Object x) throws InterruptedException {
+        lock.lock();
+        try {
+            while (count == items.length)    //防止虚假唤醒，Condition的await调用一般会放在一个循环判断中
+                notFull.await();
+            items[putptr] = x;
+            if (++putptr == items.length)
+                putptr = 0;
+            ++count;
+            notEmpty.signal();
+        } finally {
+            lock.unlock();
+        }
+    }
+ 
+    public Object take() throws InterruptedException {
+        lock.lock();
+        try {
+            while (count == 0)
+                notEmpty.await();
+            Object x = items[takeptr];
+            if (++takeptr == items.length)
+                takeptr = 0;
+            --count;
+            notFull.signal();
+            return x;
+        } finally {
+            lock.unlock();
+        }
+    }
+}
+```
+
+> 等待 Condition 时，为了防止发生“虚假唤醒”， Condition 一般都是在一个循环中被等待，并测试正被等待的状态声明，如上述代码注释部分。
+> 虽然上面这个示例程序即使不用while，改用if判断也不会出现问题，但是最佳实践还是做while循环判断——[Guarded Suspension模式](https://segmentfault.com/a/1190000015558585)，以防遗漏情况。
+
+
+
+## ReadWriteLock接口
+
+- 所谓读写锁，是一对相关的锁——读锁和写锁，读锁用于只读操作，写锁用于写入操作。读锁可以由多个线程同时保持，而写锁是独占的，只能由一个线程获取。
+
+
+
+### 接口定义
+
+```java
+public interface ReadWriteLock {
+    /**
+     * Returns the lock used for reading.
+     *
+     * @return the lock used for reading
+     */
+    Lock readLock();
+
+    /**
+     * Returns the lock used for writing.
+     *
+     * @return the lock used for writing
+     */
+    Lock writeLock();
+}
+```
+
+
+
+## ReentrantLock
+
+- ReentrantLock类，实现了`Lock`接口，是一种**可重入**的**独占锁**，它具有与使用 `synchronized` 相同的一些基本行为和语义，但功能更强大。`ReentrantLock`内部通过内部类实现了AQS框架(`AbstractQueuedSynchronizer`)的API来实现**独占锁**的功能。
+
+
+
+### 类定义
+
+```java
+public class ReentrantLock implements Lock, java.io.Serializable {
+    private static final long serialVersionUID = 7373984872572414699L;
+    /** Synchronizer providing all implementation mechanics */
+    private final Sync sync;
+    //......
+}
+```
+
+
+
+
+
+### 使用示例
+
+```java
+class X {
+    private final ReentrantLock lock = new ReentrantLock();
+    // ...
+    public void m() {
+        lock.lock(); // block until condition holds
+        try {
+            // ... method body
+        } finally {
+            lock.unlock();
+        }
+    }
+}
+```
+
+
+
+## ReentrantReadWriteLock类
+
+- `ReentrantReadWriteLock`类，顾名思义，是一种读写锁，它是`ReadWriteLock`接口的直接实现，该类在内部实现了具体**独占锁**特点的写锁，以及具有**共享锁**特点的读锁，和`ReentrantLock`一样，`ReentrantReadWriteLock`类也是通过定义内部类实现`AQS`框架的API来实现独占/共享的功能。
+
+
+
+### 特点：
+
+- 支持公平/非公平策略
+
+- 支持锁重入
+
+  > 同一读线程在获取了读锁后还可以获取读锁；
+  >
+  > 同一写线程在获取了写锁之后既可以再次获取写锁又可以获取读锁；
+
+- 支持锁降级
+
+  > 所谓锁降级，就是：先获取写锁，然后获取读锁，最后释放写锁，这样写锁就降级成了读锁。但是，读锁不能升级到写锁。
+
+- Condition条件支持
+
+  > ReentrantReadWriteLock的内部读锁类、写锁类实现了Lock接口，所以可以通过`newCondition()`方法获取Condition对象。但是这里要注意，读锁是没法获取Condition对象的，读锁调用`newCondition() `方法会直接抛出`UnsupportedOperationException`。
+
+  
+
+  > 我们知道，condition的作用其实是对Object类的`wait()`和`notify()`的增强，是为了让线程在指定对象上等待，是一种线程之间进行协调的工具。
+  > 当线程调用condition对象的`await`方法时，必须拿到和这个condition对象关联的锁。由于线程对读锁的访问是不受限制的（在写锁未被占用的情况下），那么即使拿到了和读锁关联的condition对象也是没有意义的，因为读线程之前不需要进行协调。
+
+
+
+### 使用示例
+
+以下是Oracle官方给出的一个例子：
+使用`ReentrantReadWriteLock`控制对`TreeMap`的访问（利用读锁控制读操作的访问，利用写锁控制修改操作的访问），将`TreeMap`包装成一个线程安全的集合，并且利用了读写锁的特性来提高并发访问。
+
+```java
+public class RWTreeMap {
+    private final Map<String, Data> m = new TreeMap<String, Data>();
+    private final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
+    private final Lock r = rwl.readLock();
+    private final Lock w = rwl.writeLock();
+ 
+    public Data get(String key) {
+        r.lock();
+        try {
+            return m.get(key);
+        } finally {
+            r.unlock();
+        }
+    }
+ 
+    public String[] allKeys() {
+        r.lock();
+        try {
+            return (String[]) m.keySet().toArray();
+        } finally {
+            r.unlock();
+        }
+    }
+ 
+    public Data put(String key, Data value) {
+        w.lock();
+        try {
+            return m.put(key, value);
+        } finally {
+            w.unlock();
+        }
+    }
+ 
+    public void clear() {
+        w.lock();
+        try {
+            m.clear();
+        } finally {
+            w.unlock();
+        }
+    }
+}
+```
+
+
+
+## LockSupport
+
+
+
+## StampedLock
+
+
+
+## juc-atomic 原子类框架
+
+
+
+
+
+
+
+## juc-sync 同步器框架
+
+
+
+
+
+
+
+## juc-collections 集合框架
+
+
+
+
+
+
+
+## juc-executors 执行器框架
+
+
+
+### Fork/Join并行计算框架
+
+
+
+
 
 
 
