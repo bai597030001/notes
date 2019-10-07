@@ -1071,617 +1071,6 @@ public native  void ensureClassInitialized(Class<?> c)
 
 
 
-
-
-
-
-# Atomic类
-
-juc下的Atmic类都是线程安全的，他们的内部实现线程安全的方式是cas。
-
-
-
-## 基本类型，使用原子的方式更新基本类型
-
-- AtomicInteger：整形原子类
-- AtomicLong：长整型原子类
-- AtomicBoolean ：布尔型原子类
-
-```java
-public class AtomicInteger extends Number implements java.io.Serializable {
-    private static final long serialVersionUID = 6214790243416807050L;
-
-    // 获取指针类Unsafe
-    private static final Unsafe unsafe = Unsafe.getUnsafe();
-
-    //下述变量value在AtomicInteger实例对象内的内存偏移量
-    private static final long valueOffset;
-
-    static {
-        try {
-           //通过unsafe类的objectFieldOffset()方法，获取value变量在对象内存中的偏移
-           //通过该偏移量valueOffset，unsafe类的内部方法可以获取到变量value对其进行取值或赋值操作
-            valueOffset = unsafe.objectFieldOffset
-                (AtomicInteger.class.getDeclaredField("value"));
-        } catch (Exception ex) { throw new Error(ex); }
-    }
-   //当前AtomicInteger封装的int变量value
-    private volatile int value;
-
-    public AtomicInteger(int initialValue) {
-        value = initialValue;
-    }
-    public AtomicInteger() {
-    }
-   //获取当前最新值，
-    public final int get() {
-        return value;
-    }
-    //设置当前值，具备volatile效果，方法用final修饰是为了更进一步的保证线程安全。
-    public final void set(int newValue) {
-        value = newValue;
-    }
-    //最终会设置成newValue，使用该方法后可能导致其他线程在之后的一小段时间内可以获取到旧值，有点类似于延迟加载
-    public final void lazySet(int newValue) {
-        unsafe.putOrderedInt(this, valueOffset, newValue);
-    }
-   //设置新值并获取旧值，底层调用的是CAS操作即unsafe.compareAndSwapInt()方法
-    public final int getAndSet(int newValue) {
-        return unsafe.getAndSetInt(this, valueOffset, newValue);
-    }
-   //如果当前值为expect，则设置为update(当前值指的是value变量)
-    public final boolean compareAndSet(int expect, int update) {
-        return unsafe.compareAndSwapInt(this, valueOffset, expect, update);
-    }
-    //当前值加1返回旧值，底层CAS操作
-    public final int getAndIncrement() {
-        return unsafe.getAndAddInt(this, valueOffset, 1);
-    }
-    //当前值减1，返回旧值，底层CAS操作
-    public final int getAndDecrement() {
-        return unsafe.getAndAddInt(this, valueOffset, -1);
-    }
-   //当前值增加delta，返回旧值，底层CAS操作
-    public final int getAndAdd(int delta) {
-        return unsafe.getAndAddInt(this, valueOffset, delta);
-    }
-    //当前值加1，返回新值，底层CAS操作
-    public final int incrementAndGet() {
-        return unsafe.getAndAddInt(this, valueOffset, 1) + 1;
-    }
-    //当前值减1，返回新值，底层CAS操作
-    public final int decrementAndGet() {
-        return unsafe.getAndAddInt(this, valueOffset, -1) - 1;
-    }
-   //当前值增加delta，返回新值，底层CAS操作
-    public final int addAndGet(int delta) {
-        return unsafe.getAndAddInt(this, valueOffset, delta) + delta;
-    }
-   //省略一些不常用的方法....
-}
-```
-
-
-
-## 数组类型，使用原子的方式更新数组里的某个元素
-
-原子更新数组指的是通过原子的方式**更新数组里的某个元素**
-
-
-
-- AtomicIntegerArray：整形数组原子类
-- AtomicLongArray：长整形数组原子类
-- AtomicReferenceArray ：引用类型数组原子类
-
-```java
-public class AtomicIntegerArray implements java.io.Serializable {
-    //获取unsafe类的实例对象
-    private static final Unsafe unsafe = Unsafe.getUnsafe();
-    //获取数组的第一个元素内存起始地址
-    private static final int base = unsafe.arrayBaseOffset(int[].class);
-
-    //数组元素的偏移量
-    private static final int shift;
-    //内部数组
-    private final int[] array;
-
-    static {
-        //获取数组中一个元素占据的内存空间(arrayIndexScale方法可以获取每个数组元素占用的内存空间)
-        int scale = unsafe.arrayIndexScale(int[].class);
-        //判断是否为2的次幂，一般为2的次幂否则抛异常
-        if ((scale & (scale - 1)) != 0)
-            throw new Error("data type scale not a power of two");
-        //
-        shift = 31 - Integer.numberOfLeadingZeros(scale);
-    }
-
-    private long checkedByteOffset(int i) {
-        if (i < 0 || i >= array.length)
-            throw new IndexOutOfBoundsException("index " + i);
-
-        return byteOffset(i);
-    }
-    //计算数组中每个元素的的内存地址
-    private static long byteOffset(int i) {
-        return ((long) i << shift) + base;
-    }
-    //省略其他代码......
-}
-```
-
-由于这里是Int类型，而Java中一个int类型占用4个字节，也就是scale的值为4，那么如何根据数组下标值计算每个元素的内存地址呢？显然应该是
-
-> 每个数组元素的内存地址 = 起始地址 + 元素下标  *  每个元素所占用的内存空间
-
-上述代码中的`byteOffset`与该方法原理相同
-
-
-
-首先来计算出shift的值
-
-```java
-shift = 31 - Integer.numberOfLeadingZeros(scale);
-```
-
-其中Integer.numberOfLeadingZeros(scale)是计算出scale的前导零个数(必须是连续的)，scale=4，转成二进制为
-00000000 00000000 00000000 00000100
-即前导零数为29，也就是**shift=2**，然后利用shift来定位数组中的内存位置，在数组不越界时，计算出前3个数组元素内存地址
-
-```java
-//第一个数组元素，index=0 ， 其中base为起始地址，4代表int类型占用的字节数 
-address = base + 0 * 4 即address= base + 0 << 2
-//第二个数组元素，index=1
-address = base + 1 * 4 即address= base + 1 << 2
-//第三个数组元素，index=2
-address = base + 2 * 4 即address= base + 2 << 2
-//........
-```
-
-显然shift=2，替换去就是
-
-```java
-address= base + i << shift
-```
-
-这就是 `byteOffset(int i)` 方法的计算原理。因此`byteOffset(int)`方法可以根据数组下标计算出每个元素的内存地址。至于其他方法就比较简单了，都是间接调用Unsafe类的CAS原子操作方法，如下简单看其中几个常用方法
-
-```java
-//执行自增操作，返回旧值，i是指数组元素下标
-public final int getAndIncrement(int i) {
-      return getAndAdd(i, 1);
-}
-//指定下标元素执行自增操作，并返回新值
-public final int incrementAndGet(int i) {
-    return getAndAdd(i, 1) + 1;
-}
-
-//指定下标元素执行自减操作，并返回新值
-public final int decrementAndGet(int i) {
-    return getAndAdd(i, -1) - 1;
-}
-//间接调用unsafe.getAndAddInt()方法
-public final int getAndAdd(int i, int delta) {
-    return unsafe.getAndAddInt(array, checkedByteOffset(i), delta);
-}
-
-//Unsafe类中的getAndAddInt方法，执行CAS操作
-public final int getAndAddInt(Object o, long offset, int delta) {
-        int v;
-        do {
-            v = getIntVolatile(o, offset);
-        } while (!compareAndSwapInt(o, offset, v, v + delta));
-        return v;
-    }
-```
-
-
-
-
-
-
-
-## 引用类型
-
-- AtomicReference：引用类型原子类
-- AtomicStampedRerence：原子性更新引用类型里的字段原子类
-- AtomicMarkableReference ：原子性更新带有标记位的引用类型
-
-```java
-public class AtomicReference<V> implements java.io.Serializable {
-    private static final Unsafe unsafe = Unsafe.getUnsafe();
-    private static final long valueOffset;
-
-    static {
-        try {
-            valueOffset = unsafe.objectFieldOffset
-                (AtomicReference.class.getDeclaredField("value"));
-        } catch (Exception ex) { throw new Error(ex); }
-    }
-    //内部变量value，Unsafe类通过valueOffset内存偏移量即可获取该变量
-    private volatile V value;
-
-//CAS方法，间接调用unsafe.compareAndSwapObject(),它是一个
-//实现了CAS操作的native方法
-public final boolean compareAndSet(V expect, V update) {
-        return unsafe.compareAndSwapObject(this, valueOffset, expect, update);
-}
-
-//设置并获取旧值
-public final V getAndSet(V newValue) {
-        return (V)unsafe.getAndSetObject(this, valueOffset, newValue);
-    }
-    //省略其他代码......
-}
-
-//Unsafe类中的getAndSetObject方法，实际调用还是CAS操作
-public final Object getAndSetObject(Object o, long offset, Object newValue) {
-      Object v;
-      do {
-          v = getObjectVolatile(o, offset);
-      } while (!compareAndSwapObject(o, offset, v, newValue));
-      return v;
-  }
-```
-
-从源码看来，AtomicReference与AtomicInteger的实现原理基本是一样的，最终执行的还是Unsafe类，关于AtomicReference的其他方法也是一样的，如下
-
-![](img/atomic1.png)
-
-红框内的方法是Java8新增的，可以基于Lambda表达式对传递进来的期望值或要更新的值进行其他操作后再进行CAS操作，说白了就是对期望值或要更新的值进行额外修改后再执行CAS更新，在所有的Atomic原子类中几乎都存在这几个方法。
-
-
-
-## 对象的属性修改类型
-
-果需要更新对象的某个字段，Atomic同样也提供了相应的原子操作类：
-
-- AtomicIntegerFieldUpdater:原子性更新整形字段的更新器
-- AtomicLongFieldUpdater：原子性更新长整形字段的更新器
-- AtomicReferenceFieldUpdater ：原子性更新带有版本号的引用类型。该类将整数值与引用关联起来，可用于解决原子的更新数据和数据的版本号，可以解决使用 CAS 进行原子更新时可能出现的 ABA 问题。
-
-
-
-要想使用原子更新字段需要两步操作：
-
-- 原子更新字段类型类都是抽象类，只能通过静态方法newUpdater来创建一个更新器，并且需要设置想要更新的类和属性；
-- 更新类的属性必须使用public volatile进行修饰；
-
-
-
-**注意：原子更新器的使用存在比较苛刻的条件**
-
-- 操作的字段不能是static类型。
-
-- 操作的字段不能是final类型的，因为final根本没法修改。
-
-- 字段必须是volatile修饰的，也就是数据本身是读一致的。
-
-- 属性必须对当前的Updater所在的区域是可见的。
-
-  > 如果不是当前类内部进行原子更新器操作不能使用private，protected子类操作父类时修饰符必须是protect权限及以上，如果在同一个package下则必须是default权限及以上，也就是说无论何时都应该保证操作类与被操作类间的可见性。
-
-
-
-**内部实现：**
-
-AtomicIntegerFieldUpdater的**实现原理**，实际就是**反射和Unsafe类结合**，AtomicIntegerFieldUpdater是个抽象类，实际实现类为AtomicIntegerFieldUpdaterImpl
-
-```java
-private static class AtomicIntegerFieldUpdaterImpl<T>
-            extends AtomicIntegerFieldUpdater<T> {
-        private static final Unsafe unsafe = Unsafe.getUnsafe();
-        private final long offset;//内存偏移量
-        private final Class<T> tclass;
-        private final Class<?> cclass;
-
-        AtomicIntegerFieldUpdaterImpl(final Class<T> tclass,
-                                      final String fieldName,
-                                      final Class<?> caller) {
-            final Field field;//要修改的字段
-            final int modifiers;//字段修饰符
-            try {
-                field = AccessController.doPrivileged(
-                    new PrivilegedExceptionAction<Field>() {
-                        public Field run() throws NoSuchFieldException {
-                            return tclass.getDeclaredField(fieldName);//反射获取字段对象
-                        }
-                    });
-                    //获取字段修饰符
-                modifiers = field.getModifiers();
-            //对字段的访问权限进行检查,不在访问范围内抛异常
-                sun.reflect.misc.ReflectUtil.ensureMemberAccess(
-                    caller, tclass, null, modifiers);
-                ClassLoader cl = tclass.getClassLoader();
-                ClassLoader ccl = caller.getClassLoader();
-                if ((ccl != null) && (ccl != cl) &&
-                    ((cl == null) || !isAncestor(cl, ccl))) {
-              sun.reflect.misc.ReflectUtil.checkPackageAccess(tclass);
-                }
-            } catch (PrivilegedActionException pae) {
-                throw new RuntimeException(pae.getException());
-            } catch (Exception ex) {
-                throw new RuntimeException(ex);
-            }
-
-            Class<?> fieldt = field.getType();
-            //判断是否为int类型
-            if (fieldt != int.class)
-                throw new IllegalArgumentException("Must be integer type");
-            //判断是否被volatile修饰
-            if (!Modifier.isVolatile(modifiers))
-                throw new IllegalArgumentException("Must be volatile type");
-
-            this.cclass = (Modifier.isProtected(modifiers) &&
-                           caller != tclass) ? caller : null;
-            this.tclass = tclass;
-            //获取该字段的在对象内存的偏移量，通过内存偏移量可以获取或者修改该字段的值
-            offset = unsafe.objectFieldOffset(field);
-        }
-        }
-```
-
-从AtomicIntegerFieldUpdaterImpl的构造器也可以看出更新器为什么会有这么多限制条件了，当然最终其CAS操作肯定是通过unsafe完成的，简单看一个方法
-
-```java
-public int incrementAndGet(T obj) {
-        int prev, next;
-        do {
-            prev = get(obj);
-            next = prev + 1;
-            //CAS操作
-        } while (!compareAndSet(obj, prev, next));
-        return next;
-}
-
-//最终调用的还是unsafe.compareAndSwapInt()方法
-public boolean compareAndSet(T obj, int expect, int update) {
-            if (obj == null || obj.getClass() != tclass || cclass != null) fullCheck(obj);
-            return unsafe.compareAndSwapInt(obj, offset, expect, update);
-        }
-```
-
-
-
-AtomicIntegerFieldUpdater**使用示例**：
-
-
-
-> 假设现在有这样的一个场景： 一百个线程同时对一个int对象进行修改，要求只能有一个线程可以修改。
-
-
-
-错误实现：
-
-```java
-// 假设现在有这样的一个场景： 一百个线程同时对一个int对象进行修改，要求只能有一个线程可以修改。
-private static int a = 100;
-private static  volatile boolean ischanged = false;
-public static void main(String[] args){
-    for(int i=0; i<100;i++){
-        Thread t = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                if(!ischanged){
-                    ischanged = true;
-                    a = 120;
-                }
-            }
-        });
-        t.start();
-    }
-}
-// 1. 判断!ischanged 2.ischanged=true  该组合操作就不能保证原子性
-```
-
-正确实现：
-
-```java
-public class Test{
-    //不能是 static,final;只能是 volatile
-    public volatile int a = 100;
-}
-
-public static void main(String[] args){
-    
-    private static AtomicIntegerFieldUpdater<Test> update = AtomicIntegerFieldUpdater.newUpdater(Test.class, "a");
-    private static Test test = new Test();
-    
-    for(int i=0; i<100;i++){
-        Thread t = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                if(update.compareAndSet(test, 100, 120)){
-                    System.out.print("已修改");
-                }
-            }
-        });
-        t.start();
-    }
-}
-```
-
-
-
-## Atomic中解决ABA问题
-
-- 在cas中存在的ABA问题，Atomic类中是如何解决的呢？
-
-### AtomicStampedReference
-
-- AtomicStampedReference原子类是一个带有时间戳的对象引用，在每次修改后，AtomicStampedReference不仅会设置新值而且还会记录更改的时间。当AtomicStampedReference设置对象值时，对象值以及时间戳都必须满足期望值才能写入成功，这也就解决了反复读写时，无法预知值是否已被修改的窘境
-
-```java
-public class ABADemo {
-
-    static AtomicInteger atIn = new AtomicInteger(100);
-
-    //初始化时需要传入一个初始值和初始时间
-    static AtomicStampedReference<Integer> atomicStampedR =
-            new AtomicStampedReference<Integer>(200,0);
-
-
-    static Thread t1 = new Thread(new Runnable() {
-        @Override
-        public void run() {
-            //更新为200
-            atIn.compareAndSet(100, 200);
-            //更新为100
-            atIn.compareAndSet(200, 100);
-        }
-    });
-
-
-    static Thread t2 = new Thread(new Runnable() {
-        @Override
-        public void run() {
-            try {
-                TimeUnit.SECONDS.sleep(1);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            boolean flag=atIn.compareAndSet(100,500);
-            System.out.println("flag:"+flag+",newValue:"+atIn);
-        }
-    });
-
-
-    static Thread t3 = new Thread(new Runnable() {
-        @Override
-        public void run() {
-            int time=atomicStampedR.getStamp();
-            //更新为200
-            atomicStampedR.compareAndSet(100, 200,time,time+1);
-            //更新为100
-            int time2=atomicStampedR.getStamp();
-            atomicStampedR.compareAndSet(200, 100,time2,time2+1);
-        }
-    });
-
-
-    static Thread t4 = new Thread(new Runnable() {
-        @Override
-        public void run() {
-            int time = atomicStampedR.getStamp();
-            System.out.println("sleep 前 t4 time:"+time);
-            try {
-                TimeUnit.SECONDS.sleep(1);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            boolean flag=atomicStampedR.compareAndSet(100,500,time,time+1);
-            System.out.println("flag:"+flag+",newValue:"+atomicStampedR.getReference());
-        }
-    });
-
-    public static  void  main(String[] args) throws InterruptedException {
-        t1.start();
-        t2.start();
-        t1.join();
-        t2.join();
-
-        t3.start();
-        t4.start();
-        /**
-         * 输出结果:
-         flag:true,newValue:500
-         sleep 前 t4 time:0
-         flag:false,newValue:200
-         */
-    }
-}
-```
-
-对比输出结果可知，AtomicStampedReference类确实解决了ABA的问题，下面我们简单看看其内部实现原理
-
-```java
-public class AtomicStampedReference<V> {
-    //通过Pair内部类存储数据和时间戳
-    private static class Pair<T> {
-        final T reference;
-        final int stamp;
-        private Pair(T reference, int stamp) {
-            this.reference = reference;
-            this.stamp = stamp;
-        }
-        static <T> Pair<T> of(T reference, int stamp) {
-            return new Pair<T>(reference, stamp);
-        }
-    }
-    //存储数值和时间的内部类
-    private volatile Pair<V> pair;
-
-    //构造器，创建时需传入初始值和时间初始值
-    public AtomicStampedReference(V initialRef, int initialStamp) {
-        pair = Pair.of(initialRef, initialStamp);
-    }
-}
-```
-
-### AtomicMarkableReference
-
-- AtomicMarkableReference与AtomicStampedReference不同的是，AtomicMarkableReference维护的是一个boolean值的标识，也就是说至于true和false两种切换状态，**经过博主测试，这种方式并不能完全防止ABA问题的发生，只能减少ABA问题发生的概率。**
-
- ```java
-public class ABADemo {
-    static AtomicMarkableReference<Integer> atMarkRef =
-              new AtomicMarkableReference<Integer>(100,false);
-
- static Thread t5 = new Thread(new Runnable() {
-        @Override
-        public void run() {
-            boolean mark=atMarkRef.isMarked();
-            System.out.println("mark:"+mark);
-            //更新为200
-            System.out.println("t5 result:"+atMarkRef.compareAndSet(atMarkRef.getReference(), 200,mark,!mark));
-        }
-    });
-
-    static Thread t6 = new Thread(new Runnable() {
-        @Override
-        public void run() {
-            boolean mark2=atMarkRef.isMarked();
-            System.out.println("mark2:"+mark2);
-            System.out.println("t6 result:"+atMarkRef.compareAndSet(atMarkRef.getReference(), 100,mark2,!mark2));
-        }
-    });
-
-    static Thread t7 = new Thread(new Runnable() {
-        @Override
-        public void run() {
-            boolean mark=atMarkRef.isMarked();
-            System.out.println("sleep 前 t7 mark:"+mark);
-            try {
-                TimeUnit.SECONDS.sleep(1);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            boolean flag=atMarkRef.compareAndSet(100,500,mark,!mark);
-            System.out.println("flag:"+flag+",newValue:"+atMarkRef.getReference());
-        }
-    });
-
-    public static  void  main(String[] args) throws InterruptedException {        
-        t5.start();t5.join();
-        t6.start();t6.join();
-        t7.start();
-
-        /**
-         * 输出结果:
-         mark:false
-         t5 result:true
-         mark2:true
-         t6 result:true
-         sleep 前 t5 mark:false
-         flag:true,newValue:500 ---->成功了.....说明还是发生ABA问题
-         */
-    }
-}
- ```
-
-AtomicMarkableReference的实现原理与AtomicStampedReference类似，这里不再介绍。到此，我们也明白了如果要完全杜绝ABA问题的发生，我们应该使用AtomicStampedReference原子类更新对象，而对于AtomicMarkableReference来说只能减少ABA问题的发生概率，并不能杜绝。
-
-
-
 # AQS
 
 AQS(AbstractQueuedSynchronizer)是构建锁或者其他同步组件的基础框架，位于 `java.util.concurrent.locks` 下。
@@ -1997,7 +1386,7 @@ LockSupport类，是JUC包中的一个工具类，是用来创建锁和其他同
 
 LockSupport类的核心方法其实就两个：`park()`和`unark()`，其中`park()`方法用来阻塞当前调用线程，`unpark()`方法用于唤醒指定线程。
 
-这其实和Object类的wait()和signial()方法有些类似，但是LockSupport的这两种方法从语意上讲比Object类的方法更清晰，而且可以针对指定线程进行阻塞和唤醒。
+这其实和Object类的wait()和Condition类的signial()方法有些类似，但是LockSupport的这两种方法从语意上讲比Object类的方法更清晰，而且可以针对指定线程进行阻塞和唤醒。
 
 
 
@@ -2088,17 +1477,744 @@ class MyThread extends Thread {
 
 3.park的重载方法`park(Object blocker)`，会传入一个blocker对象，所谓Blocker对象，其实就是当前线程调用时所在调用对象（如上述示例中的FIFOMutex对象）。该对象一般供监视、诊断工具确定线程受阻塞的原因时使用。
 
-## Semaphore
-
 
 
 ## StampedLock
+
+对读写锁`ReentrantReadWriteLock`的增强，该类提供了一些功能，优化了读锁、写锁的访问，同时使读写锁之间可以互相转换，更细粒度控制并发。
+
+
+
+> 该类的设计初衷是作为一个内部工具类，用于辅助开发其它线程安全组件，用得好，该类可以提升系统性能，用不好，容易产生死锁和其它莫名其妙的问题。
+
+
+
+### StampedLock的引入
+
+> 为什么有了ReentrantReadWriteLock，还要引入StampedLock？
+
+
+
+ReentrantReadWriteLock使得多个读线程同时持有读锁（只要写锁未被占用），而写锁是独占的。
+
+但是，读写锁如果使用不当，很容易产生“饥饿”问题：
+
+比如在读线程非常多，写线程很少的情况下，很容易导致写线程“饥饿”，虽然使用“公平”策略可以一定程度上缓解这个问题，但是“公平”策略是以牺牲系统吞吐量为代价的。
+
+
+
+### StampedLock的特点
+
+1. 所有获取锁的方法，都返回一个邮戳（Stamp），Stamp为0表示获取失败，其余都表示成功；
+2. 所有释放锁的方法，都需要一个邮戳（Stamp），这个Stamp必须是和成功获取锁时得到的Stamp一致；
+3. StampedLock是**不可重入**的；（如果一个线程已经持有了写锁，再去获取写锁的话就会造成死锁）
+4. StampedLock有三种访问模式：
+   ①Reading（读模式）：功能和ReentrantReadWriteLock的读锁类似
+   ②Writing（写模式）：功能和ReentrantReadWriteLock的写锁类似
+   ③Optimistic reading（**乐观读模式**）：这是一种优化的读模式。
+5. StampedLock支持读锁和写锁的相互转换
+   我们知道ReentrantReadWriteLock中，当线程获取到写锁后，可以降级为读锁，但是读锁是不能直接升级为写锁的。
+   StampedLock提供了读锁和写锁相互转换的功能，使得该类支持更多的应用场景。
+6. 无论写锁还是读锁，都不支持Conditon等待
+
+
+
+> 我们知道，在ReentrantReadWriteLock中，当读锁被使用时，如果有线程尝试获取写锁，该写线程会阻塞。
+> 但是，在Optimistic reading中，即使读线程获取到了读锁，写线程尝试获取写锁也不会阻塞，这相当于对读模式的优化，但是可能会导致数据不一致的问题。所以，当使用Optimistic reading获取到读锁时，必须对获取结果进行校验。
+
+
+
+### StampedLock使用示例
+
+看一个Oracle官方的例子：
+
+```java
+class Point {
+    private double x, y;
+    private final StampedLock sl = new StampedLock();
+
+    void move(double deltaX, double deltaY) {
+        long stamp = sl.writeLock();    //涉及对共享资源的修改，使用写锁-独占操作
+        try {
+            x += deltaX;
+            y += deltaY;
+        } finally {
+            sl.unlockWrite(stamp);
+        }
+    }
+
+    /**
+     * 使用乐观读锁访问共享资源
+     * 注意：乐观读锁在保证数据一致性上需要拷贝一份要操作的变量到方法栈，并且在操作数据时候可能其他写线程已经修改了数据，
+     * 而我们操作的是方法栈里面的数据，也就是一个快照，所以最多返回的不是最新的数据，但是一致性还是得到保障的。
+     *
+     * @return
+     */
+    double distanceFromOrigin() {
+        long stamp = sl.tryOptimisticRead();    // 使用乐观读锁
+        double currentX = x, currentY = y;      // 拷贝共享资源到本地方法栈中
+        if (!sl.validate(stamp)) {              // 如果有写锁被占用，可能造成数据不一致，所以要切换到普通读锁模式
+            stamp = sl.readLock();             
+            try {
+                currentX = x;
+                currentY = y;
+            } finally {
+                sl.unlockRead(stamp);
+            }
+        }
+        return Math.sqrt(currentX * currentX + currentY * currentY);
+    }
+
+    void moveIfAtOrigin(double newX, double newY) { // upgrade
+        // Could instead start with optimistic, not read mode
+        long stamp = sl.readLock();
+        try {
+            while (x == 0.0 && y == 0.0) {
+                long ws = sl.tryConvertToWriteLock(stamp);  //读锁转换为写锁
+                if (ws != 0L) {
+                    stamp = ws;
+                    x = newX;
+                    y = newY;
+                    break;
+                } else {
+                    sl.unlockRead(stamp);
+                    stamp = sl.writeLock();
+                }
+            }
+        } finally {
+            sl.unlock(stamp);
+        }
+    }
+}
+```
+
+可以看到，上述示例最特殊的其实是**distanceFromOrigin**方法，这个方法中使用了“Optimistic reading”乐观读锁，使得读写可以并发执行，但是“Optimistic reading”的使用必须遵循以下模式：
+
+```java
+long stamp = lock.tryOptimisticRead();  // 非阻塞获取版本信息
+copyVaraibale2ThreadMemory();           // 拷贝变量到线程本地堆栈
+if(!lock.validate(stamp)){              // 校验
+    long stamp = lock.readLock();       // 获取读锁
+    try {
+        copyVaraibale2ThreadMemory();   // 拷贝变量到线程本地堆栈
+     } finally {
+       lock.unlock(stamp);              // 释放悲观锁
+    }
+
+}
+useThreadMemoryVarables();              // 使用线程本地堆栈里面的数据进行操作
+```
+
+
+
+### StampedLock原理
 
 
 
 ## juc-atomic 原子类框架
 
+juc下的Atmic类都是线程安全的，他们的内部实现线程安全的方式是cas。
 
+
+
+### 基本类型，使用原子的方式更新基本类型
+
+- AtomicInteger：整形原子类
+- AtomicLong：长整型原子类
+- AtomicBoolean ：布尔型原子类
+
+```java
+public class AtomicInteger extends Number implements java.io.Serializable {
+    private static final long serialVersionUID = 6214790243416807050L;
+
+    // 获取指针类Unsafe
+    private static final Unsafe unsafe = Unsafe.getUnsafe();
+
+    //下述变量value在AtomicInteger实例对象内的内存偏移量
+    private static final long valueOffset;
+
+    static {
+        try {
+           //通过unsafe类的objectFieldOffset()方法，获取value变量在对象内存中的偏移
+           //通过该偏移量valueOffset，unsafe类的内部方法可以获取到变量value对其进行取值或赋值操作
+            valueOffset = unsafe.objectFieldOffset
+                (AtomicInteger.class.getDeclaredField("value"));
+        } catch (Exception ex) { throw new Error(ex); }
+    }
+   //当前AtomicInteger封装的int变量value
+    private volatile int value;
+
+    public AtomicInteger(int initialValue) {
+        value = initialValue;
+    }
+    public AtomicInteger() {
+    }
+   //获取当前最新值，
+    public final int get() {
+        return value;
+    }
+    //设置当前值，具备volatile效果，方法用final修饰是为了更进一步的保证线程安全。
+    public final void set(int newValue) {
+        value = newValue;
+    }
+    //最终会设置成newValue，使用该方法后可能导致其他线程在之后的一小段时间内可以获取到旧值，有点类似于延迟加载
+    public final void lazySet(int newValue) {
+        unsafe.putOrderedInt(this, valueOffset, newValue);
+    }
+   //设置新值并获取旧值，底层调用的是CAS操作即unsafe.compareAndSwapInt()方法
+    public final int getAndSet(int newValue) {
+        return unsafe.getAndSetInt(this, valueOffset, newValue);
+    }
+   //如果当前值为expect，则设置为update(当前值指的是value变量)
+    public final boolean compareAndSet(int expect, int update) {
+        return unsafe.compareAndSwapInt(this, valueOffset, expect, update);
+    }
+    //当前值加1返回旧值，底层CAS操作
+    public final int getAndIncrement() {
+        return unsafe.getAndAddInt(this, valueOffset, 1);
+    }
+    //当前值减1，返回旧值，底层CAS操作
+    public final int getAndDecrement() {
+        return unsafe.getAndAddInt(this, valueOffset, -1);
+    }
+   //当前值增加delta，返回旧值，底层CAS操作
+    public final int getAndAdd(int delta) {
+        return unsafe.getAndAddInt(this, valueOffset, delta);
+    }
+    //当前值加1，返回新值，底层CAS操作
+    public final int incrementAndGet() {
+        return unsafe.getAndAddInt(this, valueOffset, 1) + 1;
+    }
+    //当前值减1，返回新值，底层CAS操作
+    public final int decrementAndGet() {
+        return unsafe.getAndAddInt(this, valueOffset, -1) - 1;
+    }
+   //当前值增加delta，返回新值，底层CAS操作
+    public final int addAndGet(int delta) {
+        return unsafe.getAndAddInt(this, valueOffset, delta) + delta;
+    }
+   //省略一些不常用的方法....
+}
+```
+
+
+
+### 数组类型，使用原子的方式更新数组里的某个元素
+
+原子更新数组指的是通过原子的方式**更新数组里的某个元素**
+
+
+
+- AtomicIntegerArray：整形数组原子类
+- AtomicLongArray：长整形数组原子类
+- AtomicReferenceArray ：引用类型数组原子类
+
+```java
+public class AtomicIntegerArray implements java.io.Serializable {
+    //获取unsafe类的实例对象
+    private static final Unsafe unsafe = Unsafe.getUnsafe();
+    //获取数组的第一个元素内存起始地址
+    private static final int base = unsafe.arrayBaseOffset(int[].class);
+
+    //数组元素的偏移量
+    private static final int shift;
+    //内部数组
+    private final int[] array;
+
+    static {
+        //获取数组中一个元素占据的内存空间(arrayIndexScale方法可以获取每个数组元素占用的内存空间)
+        int scale = unsafe.arrayIndexScale(int[].class);
+        //判断是否为2的次幂，一般为2的次幂否则抛异常
+        if ((scale & (scale - 1)) != 0)
+            throw new Error("data type scale not a power of two");
+        //
+        shift = 31 - Integer.numberOfLeadingZeros(scale);
+    }
+
+    private long checkedByteOffset(int i) {
+        if (i < 0 || i >= array.length)
+            throw new IndexOutOfBoundsException("index " + i);
+
+        return byteOffset(i);
+    }
+    //计算数组中每个元素的的内存地址
+    private static long byteOffset(int i) {
+        return ((long) i << shift) + base;
+    }
+    //省略其他代码......
+}
+```
+
+由于这里是Int类型，而Java中一个int类型占用4个字节，也就是scale的值为4，那么如何根据数组下标值计算每个元素的内存地址呢？显然应该是
+
+> 每个数组元素的内存地址 = 起始地址 + 元素下标  *  每个元素所占用的内存空间
+
+上述代码中的`byteOffset`与该方法原理相同
+
+
+
+首先来计算出shift的值
+
+```java
+shift = 31 - Integer.numberOfLeadingZeros(scale);
+```
+
+其中Integer.numberOfLeadingZeros(scale)是计算出scale的前导零个数(必须是连续的)，scale=4，转成二进制为
+00000000 00000000 00000000 00000100
+即前导零数为29，也就是**shift=2**，然后利用shift来定位数组中的内存位置，在数组不越界时，计算出前3个数组元素内存地址
+
+```java
+//第一个数组元素，index=0 ， 其中base为起始地址，4代表int类型占用的字节数 
+address = base + 0 * 4 即address= base + 0 << 2
+//第二个数组元素，index=1
+address = base + 1 * 4 即address= base + 1 << 2
+//第三个数组元素，index=2
+address = base + 2 * 4 即address= base + 2 << 2
+//........
+```
+
+显然shift=2，替换去就是
+
+```java
+address= base + i << shift
+```
+
+这就是 `byteOffset(int i)` 方法的计算原理。因此`byteOffset(int)`方法可以根据数组下标计算出每个元素的内存地址。至于其他方法就比较简单了，都是间接调用Unsafe类的CAS原子操作方法，如下简单看其中几个常用方法
+
+```java
+//执行自增操作，返回旧值，i是指数组元素下标
+public final int getAndIncrement(int i) {
+      return getAndAdd(i, 1);
+}
+//指定下标元素执行自增操作，并返回新值
+public final int incrementAndGet(int i) {
+    return getAndAdd(i, 1) + 1;
+}
+
+//指定下标元素执行自减操作，并返回新值
+public final int decrementAndGet(int i) {
+    return getAndAdd(i, -1) - 1;
+}
+//间接调用unsafe.getAndAddInt()方法
+public final int getAndAdd(int i, int delta) {
+    return unsafe.getAndAddInt(array, checkedByteOffset(i), delta);
+}
+
+//Unsafe类中的getAndAddInt方法，执行CAS操作
+public final int getAndAddInt(Object o, long offset, int delta) {
+        int v;
+        do {
+            v = getIntVolatile(o, offset);
+        } while (!compareAndSwapInt(o, offset, v, v + delta));
+        return v;
+    }
+```
+
+
+
+
+
+
+
+### 引用类型
+
+- AtomicReference：引用类型原子类
+- AtomicStampedRerence：原子性更新引用类型里的字段原子类
+- AtomicMarkableReference ：原子性更新带有标记位的引用类型
+
+```java
+public class AtomicReference<V> implements java.io.Serializable {
+    private static final Unsafe unsafe = Unsafe.getUnsafe();
+    private static final long valueOffset;
+
+    static {
+        try {
+            valueOffset = unsafe.objectFieldOffset
+                (AtomicReference.class.getDeclaredField("value"));
+        } catch (Exception ex) { throw new Error(ex); }
+    }
+    //内部变量value，Unsafe类通过valueOffset内存偏移量即可获取该变量
+    private volatile V value;
+
+//CAS方法，间接调用unsafe.compareAndSwapObject(),它是一个
+//实现了CAS操作的native方法
+public final boolean compareAndSet(V expect, V update) {
+        return unsafe.compareAndSwapObject(this, valueOffset, expect, update);
+}
+
+//设置并获取旧值
+public final V getAndSet(V newValue) {
+        return (V)unsafe.getAndSetObject(this, valueOffset, newValue);
+    }
+    //省略其他代码......
+}
+
+//Unsafe类中的getAndSetObject方法，实际调用还是CAS操作
+public final Object getAndSetObject(Object o, long offset, Object newValue) {
+      Object v;
+      do {
+          v = getObjectVolatile(o, offset);
+      } while (!compareAndSwapObject(o, offset, v, newValue));
+      return v;
+  }
+```
+
+从源码看来，AtomicReference与AtomicInteger的实现原理基本是一样的，最终执行的还是Unsafe类，关于AtomicReference的其他方法也是一样的，如下
+
+![](E:/notes/java/javaBasic/img/atomic1.png)
+
+红框内的方法是Java8新增的，可以基于Lambda表达式对传递进来的期望值或要更新的值进行其他操作后再进行CAS操作，说白了就是对期望值或要更新的值进行额外修改后再执行CAS更新，在所有的Atomic原子类中几乎都存在这几个方法。
+
+
+
+### 对象的属性修改类型
+
+果需要更新对象的某个字段，Atomic同样也提供了相应的原子操作类：
+
+- AtomicIntegerFieldUpdater:原子性更新整形字段的更新器
+- AtomicLongFieldUpdater：原子性更新长整形字段的更新器
+- AtomicReferenceFieldUpdater ：原子性更新带有版本号的引用类型。该类将整数值与引用关联起来，可用于解决原子的更新数据和数据的版本号，可以解决使用 CAS 进行原子更新时可能出现的 ABA 问题。
+
+
+
+要想使用原子更新字段需要两步操作：
+
+- 原子更新字段类型类都是抽象类，只能通过静态方法newUpdater来创建一个更新器，并且需要设置想要更新的类和属性；
+- 更新类的属性必须使用public volatile进行修饰；
+
+
+
+**注意：原子更新器的使用存在比较苛刻的条件**
+
+- 操作的字段不能是static类型。
+
+- 操作的字段不能是final类型的，因为final根本没法修改。
+
+- 字段必须是volatile修饰的，也就是数据本身是读一致的。
+
+- 属性必须对当前的Updater所在的区域是可见的。
+
+  > 如果不是当前类内部进行原子更新器操作不能使用private，protected子类操作父类时修饰符必须是protect权限及以上，如果在同一个package下则必须是default权限及以上，也就是说无论何时都应该保证操作类与被操作类间的可见性。
+
+
+
+**内部实现：**
+
+AtomicIntegerFieldUpdater的**实现原理**，实际就是**反射和Unsafe类结合**，AtomicIntegerFieldUpdater是个抽象类，实际实现类为AtomicIntegerFieldUpdaterImpl
+
+```java
+private static class AtomicIntegerFieldUpdaterImpl<T>
+            extends AtomicIntegerFieldUpdater<T> {
+        private static final Unsafe unsafe = Unsafe.getUnsafe();
+        private final long offset;//内存偏移量
+        private final Class<T> tclass;
+        private final Class<?> cclass;
+
+        AtomicIntegerFieldUpdaterImpl(final Class<T> tclass,
+                                      final String fieldName,
+                                      final Class<?> caller) {
+            final Field field;//要修改的字段
+            final int modifiers;//字段修饰符
+            try {
+                field = AccessController.doPrivileged(
+                    new PrivilegedExceptionAction<Field>() {
+                        public Field run() throws NoSuchFieldException {
+                            return tclass.getDeclaredField(fieldName);//反射获取字段对象
+                        }
+                    });
+                    //获取字段修饰符
+                modifiers = field.getModifiers();
+            //对字段的访问权限进行检查,不在访问范围内抛异常
+                sun.reflect.misc.ReflectUtil.ensureMemberAccess(
+                    caller, tclass, null, modifiers);
+                ClassLoader cl = tclass.getClassLoader();
+                ClassLoader ccl = caller.getClassLoader();
+                if ((ccl != null) && (ccl != cl) &&
+                    ((cl == null) || !isAncestor(cl, ccl))) {
+              sun.reflect.misc.ReflectUtil.checkPackageAccess(tclass);
+                }
+            } catch (PrivilegedActionException pae) {
+                throw new RuntimeException(pae.getException());
+            } catch (Exception ex) {
+                throw new RuntimeException(ex);
+            }
+
+            Class<?> fieldt = field.getType();
+            //判断是否为int类型
+            if (fieldt != int.class)
+                throw new IllegalArgumentException("Must be integer type");
+            //判断是否被volatile修饰
+            if (!Modifier.isVolatile(modifiers))
+                throw new IllegalArgumentException("Must be volatile type");
+
+            this.cclass = (Modifier.isProtected(modifiers) &&
+                           caller != tclass) ? caller : null;
+            this.tclass = tclass;
+            //获取该字段的在对象内存的偏移量，通过内存偏移量可以获取或者修改该字段的值
+            offset = unsafe.objectFieldOffset(field);
+        }
+        }
+```
+
+从AtomicIntegerFieldUpdaterImpl的构造器也可以看出更新器为什么会有这么多限制条件了，当然最终其CAS操作肯定是通过unsafe完成的，简单看一个方法
+
+```java
+public int incrementAndGet(T obj) {
+        int prev, next;
+        do {
+            prev = get(obj);
+            next = prev + 1;
+            //CAS操作
+        } while (!compareAndSet(obj, prev, next));
+        return next;
+}
+
+//最终调用的还是unsafe.compareAndSwapInt()方法
+public boolean compareAndSet(T obj, int expect, int update) {
+            if (obj == null || obj.getClass() != tclass || cclass != null) fullCheck(obj);
+            return unsafe.compareAndSwapInt(obj, offset, expect, update);
+        }
+```
+
+
+
+AtomicIntegerFieldUpdater**使用示例**：
+
+
+
+> 假设现在有这样的一个场景： 一百个线程同时对一个int对象进行修改，要求只能有一个线程可以修改。
+
+
+
+错误实现：
+
+```java
+// 假设现在有这样的一个场景： 一百个线程同时对一个int对象进行修改，要求只能有一个线程可以修改。
+private static int a = 100;
+private static  volatile boolean ischanged = false;
+public static void main(String[] args){
+    for(int i=0; i<100;i++){
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                if(!ischanged){
+                    ischanged = true;
+                    a = 120;
+                }
+            }
+        });
+        t.start();
+    }
+}
+// 1. 判断!ischanged 2.ischanged=true  该组合操作就不能保证原子性
+```
+
+正确实现：
+
+```java
+public class Test{
+    //不能是 static,final;只能是 volatile
+    public volatile int a = 100;
+}
+
+public static void main(String[] args){
+    
+    private static AtomicIntegerFieldUpdater<Test> update = AtomicIntegerFieldUpdater.newUpdater(Test.class, "a");
+    private static Test test = new Test();
+    
+    for(int i=0; i<100;i++){
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                if(update.compareAndSet(test, 100, 120)){
+                    System.out.print("已修改");
+                }
+            }
+        });
+        t.start();
+    }
+}
+```
+
+
+
+### Atomic中解决ABA问题
+
+- 在cas中存在的ABA问题，Atomic类中是如何解决的呢？
+
+#### AtomicStampedReference
+
+- AtomicStampedReference原子类是一个带有时间戳的对象引用，在每次修改后，AtomicStampedReference不仅会设置新值而且还会记录更改的时间。当AtomicStampedReference设置对象值时，对象值以及时间戳都必须满足期望值才能写入成功，这也就解决了反复读写时，无法预知值是否已被修改的窘境
+
+```java
+public class ABADemo {
+
+    static AtomicInteger atIn = new AtomicInteger(100);
+
+    //初始化时需要传入一个初始值和初始时间
+    static AtomicStampedReference<Integer> atomicStampedR =
+            new AtomicStampedReference<Integer>(200,0);
+
+
+    static Thread t1 = new Thread(new Runnable() {
+        @Override
+        public void run() {
+            //更新为200
+            atIn.compareAndSet(100, 200);
+            //更新为100
+            atIn.compareAndSet(200, 100);
+        }
+    });
+
+
+    static Thread t2 = new Thread(new Runnable() {
+        @Override
+        public void run() {
+            try {
+                TimeUnit.SECONDS.sleep(1);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            boolean flag=atIn.compareAndSet(100,500);
+            System.out.println("flag:"+flag+",newValue:"+atIn);
+        }
+    });
+
+
+    static Thread t3 = new Thread(new Runnable() {
+        @Override
+        public void run() {
+            int time=atomicStampedR.getStamp();
+            //更新为200
+            atomicStampedR.compareAndSet(100, 200,time,time+1);
+            //更新为100
+            int time2=atomicStampedR.getStamp();
+            atomicStampedR.compareAndSet(200, 100,time2,time2+1);
+        }
+    });
+
+
+    static Thread t4 = new Thread(new Runnable() {
+        @Override
+        public void run() {
+            int time = atomicStampedR.getStamp();
+            System.out.println("sleep 前 t4 time:"+time);
+            try {
+                TimeUnit.SECONDS.sleep(1);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            boolean flag=atomicStampedR.compareAndSet(100,500,time,time+1);
+            System.out.println("flag:"+flag+",newValue:"+atomicStampedR.getReference());
+        }
+    });
+
+    public static  void  main(String[] args) throws InterruptedException {
+        t1.start();
+        t2.start();
+        t1.join();
+        t2.join();
+
+        t3.start();
+        t4.start();
+        /**
+         * 输出结果:
+         flag:true,newValue:500
+         sleep 前 t4 time:0
+         flag:false,newValue:200
+         */
+    }
+}
+```
+
+对比输出结果可知，AtomicStampedReference类确实解决了ABA的问题，下面我们简单看看其内部实现原理
+
+```java
+public class AtomicStampedReference<V> {
+    //通过Pair内部类存储数据和时间戳
+    private static class Pair<T> {
+        final T reference;
+        final int stamp;
+        private Pair(T reference, int stamp) {
+            this.reference = reference;
+            this.stamp = stamp;
+        }
+        static <T> Pair<T> of(T reference, int stamp) {
+            return new Pair<T>(reference, stamp);
+        }
+    }
+    //存储数值和时间的内部类
+    private volatile Pair<V> pair;
+
+    //构造器，创建时需传入初始值和时间初始值
+    public AtomicStampedReference(V initialRef, int initialStamp) {
+        pair = Pair.of(initialRef, initialStamp);
+    }
+}
+```
+
+#### AtomicMarkableReference
+
+- AtomicMarkableReference与AtomicStampedReference不同的是，AtomicMarkableReference维护的是一个boolean值的标识，也就是说至于true和false两种切换状态，**经过博主测试，这种方式并不能完全防止ABA问题的发生，只能减少ABA问题发生的概率。**
+
+```java
+public class ABADemo {
+    static AtomicMarkableReference<Integer> atMarkRef =
+              new AtomicMarkableReference<Integer>(100,false);
+
+ static Thread t5 = new Thread(new Runnable() {
+        @Override
+        public void run() {
+            boolean mark=atMarkRef.isMarked();
+            System.out.println("mark:"+mark);
+            //更新为200
+            System.out.println("t5 result:"+atMarkRef.compareAndSet(atMarkRef.getReference(), 200,mark,!mark));
+        }
+    });
+
+    static Thread t6 = new Thread(new Runnable() {
+        @Override
+        public void run() {
+            boolean mark2=atMarkRef.isMarked();
+            System.out.println("mark2:"+mark2);
+            System.out.println("t6 result:"+atMarkRef.compareAndSet(atMarkRef.getReference(), 100,mark2,!mark2));
+        }
+    });
+
+    static Thread t7 = new Thread(new Runnable() {
+        @Override
+        public void run() {
+            boolean mark=atMarkRef.isMarked();
+            System.out.println("sleep 前 t7 mark:"+mark);
+            try {
+                TimeUnit.SECONDS.sleep(1);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            boolean flag=atMarkRef.compareAndSet(100,500,mark,!mark);
+            System.out.println("flag:"+flag+",newValue:"+atMarkRef.getReference());
+        }
+    });
+
+    public static  void  main(String[] args) throws InterruptedException {        
+        t5.start();t5.join();
+        t6.start();t6.join();
+        t7.start();
+
+        /**
+         * 输出结果:
+         mark:false
+         t5 result:true
+         mark2:true
+         t6 result:true
+         sleep 前 t5 mark:false
+         flag:true,newValue:500 ---->成功了.....说明还是发生ABA问题
+         */
+    }
+}
+```
+
+AtomicMarkableReference的实现原理与AtomicStampedReference类似，这里不再介绍。到此，我们也明白了如果要完全杜绝ABA问题的发生，我们应该使用AtomicStampedReference原子类更新对象，而对于AtomicMarkableReference来说只能减少ABA问题的发生概率，并不能杜绝。
 
 
 
@@ -2106,15 +2222,24 @@ class MyThread extends Thread {
 
 ## juc-sync 同步器框架
 
+这里的juc-sync同步器框架，是指`java.util.concurrent`包下一些**辅助同步器类**，每个类都有自己适合的使用场景：
 
-
-
+| 同步器名称     | 作用                                                         |
+| :------------- | :----------------------------------------------------------- |
+| CountDownLatch | 倒数计数器，构造时设定计数值，当计数值归零后，所有阻塞线程恢复执行；其内部实现了AQS框架 |
+| CyclicBarrier  | 循环栅栏，构造时设定等待线程数，当所有线程都到达栅栏后，栅栏放行；其内部通过ReentrantLock和Condition实现同步 |
+| Semaphore      | 信号量，类似于“令牌”，用于控制共享资源的访问数量；其内部实现了AQS框架 |
+| Exchanger      | 交换器，类似于双向栅栏，用于线程之间的配对和数据交换；其内部根据并发情况有“单槽交换”和“多槽交换”之分 |
+| Phaser         | 多阶段栅栏，相当于CyclicBarrier的升级版，可用于分阶段任务的并发控制执行；其内部比较复杂，支持树形结构，以减少并发带来的竞争 |
 
 
 
 ## juc-collections 集合框架
 
+这里的juc-collections集合框架，是指`java.util.concurrent`包下的一些同步集合类，按类型划分可以分为：**符号表**、**队列**、**Set集合**、**列表**四大类，每个类都有自己适合的使用场景，整个juc-collections集合框架的结构如下图：
+![](img/juc-collections1.png)
 
+其中阻塞队列的分类及特性如下表：
 
 
 
@@ -2122,7 +2247,11 @@ class MyThread extends Thread {
 
 ## juc-executors 执行器框架
 
+executors其实可以划分为3大块，每一块的核心都是基于**Executor**这个接口：
 
+1. 线程池
+2. Future模式
+3. Fork/Join框架
 
 ### Fork/Join并行计算框架
 
