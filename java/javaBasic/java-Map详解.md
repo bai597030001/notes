@@ -1,10 +1,89 @@
-# jdk中HashMap详解
+# HashMap详解
 
 [https://mp.weixin.qq.com/s/w282P0z7IDUcatOFtoJgiA](https://mp.weixin.qq.com/s/w282P0z7IDUcatOFtoJgiA)
 
+
+
+## 红黑树
+
+红黑树具有以下5种性质：
+
+（1）节点是红色或黑色。
+
+（2）根节点是黑色。
+
+（3）每个叶节点（NIL节点，空节点）是黑色的。
+
+（4）每个红色节点的两个子节点都是黑色。(从每个叶子到根的所有路径上不能有两个连续的红色节点)
+
+（5）从任一节点到其每个叶子的所有路径都包含相同数目的黑色节点。
+
+红黑树的时间复杂度为O(log n)，与树的高度成正比。
+
+红黑树每次的插入、删除操作都需要做平衡，平衡时有可能会改变根节点的位置，颜色转换，左旋，右旋等。
+
+
+
 ## 数据结构
 
-数组+链表+红黑树
+- 数组+链表+红黑树
+
+> 数组的查询效率为O(1)，链表的查询效率是O(k)，红黑树的查询效率是O(log k)，k为桶中的元素个数，所以当元素数量非常多的时候，转化为红黑树能极大地提高效率。
+
+```java
+// 节点定义
+static class Node<K,V> implements Map.Entry<K,V> {
+    final int hash; //key值的高低16位异或(OXR)以后的数值
+    final K key;
+    V value;
+    Node<K,V> next;
+
+    Node(int hash, K key, V value, Node<K,V> next) {
+        this.hash = hash;
+        this.key = key;
+        this.value = value;
+        this.next = next;
+    }
+
+    public final K getKey()        { return key; }
+    public final V getValue()      { return value; }
+    public final String toString() { return key + "=" + value; }
+
+    public final int hashCode() {
+        return Objects.hashCode(key) ^ Objects.hashCode(value);
+    }
+
+    public final V setValue(V newValue) {
+        V oldValue = value;
+        value = newValue;
+        return oldValue;
+    }
+
+    public final boolean equals(Object o) {
+        if (o == this)
+            return true;
+        if (o instanceof Map.Entry) {
+            Map.Entry<?,?> e = (Map.Entry<?,?>)o;
+            if (Objects.equals(key, e.getKey()) &&
+                Objects.equals(value, e.getValue()))
+                return true;
+        }
+        return false;
+    }
+}
+```
+
+
+
+HashMap使用链表法避免哈希冲突（相同hash值），当链表长度大于TREEIFY_THRESHOLD（默认为8）时，将链表转换为红黑树，当然小于UNTREEIFY_THRESHOLD（默认为6）时，又会转回链表以达到性能均衡。 我们看一张HashMap的数据结构（数组+链表+红黑树 ）就更能理解table了：
+
+![](img/hashMap1.webp)
+
+
+
+
+
+
 
 ## 属性
 
@@ -95,7 +174,7 @@ static final int tableSizeFor(int cap) {
 
 
 
-
+![](img/hashMap5.webp)
 
 
 
@@ -134,9 +213,72 @@ static final int tableSizeFor(int cap) {
 
 
 
-## 为什么必须是2的倍数
+## 为什么数组必须是2的倍数
+
+如下所示的**`hash`计算**：
+
+​	`key` 的 `hash`值的计算是通过hashCode()的高16位异或低16位实现的：
+
+​	(`h = k.hashCode()) ^ (h >>> 16)`
+
+
+
+比如，原来的 hashCode : 
+
+1111 1111 1111 1111 0100 1100 0000 1010
+
+移位后的hashCode: 
+
+0000 0000 0000 0000 1111 1111 1111 1111
+
+进行异或(OXR)运算 结果：
+
+1111 1111 1111 1111 1011 0011 1111 0101
+
+
+
+这样可以将hashcode高位和低位的值进行混合做异或运算，而且混合后，**低位的信息中加入了高位的信息，这样高位的信息被变相的保留了下来。掺杂的元素多了，那么生成的hash值的随机性会增大。**
+
+
+
+至于为什么`table`大小必须是2的次幂(指长度扩为原来2倍)呢？
+
+在扩容的时候，如果数组`table`长度是2的次幂，那么扩容后元素的位置要么是在原位置，要么是在原位置再移动2次幂的位置。
+
+看下图可以明白这句话的意思，n为`table`的长度，图（a）表示扩容前的`key1`和`key2`两种`key`确定索引位置的示例，图（b）表示扩容后`key1`和`key2`两种`key`确定索引位置的示例，其中`hash1`是key1对应的哈希与高位运算结果。
+
+![](img/hashMap2.webp)
+
+元素在重新计算hash之后，因为n变为2倍，那么n-1的mask范围在高位多1bit(红色)，因此新的index就会发生这样的变化：
+
+![](img/hashMap3.webp)
+
+因此，我们在扩充HashMap的时候，只需要看看原来的hash值新增的那个bit是1还是0就好了，**是0的话索引没变，是1的话索引变成“原索引+oldCap”**，可以看看下图为16扩充为32的resize示意图 ：
+
+![](img/hashMap4.webp)
+
+
+
+
 
 ## put
+
+```java
+public V put(K key, V value) {
+    return putVal(hash(key), key, value, false, true);
+}
+```
+
+
+
+```java
+static final int hash(Object key) {
+    int h;
+    return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);//key值高低16位异或
+}
+```
+
+
 
 ```java
 final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
@@ -213,6 +355,18 @@ final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
     return null;
 }
 ```
+
+
+
+## resize
+
+- 什么时候扩容
+
+  在put元素的过程中，如果当前容器中元素的个数达到阈值（当前数组长度乘以加载因子的值，`table.length * loadFactor`）
+
+- 扩容
+
+  其实就是重新计算容量；而这个扩容是计算出所需容器的大小之后重新定义一个新的容器，将原来容器中的元素放入其中。
 
 ```java
 final Node<K,V>[] resize() {
@@ -326,4 +480,28 @@ final Node<K,V>[] resize() {
 
 ## get
 
-在多线程环境下若使用HashMap需要使用Collections.synchronizedMap()方法来获取一个线程安全的集合（Collections.synchronizedMap()实现原理是Collections定义了一个SynchronizedMap的内部类，这个类实现了Map接口，在调用方法时使用synchronized来保证线程同步,当然了实际上操作的还是我们传入的HashMap实例。
+
+
+## HashMap线程不安全的点
+
+初始化
+
+put
+
+resize
+
+
+
+## HashMap如何同步
+
+```java
+Map m = Collections.synchronizeMap(hashMap);
+```
+
+
+
+# HashTable
+
+
+
+# ConCurrentHashMap
