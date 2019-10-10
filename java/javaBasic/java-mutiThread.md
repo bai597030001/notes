@@ -939,7 +939,7 @@ public class ConditionSeqExec {
 
 ## volatile
 
-## ThreadLocal类
+## ThreadLocal
 
 **作用**：
 
@@ -956,11 +956,11 @@ public class ConditionSeqExec {
 
 **使用示例**：
 
-## Atomic类
+## juc-Atomic
 
 AtomicInteger、AtomicBoolean……
 
-## Lock类
+## juc-Locks
 
 lock: 在java.util.concurrent包内。共有三个实现：
 
