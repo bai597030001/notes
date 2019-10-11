@@ -29,19 +29,69 @@ Queue体系集合，代表一种队列集合实现。
 
 
 
+### ArrayList
+
+
+
+### LinkedList
+
+
+
+### Vector
+
+
+
 ## 2.Set
 
 > Set不允许包含相同的元素，如果试图把两个相同元素加入同一个集合中，add方法返回false。  
 > Set判断两个对象相同不是使用==运算符，而是根据equals方法。也就是说，只要两个对象用equals方法比较返回true，Set就不会接受这两个对象。  
 > HashSet与TreeSet都是基于Set接口的实现类。其中TreeSet是Set的子接口SortedSet的实现类。
 
-```
-		 | SortedSet接口——TreeSet实现类 
 
-Set接口--|——HashSet实现类
 
-		 |——LinkedHashSet实现类
+```java
+public interface Set<E> extends Collection<E> {
+    
+    int size();
+    
+    boolean isEmpty();
+    
+    boolean contains(Object o);
+    
+    Iterator<E> iterator();
+    
+    Object[] toArray();
+    
+    <T> T[] toArray(T[] a);
+    
+    boolean add(E e);
+    
+    boolean remove(Object o);
+    
+    boolean containsAll(Collection<?> c);
+    
+    boolean addAll(Collection<? extends E> c);
+    
+    boolean retainAll(Collection<?> c);
+    
+    boolean removeAll(Collection<?> c);
+    
+    void clear();
+    
+    boolean equals(Object o);
+    
+    int hashCode();
+    
+    @Override
+    default Spliterator<E> spliterator() {
+        return Spliterators.spliterator(this, Spliterator.DISTINCT);
+    }
+}
 ```
+
+
+
+
 
 ### HashSet
 
@@ -58,6 +108,92 @@ Set接口--|——HashSet实现类
   如果要把一个对象放入HashSet中，重写该对象对应类的equals方法，也应该重写其hashCode()方法。  
   其规则是如果两个对象通过equals方法比较返回true时，其hashCode也应该相同。  
   另外，对象中用作equals比较标准的属性，都应该用来计算 hashCode的值。
+
+
+
+```java
+public class HashSet<E>
+    extends AbstractSet<E>
+    implements Set<E>, Cloneable, java.io.Serializable
+{
+    static final long serialVersionUID = -5024744406713321676L;
+
+    private transient HashMap<E,Object> map;
+
+    // Dummy value to associate with an Object in the backing Map
+    private static final Object PRESENT = new Object();
+
+    /**
+     * Constructs a new, empty set; the backing <tt>HashMap</tt> instance has
+     * default initial capacity (16) and load factor (0.75).
+     */
+    public HashSet() {
+        map = new HashMap<>();
+    }
+
+    /**
+     * Constructs a new set containing the elements in the specified
+     * collection.  The <tt>HashMap</tt> is created with default load factor
+     * (0.75) and an initial capacity sufficient to contain the elements in
+     * the specified collection.
+     *
+     * @param c the collection whose elements are to be placed into this set
+     * @throws NullPointerException if the specified collection is null
+     */
+    public HashSet(Collection<? extends E> c) {
+        map = new HashMap<>(Math.max((int) (c.size()/.75f) + 1, 16));
+        addAll(c);
+    }
+
+    /**
+     * Constructs a new, empty set; the backing <tt>HashMap</tt> instance has
+     * the specified initial capacity and the specified load factor.
+     *
+     * @param      initialCapacity   the initial capacity of the hash map
+     * @param      loadFactor        the load factor of the hash map
+     * @throws     IllegalArgumentException if the initial capacity is less
+     *             than zero, or if the load factor is nonpositive
+     */
+    public HashSet(int initialCapacity, float loadFactor) {
+        map = new HashMap<>(initialCapacity, loadFactor);
+    }
+
+    /**
+     * Constructs a new, empty set; the backing <tt>HashMap</tt> instance has
+     * the specified initial capacity and default load factor (0.75).
+     *
+     * @param      initialCapacity   the initial capacity of the hash table
+     * @throws     IllegalArgumentException if the initial capacity is less
+     *             than zero
+     */
+    public HashSet(int initialCapacity) {
+        map = new HashMap<>(initialCapacity);
+    }
+
+    /**
+     * Constructs a new, empty linked hash set.  (This package private
+     * constructor is only used by LinkedHashSet.) The backing
+     * HashMap instance is a LinkedHashMap with the specified initial
+     * capacity and the specified load factor.
+     *
+     * @param      initialCapacity   the initial capacity of the hash map
+     * @param      loadFactor        the load factor of the hash map
+     * @param      dummy             ignored (distinguishes this
+     *             constructor from other int, float constructor.)
+     * @throws     IllegalArgumentException if the initial capacity is less
+     *             than zero, or if the load factor is nonpositive
+     */
+    HashSet(int initialCapacity, float loadFactor, boolean dummy) {
+        map = new LinkedHashMap<>(initialCapacity, loadFactor);
+    }
+    
+    // ......其他方法
+}
+```
+
+
+
+
 
 ### TreeSet
 
@@ -91,10 +227,88 @@ obj1.compareTo(obj2)方法如果返回0，则说明被比较的两个对象相�
 
   **TreeSet判断两个对象不相等的方式是两个对象通过equals方法返回false，或者通过CompareTo方法比较没有返回0**
 
+
+
+```java
+public class TreeSet<E> extends AbstractSet<E>
+    implements NavigableSet<E>, Cloneable, java.io.Serializable
+{
+    /**
+     * The backing map.
+     */
+    private transient NavigableMap<E,Object> m;
+
+    // Dummy value to associate with an Object in the backing Map
+    private static final Object PRESENT = new Object();
+
+    /**
+     * Constructs a set backed by the specified navigable map.
+     */
+    TreeSet(NavigableMap<E,Object> m) {
+        this.m = m;
+    }
+
+    public TreeSet() {
+        this(new TreeMap<E,Object>());
+    }
+
+    public TreeSet(Comparator<? super E> comparator) {
+        this(new TreeMap<>(comparator));
+    }
+
+    public TreeSet(Collection<? extends E> c) {
+        this();
+        addAll(c);
+    }
+
+    public TreeSet(SortedSet<E> s) {
+        this(s.comparator());
+        addAll(s);
+    }
+}
+```
+
+
+
+
+
 ### LinkedHashSet
 
 - LinkedHashSet集合同样是根据元素的hashCode值来决定元素的存储位置。但是它同时使用链表维护元素的次序。这样使得元素看起 来像是以插入顺序保存的。当遍历该集合时候，LinkedHashSet将会以元素的添加顺序访问集合的元素。
 - **LinkedHashSet在迭代访问Set中的全部元素时，性能比HashSet好，但是插入时性能稍微逊色于HashSet**。
+
+
+
+```java
+public class LinkedHashSet<E>
+    extends HashSet<E>
+    implements Set<E>, Cloneable, java.io.Serializable {
+
+    private static final long serialVersionUID = -2851667679971038690L;
+
+    public LinkedHashSet(int initialCapacity, float loadFactor) {
+        super(initialCapacity, loadFactor, true);
+    }
+
+    public LinkedHashSet(int initialCapacity) {
+        super(initialCapacity, .75f, true);
+    }
+
+    public LinkedHashSet() {
+        super(16, .75f, true);
+    }
+
+    public LinkedHashSet(Collection<? extends E> c) {
+        super(Math.max(2*c.size(), 11), .75f, true);
+        addAll(c);
+    }
+
+    @Override
+    public Spliterator<E> spliterator() {
+        return Spliterators.spliterator(this, Spliterator.DISTINCT | Spliterator.ORDERED);
+    }
+}
+```
 
 
 
@@ -104,7 +318,210 @@ obj1.compareTo(obj2)方法如果返回0，则说明被比较的两个对象相�
 
 
 
+### HashMap
+
+
+
+```java
+public class HashMap<K,V> extends AbstractMap<K,V>
+    implements Map<K,V>, Cloneable, Serializable {
+    //......
+}
+```
+
+
+
+
+
+### LinkedHashMap
+
+
+
+```java
+public class LinkedHashMap<K,V>
+    extends HashMap<K,V>
+    implements Map<K,V> {
+	
+	static class Entry<K,V> extends HashMap.Node<K,V> {
+        Entry<K,V> before, after;
+        Entry(int hash, K key, V value, Node<K,V> next) {
+            super(hash, key, value, next);
+        }
+    }
+
+    private static final long serialVersionUID = 3801124242820219131L;
+
+    /**
+     * The head (eldest) of the doubly linked list.
+     */
+    transient LinkedHashMap.Entry<K,V> head;
+
+    /**
+     * The tail (youngest) of the doubly linked list.
+     */
+    transient LinkedHashMap.Entry<K,V> tail;
+
+    /**
+     * The iteration ordering method for this linked hash map: <tt>true</tt>
+     * for access-order, <tt>false</tt> for insertion-order.
+     *
+     * @serial
+     */
+    final boolean accessOrder;
+}
+```
+
+
+
+
+
+### TreeMap
+
+
+
+```java
+public class TreeMap<K,V>
+    extends AbstractMap<K,V>
+    implements NavigableMap<K,V>, Cloneable, java.io.Serializable {
+
+	/**
+     * The comparator used to maintain order in this tree map, or
+     * null if it uses the natural ordering of its keys.
+     *
+     * @serial
+     */
+    private final Comparator<? super K> comparator;
+
+    private transient Entry<K,V> root;
+
+    /**
+     * The number of entries in the tree
+     */
+    private transient int size = 0;
+
+    /**
+     * The number of structural modifications to the tree.
+     */
+    private transient int modCount = 0;
+    
+    public TreeMap() {
+        comparator = null;
+    }
+    
+    public TreeMap(Comparator<? super K> comparator) {
+        this.comparator = comparator;
+    }
+
+	public TreeMap(Map<? extends K, ? extends V> m) {
+        comparator = null;
+        putAll(m);
+    }
+    
+    public TreeMap(SortedMap<K, ? extends V> m) {
+        comparator = m.comparator();
+        try {
+            buildFromSorted(m.size(), m.entrySet().iterator(), null, null);
+        } catch (java.io.IOException cannotHappen) {
+        } catch (ClassNotFoundException cannotHappen) {
+        }
+    }
+}
+```
+
+
+
+
+
+### HashTable
+
+
+
+```java
+public class Hashtable<K,V>
+    extends Dictionary<K,V>
+    implements Map<K,V>, Cloneable, java.io.Serializable {
+
+    /**
+     * The hash table data.
+     */
+    private transient Entry<?,?>[] table;
+
+    /**
+     * The total number of entries in the hash table.
+     */
+    private transient int count;
+
+    /**
+     * The table is rehashed when its size exceeds this threshold.  (The
+     * value of this field is (int)(capacity * loadFactor).)
+     *
+     * @serial
+     */
+    private int threshold;
+
+    /**
+     * The load factor for the hashtable.
+     *
+     * @serial
+     */
+    private float loadFactor;
+
+    /**
+     * The number of times this Hashtable has been structurally modified
+     * Structural modifications are those that change the number of entries in
+     * the Hashtable or otherwise modify its internal structure (e.g.,
+     * rehash).  This field is used to make iterators on Collection-views of
+     * the Hashtable fail-fast.  (See ConcurrentModificationException).
+     */
+    private transient int modCount = 0;
+
+    /** use serialVersionUID from JDK 1.0.2 for interoperability */
+    private static final long serialVersionUID = 1421746759512286392L;
+
+    public Hashtable(int initialCapacity, float loadFactor) {
+        if (initialCapacity < 0)
+            throw new IllegalArgumentException("Illegal Capacity: "+
+                                               initialCapacity);
+        if (loadFactor <= 0 || Float.isNaN(loadFactor))
+            throw new IllegalArgumentException("Illegal Load: "+loadFactor);
+
+        if (initialCapacity==0)
+            initialCapacity = 1;
+        this.loadFactor = loadFactor;
+        table = new Entry<?,?>[initialCapacity];
+        threshold = (int)Math.min(initialCapacity * loadFactor, MAX_ARRAY_SIZE + 1);
+    }
+
+    public Hashtable(int initialCapacity) {
+        this(initialCapacity, 0.75f);
+    }
+
+    /**
+     * Constructs a new, empty hashtable with a default initial capacity (11)
+     * and load factor (0.75).
+     */
+    public Hashtable() {
+        this(11, 0.75f);
+    }
+
+    public Hashtable(Map<? extends K, ? extends V> t) {
+        this(Math.max(2*t.size(), 11), 0.75f);
+        putAll(t);
+    }
+}
+```
+
+
+
+
+
+
+
 ## 4.Queue
+
+
+
+### PriorityQueue
 
 
 
