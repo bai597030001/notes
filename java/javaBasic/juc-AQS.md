@@ -1,5 +1,11 @@
 [TOC]
 
+参考链接
+
+[http://www.iocoder.cn/](http://www.iocoder.cn/)
+
+
+
 # AQS
 
 AQS(`AbstractQueuedSynchronizer`，抽象队列同步器) 是构建锁或者其他同步组件的基础框架，位于 `java.util.concurrent.locks` 下。
@@ -470,7 +476,7 @@ AQS支持两种同步方式：
 
 **2.共享式**
 
-这样方便使用者实现不同类型的同步组件，独占式如ReentrantLock，共享式如Semaphore，CountDownLatch，组合式的如ReentrantReadWriteLock。总之，AQS为使用提供了底层支撑，如何组装实现，使用者可以自由发挥。
+这样方便使用者实现不同类型的同步组件，独占式如`ReentrantLock`，共享式如Semaphore，`CountDownLatch`，组合式的如`ReentrantReadWriteLock`。总之，`AQS`为使用提供了底层支撑，如何组装实现，使用者可以自由发挥。
 
 同步器的设计是基于**模板方法模式**的，一般的使用方式是这样：
 
@@ -962,10 +968,17 @@ private void doReleaseShared() {
 
 
 
+
+
 ### 总结
 
 ​	AQS是JUC中很多同步组件的构建基础，简单来讲，它内部实现主要是状态变量state和一个FIFO队列来完成，同步队列的头结点是当前获取到同步状态的结点，获取同步状态state失败的线程，会被构造成一个结点（或共享式或独占式）加入到同步队列尾部（采用自旋CAS来保证此操作的线程安全），随后线程会阻塞；释放时唤醒头结点的后继结点，使其加入对同步状态的争夺中。
 
 　AQS为我们定义好了顶层的处理实现逻辑，我们在使用AQS构建符合我们需求的同步组件时，只需重写tryAcquire，tryAcquireShared，tryRelease，tryReleaseShared几个方法，来决定同步状态的释放和获取即可，至于背后复杂的线程排队，线程阻塞/唤醒，如何保证线程安全，都由AQS为我们完成了，这也是非常典型的模板方法的应用。AQS定义好顶级逻辑的骨架，并提取出公用的线程入队列/出队列，阻塞/唤醒等一系列复杂逻辑的实现，将部分简单的可由使用者决定的操作逻辑延迟到子类中去实现。　
 
+
+
+## AQS之Condition队列
+
+[http://www.iocoder.cn/JUC/sike/Condition/](http://www.iocoder.cn/JUC/sike/Condition/)
 
