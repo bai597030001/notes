@@ -297,11 +297,11 @@ public class RWTreeMap {
 
 ## LockSupport
 
-LockSupport类，是JUC包中的一个工具类，是用来创建锁和其他同步类的基本线程阻塞原语。
+`LockSupport`类，是JUC包中的一个工具类，是用来创建锁和其他同步类的基本线程阻塞原语。
 
-LockSupport类的核心方法其实就两个：`park()`和`unark()`，其中`park()`方法用来阻塞当前调用线程，`unpark()`方法用于唤醒指定线程。
+`LockSupport`类的核心方法其实就两个：`park()`和`unark()`，其中`park()`方法用来阻塞当前调用线程，`unpark()`方法用于唤醒指定线程。
 
-这其实和Object类的wait()和Condition类的signial()方法有些类似，但是LockSupport的这两种方法从语意上讲比Object类的方法更清晰，而且可以针对指定线程进行阻塞和唤醒。
+这其实和`Object`类的`wait`()和`Condition`类的`await`()方法有些类似，但是`LockSupport`的这两种方法从语意上讲比Object类的方法更清晰，而且可以针对指定线程进行阻塞和唤醒。
 
 
 

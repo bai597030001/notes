@@ -982,3 +982,13 @@ private void doReleaseShared() {
 
 [http://www.iocoder.cn/JUC/sike/Condition/](http://www.iocoder.cn/JUC/sike/Condition/)
 
+
+
+# 基于AQS实现的锁、同步器、阻塞队列
+
+- ReentrantLock
+- ReentrantReadWriteLock
+- CountDownLaunch
+- Semaphore
+- ArrayBlockingQueue
+- LinkedBlockingQueue
