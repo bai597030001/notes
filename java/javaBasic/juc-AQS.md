@@ -1088,11 +1088,15 @@ public class ReentrantReadWriteLock
         /*
         tryAcquire主要逻辑为：在获取写锁时，
 
-            a.如果存在读锁，则该线程必须加入同步等待队列中等待；如果存在写锁且由其他线程持有，也必须加入同步等待队列中，如果写锁由当前线程本身持有，则可以直接获得并支持重入，并且增加写锁的数量state值。
+            a.如果存在读锁，则该线程必须加入同步等待队列中等待；
+            如果存在写锁且由其他线程持有，也必须加入同步等待队列中；
+            如果写锁由当前线程本身持有，则可以直接获得并支持重入，并且增加写锁的数量state值。
 
-            b.如果当前不存在任何读锁或者写锁，则在公平模式下必须队列中没有其他线程排队才尝试调用CAS操作获取锁，在非公平模式下则直接调用CAS操作尝试获取锁。
+            b.如果当前不存在任何读锁或者写锁，
+            	则在公平模式下必须队列中没有其他线程排队才尝试调用CAS操作获取锁
+            	在非公平模式下则直接调用CAS操作尝试获取锁。
 
-            c.所以writerShouldBlock()在公平和非公平模式下有不同的实现，
+            c.writerShouldBlock()在公平和非公平模式下有不同的实现
             	在非公平模式下直接返回false，表示不需要阻塞，可以直接尝试获取锁
             	在公平模式下，则需要检查同步等待队列中是否有其他线程在排队，如果没有才能尝试获取锁
         */
@@ -1100,7 +1104,8 @@ public class ReentrantReadWriteLock
         //1.获取、释放写锁
         protected final boolean tryAcquire(int acquires) {
             /**
-             * 在写锁获取锁之前先判断是否有读锁存在，只有在读锁不存在的情况下才能去获取写锁（可能有多个线程获取了读锁,为了保证写的操作对所有的读都可见）。
+             * 在写锁获取锁之前先判断是否有读锁存在，只有在读锁不存在的情况下才能去获取写锁
+             *（可能有多个线程获取了读锁,为了保证写的操作对所有的读都可见）。
              */
             Thread current = Thread.currentThread();
             int c = getState();
@@ -1148,7 +1153,9 @@ public class ReentrantReadWriteLock
 
         （1）如果存在写锁且由其他线程持有，则获取读锁的线程必须加入同步等待队列中；
 
-        （2）如果不存在写锁或者写锁由当前线程持有，则判断是否需要阻塞等待，如果不需要且读锁数量没有达到最大值，则尝试CAS操作修改state值获取锁，如果获取成功则更新本线程持有的读锁数量
+        （2）如果不存在写锁或者写锁由当前线程持有，则判断是否需要阻塞等待，
+        	如果不需要且读锁数量没有达到最大值，则尝试CAS操作修改state值获取锁，
+        	如果获取成功则更新本线程持有的读锁数量
         
         （3）最后，如果获取读锁失败则调用fullTryAcquireShared函数进一步尝试获取。
         */
@@ -1190,7 +1197,11 @@ public class ReentrantReadWriteLock
         /*
         主要处理以下三种情况：
 
-            （1）readerShouldBlock()返回true，即需要排队等待（公平锁而言，是sync Queue中有节点；非公平锁而言，是head.next是获取writeLock的节点）；此时需要处理可重入读锁情况，即当前线程之前已经获得读锁，并且还没有释放，此时线程可以获得读锁
+            （1）readerShouldBlock()返回true，即需要排队等待
+            	（公平锁而言，是sync Queue中有节点；
+            	非公平锁而言，是head.next是获取writeLock的节点）；
+            	此时需要处理可重入读锁情况，即当前线程之前已经获得读锁，
+            	并且还没有释放，此时线程可以获得读锁
 
             （2）r==MAX_COUNT，读锁数量达到最大值饱和
 
@@ -1319,15 +1330,76 @@ public class ReentrantReadWriteLock
     
     
 	public static class WriteLock implements Lock, java.io.Serializable {
-    /**
-     * 省略其余源代码
-     */
+        
+        protected ReadLock(ReentrantReadWriteLock lock) {
+            sync = lock.sync;
+        }
+        
+        public void lock() {
+            sync.acquireShared(1);
+        }
+        
+        public void lockInterruptibly() throws InterruptedException {
+            sync.acquireSharedInterruptibly(1);
+        }
+        
+        public boolean tryLock() {
+            return sync.tryReadLock();
+        }
+        
+        public boolean tryLock(long timeout, TimeUnit unit)
+                throws InterruptedException {
+            return sync.tryAcquireSharedNanos(1, unit.toNanos(timeout));
+        }
+        
+        public void unlock() {
+            sync.releaseShared(1);
+        }
+        
+        public Condition newCondition() {
+            throw new UnsupportedOperationException();
+        }
 	}
 
 	public static class ReadLock implements Lock, java.io.Serializable {
-    /**
-     * 省略其余源代码
-     */
+        
+        protected WriteLock(ReentrantReadWriteLock lock) {
+            sync = lock.sync;
+        }
+        
+        public void lock() {
+            sync.acquire(1);
+        }
+        
+        public void lockInterruptibly() throws InterruptedException {
+            sync.acquireInterruptibly(1);
+        }
+        
+        public boolean tryLock( ) {
+            return sync.tryWriteLock();
+        }
+        
+        public boolean tryLock(long timeout, TimeUnit unit)
+                throws InterruptedException {
+            return sync.tryAcquireNanos(1, unit.toNanos(timeout));
+        }
+        
+        public void unlock() {
+            sync.release(1);
+        }
+        
+        public Condition newCondition() {
+            return sync.newCondition();
+        }
+        
+        public boolean isHeldByCurrentThread() {
+            return sync.isHeldExclusively();
+        }
+        
+        public int getHoldCount() {
+            return sync.getWriteHoldCount();
+        }
+    }
 }
 ```
 

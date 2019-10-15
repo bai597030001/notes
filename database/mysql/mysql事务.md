@@ -29,33 +29,33 @@
 - MySQL 命令行的默认设置下，事务都是自动提交的，即执行 SQL 语句后就会马上执行 COMMIT 操作。因此要显式地开启一个事务务须使用命令 BEGIN 或 START TRANSACTION，或者执行命令 SET AUTOCOMMIT=0，用来禁止使用当前会话的自动提交。
 
 ### 3.2 事务控制语句
-	
+
 	1.显式地开启一个事务
 		
 	BEGIN 或 START TRANSACTION
-
+	
 	2.提交事务(使已对数据库进行的所有修改成为永久性的)
-
+	
 	COMMIT 或者 COMMIT WORK 
-
+	
 	3.回滚(结束用户的事务，并撤销正在进行的所有未提交的修改)
-
+	
 	ROLLBACK 也可以使用 ROLLBACK WORK
-
+	
 	4.保存点(SAVEPOINT 允许在事务中创建一个保存点，一个事务中可以有多个 SAVEPOINT)
-
+	
 	SAVEPOINT identifier
-
+	
 	5.删除一个事务的保存点(当没有指定的保存点时，执行该语句会抛出一个异常)
-
+	
 	RELEASE SAVEPOINT identifier
-
+	
 	6.把事务回滚到标记点
-
+	
 	ROLLBACK TO identifier
-
+	
 	7.设置事务的隔离级别
-
+	
 	SET TRANSACTION
 
 ## 相关概念
@@ -143,13 +143,13 @@ mysql> SET GLOBAL TRANSACTION ISOLATION LEVEL READ COMMITTED
 1.在说到如何实现前先引入两个概念：
 
 	系统版本号：一个递增的数字，每开始一个新的事务，系统版本号就会自动递增。
-
+	
 	事务版本号：事务开始时的系统版本号。
 
 2.在MySQL中，会在表中每一条数据后面添加两个字段：
 
 	创建版本号：创建一行数据时，将当前系统版本号作为创建版本号赋值
-
+	
 	删除版本号：删除一行数据时，将当前系统版本号作为删除版本号赋值
 
 SELECT
@@ -233,16 +233,3 @@ select的当前读需要手动的加锁：
 	2.MVCC+next-key locks：next-key locks由record locks(索引加锁) 
 	  和 gap locks(间隙锁，每次锁住的不光是需要使用的数据，还会锁住这些数据附近的数据)
 ```
-
-## 6.mysql事务处理的两种方法
-
-### 6.1 用 BEGIN, ROLLBACK, COMMIT来实现
-
->BEGIN 开始一个事务  
->ROLLBACK 事务回滚  
->COMMIT 事务确认
-
-### 6.2 直接用 SET 来改变 MySQL 的自动提交模式
-
->SET AUTOCOMMIT=0 禁止自动提交  
->SET AUTOCOMMIT=1 开启自动提交

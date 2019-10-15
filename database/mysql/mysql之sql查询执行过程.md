@@ -178,23 +178,47 @@ mysql> explain partitions select * from film where id = 1;
 
 ## select_type 
 
-1. `SIMPLE`(简单SELECT,不使用UNION或子查询等)
+- `SIMPLE`(简单SELECT,不使用UNION或子查询等)
 
-2. `PRIMARY`(查询中若包含任何复杂的子部分,最外层的select被标记为PRIMARY)
 
-3. `UNION`(UNION中的第二个或后面的SELECT语句)
 
-4. `DEPENDENT UNION`(UNION中的第二个或后面的SELECT语句，取决于外面的查询)
+```mysql
+explain select * from user_info where id = 2;
+```
 
-5. `UNION RESULT`(UNION的结果)
 
-6. `SUBQUERY`(子查询中的第一个SELECT)
 
-7. `DEPENDENT SUBQUERY`(子查询中的第一个SELECT，取决于外面的查询)
+![](img/explain1.png)
 
-8.  `DERIVED`(派生表的SELECT, FROM子句的子查询)
 
-9. `UNCACHEABLE SUBQUERY`(一个子查询的结果不能被缓存，必须重新评估外链接的第一行)
+
+- `PRIMARY`(查询中若包含任何复杂的子部分,最外层的select被标记为PRIMARY)
+
+- `UNION`(UNION中的第二个或后面的SELECT语句)
+
+- `DEPENDENT UNION`(UNION中的第二个或后面的SELECT语句，取决于外面的查询)
+
+- `UNION RESULT`(UNION的结果)
+
+
+
+```mysql
+EXPLAIN (SELECT * FROM user_info  WHERE id IN (1, 2, 3)) UNION (SELECT * FROM user_info WHERE id IN (3, 4, 5));
+```
+
+
+
+![](img/explain2.png)
+
+
+
+`SUBQUERY`(子查询中的第一个SELECT，**不在 from 子句中**)
+
+`DEPENDENT SUBQUERY`(子查询中的第一个SELECT，取决于外面的查询)
+
+`DERIVED`(包含在 **from 子句中**的子查询。MySQL会将结果存放在一个临时表中，也称为派生表)
+
+`UNCACHEABLE SUBQUERY`(一个子查询的结果不能被缓存，必须重新评估外链接的第一行)
 
 
 
@@ -202,18 +226,242 @@ mysql> explain partitions select * from film where id = 1;
 
 常用的访问类型有： `ALL, index,  range, ref, eq_ref, const, system, NULL`（从左到右，性能从差到好）
 
+从最优到最差分别为：`system > const > eq_ref > ref > fulltext > ref_or_null > index_merge > unique_subquery > index_subquery > range > index > ALL`
+
+| 类型              | 描述                                                         |
+| :---------------- | ------------------------------------------------------------ |
+| `ALL`             | `Full Table Scan`， `MySQL`将遍历全表以找到匹配的行          |
+| `index`           | `Full Index Scan`，`index`与`ALL`区别为`index`类型只遍历索引树。主要优点就是避免了排序, 但是开销仍然非常大。如在`Extra`列看到`Using index`，说明正在使用覆盖索引，只扫描索引的数据，它比按索引次序全表扫描的开销要小很多 |
+| `range`           | 只检索给定范围的行，使用一个索引来选择行。此时key 列显示使用了哪个索引。当使用=、 <>(不等于)、>、>=、<、<=、IS NULL、<=>(相等，也可用于判断NULL)、BETWEEN 或者 IN 操作符，用常量比较关键字列时，可以使用 range |
+| `index_subquery`  | 这个连接类型类似于`unique_subquery`。它代替了子查询，但它在以下形式的子查询中的非唯一索引：`value  IN (SELECT key_column FROM single_table WHERE some_expr)` |
+| `unique_subquery` | 该类型替换了下面形式的IN子查询的`ref` ，`value IN (SELECT primary_key FROM single_table WHERE some_expr) ;` `unique_subquery`是一个索引查找函数，可以完全替换子查询，效率更高。 |
+| `index_merge`     | 表示使用了索引合并的优化方法。                               |
+| `ref_or_null`     | 类似`ref`，但是可以搜索值为NULL的行。                        |
+| `fulltext`        | 全文索引                                                     |
+| `ref`             | 相比 `eq_ref`，不使用唯一索引，而是使用普通索引或者唯一性索引的部分前缀，索引要和某个值相比较，可能会找到**多个**符合条件的行。`ref`可以用于使用=或<=>操作符的带索引的列。 |
+| `eq_ref`          | 类似`ref`，区别就在于使用的索引是唯一索引，对于每个索引键值，表中只有**一条**记录匹配，简单来说，就是多表连接中使用`primary key`或者 `unique key`作为关联条件（高效） |
+| `const`           | 当确定最多只会有一行匹配的时候，MySQL优化器会在查询前读取它而且只读取一次，因此非常快。当主键放入where子句时，mysql把这个查询转为一个常量（高效） |
+| `system`          | 这是const连接类型的一种特例，表仅有一行满足条件。（高效）    |
+| `NULL`            | 意味说mysql能在优化阶段分解查询语句，在执行阶段甚至用不到访问表或索引。例如从一个索引列里选取最小值可以通过单独索引查找完成。（高效） |
 
 
-| 类型   | 描述                                                         |
-| :----- | ------------------------------------------------------------ |
-| ALL    | Full Table Scan， MySQL将遍历全表以找到匹配的行              |
-| index  | Full Index Scan，index与ALL区别为index类型只遍历索引树。主要优点就是避免了排序, 但是开销仍然非常大。如在Extra列看到Using index，说明正在使用覆盖索引，只扫描索引的数据，它比按索引次序全表扫描的开销要小很多 |
-| range  | 只检索给定范围的行，使用一个索引来选择行。此时key 列显示使用了哪个索引。当使用=、 <>、>、>=、<、<=、IS NULL、<=>、BETWEEN 或者 IN 操作符，用常量比较关键字列时，可以使用 range |
-| ref    | 一种索引访问，它返回所有匹配某个单个值的行。此类索引访问只有当使用非唯一性索引或唯一性索引非唯一性前缀时才会发生。这个类型跟eq_ref不同的是，它用在关联操作只使用了索引的最左前缀，或者索引不是UNIQUE和PRIMARY KEY。ref可以用于使用=或<=>操作符的带索引的列。 |
-| eq_ref | 类似ref，区别就在于使用的索引是唯一索引，对于每个索引键值，表中只有一条记录匹配，简单来说，就是多表连接中使用primary key或者 unique key作为关联条件（高效） |
-| const  | 当确定最多只会有一行匹配的时候，MySQL优化器会在查询前读取它而且只读取一次，因此非常快。当主键放入where子句时，mysql把这个查询转为一个常量（高效） |
-| system | 这是const连接类型的一种特例，表仅有一行满足条件。（高效）    |
-| NULL   | 意味说mysql能在优化阶段分解查询语句，在执行阶段甚至用不到访问表或索引。例如从一个索引列里选取最小值可以通过单独索引查找完成。（高效） |
+
+### ALL
+
+- 全表扫描
+
+```mysql
+explain select * from user_info;
+```
+
+
+
+![](img/explain3.png.)
+
+
+
+### index
+
+- 扫描索引
+
+
+
+```mysql
+explain select name from user_info;
+```
+
+
+
+![](img/explain4.png)
+
+
+
+### range
+
+- 根据索引检索给定范围的行，使用一个索引来选择行。此时key 列显示使用了哪个索引。
+
+```mysql
+explain select name from user_info where id > 3;
+explain select name from user_info where id >= 3;
+explain select name from user_info where id BETWEEN 3 AND 6;
+explain select * from user_info where id in (2, 3, 4);
+```
+
+
+
+![](img/explain5.png)
+
+
+
+- **注意**：只有根据主键索引进行范围查询时`type`类型才会是`range`，根据唯一索引和普通索引进行范围查询的`type`类型不是`range`（是`ALL`？）。
+
+```mysql
+explain select name from user_info where vipId BETWEEN 3 AND 6;
+
+explain select age from user_info where age between 16 and 25;
+```
+
+
+
+![](img/explain11.png)
+
+
+
+### index_subquery
+
+- 这个连接类型类似于unique_subquery。它代替了子查询，但它在以下形式的子查询中的非唯一索引:
+
+```mysql
+value IN (SELECT key_column FROM single_table WHERE some_expr)
+```
+
+
+
+### unique_subquery
+
+- 这种类型代替了eq_ref的一些子查询的形式
+
+```mysql
+value IN (SELECT primary_key FROM single_table WHERE some_expr)
+```
+
+
+
+### index_merge
+
+索引合并。 例如下表：id是主键，vipId是唯一索引，name是普通索引。or 的时候没有用 primary key，而是使用了 primary key(id) 和 name索引
+
+
+
+```mysql
+explain select * from user_info where id = 3 or name = 'c';
+
+explain select * from user_info where vipId = 3 or name = 'c';
+```
+
+
+
+![](img/explain6.png)
+
+
+
+### ref_or_null
+
+- 这个连接类型类似于ref，但是MySQL会额外搜索包含空值的行。这种连接类型优化最常用于解决子查询。
+
+```mysql
+SELECT * FROM ref_table WHERE key_column=expr OR key_column IS NULL;
+```
+
+
+
+- 使用非唯一索引做简单查询（包含NULL判断）
+
+```mysql
+explain select * from user_info where name = 'c' or name is null;
+```
+
+
+
+![](img/explain7.png)
+
+
+
+### ref
+
+- 如果连接只使用键的最左端前缀，或者键不是主键或惟一索引(换句话说，如果连接不能根据键值选择单个行)，则使用ref。如果使用的键只匹配几行，这是一个很好的连接类型。
+
+```mysql
+SELECT * FROM ref_table WHERE key_column=expr;
+
+SELECT * FROM ref_table,other_table WHERE ref_table.key_column=other_table.column;
+
+SELECT * FROM ref_table,other_table WHERE ref_table.key_column_part1=other_table.column AND ref_table.key_column_part2=1;
+```
+
+
+
+- 使用非唯一索引做简单查询
+
+![](img/explain9.png)
+
+
+
+- 使用非唯一索引做关联表查询
+
+如下所示的`eq_ref`中，如果不用id这种主键（或者唯一索引）去做关联查询数据，而是使用非唯一索引做关联查询数据，则type类型为ref
+
+
+
+```mysql
+# 关联表查询，idx_film_actor_id是film_id和actor_id的联合索引，这里使用到了film_actor的左边前缀film_id部分。
+
+mysql> explain select * from film left join film_actor on film.id = film_actor.film_id;
++----+-------------+------------+-------+-------------------+-------------------+---------+--------------+------+-------------+
+| id | select_type | table      | type  | possible_keys     | key               | key_len | ref          | rows | Extra       |
++----+-------------+------------+-------+-------------------+-------------------+---------+--------------+------+-------------+
+|  1 | SIMPLE      | film       | index | NULL              | idx_name          | 33      | NULL         |    3 | Using index |
+|  1 | SIMPLE      | film_actor | ref   | idx_film_actor_id | idx_film_actor_id | 4       | test.film.id |    1 | Using index |
++----+-------------+------------+-------+-------------------+-------------------+---------+--------------+------+-------------+
+```
+
+
+
+### eq_ref
+
+- 当联接使用索引的所有部分并且索引是主键或惟一非空索引时，将使用此索引。
+
+```mysql
+SELECT * FROM ref_table,other_table WHERE ref_table.key_column=other_table.column;
+
+SELECT * FROM ref_table,other_table WHERE ref_table.key_column_part1=other_table.column AND ref_table.key_column_part2=1;
+```
+
+
+
+- 示例
+
+```mysql
+explain select * from user_info LEFT JOIN order_info on user_info.id = order_info.id;
+```
+
+
+
+![](img/explain8.png)
+
+
+
+### const 
+
+- 针对**主键**或**唯一索引**的**等值查询**扫描, 最多只返回一行数据. `const` 查询速度非常快, 因为它仅仅读取一次即可.
+
+
+
+```mysql
+SELECT * FROM tbl_name WHERE primary_key=1;
+
+SELECT * FROM tbl_name WHERE primary_key_part1=1 AND primary_key_part2=2;
+```
+
+
+
+- 示例
+
+```mysql
+explain select * from user_info WHERE id = 3;
+```
+
+
+
+![](img/explain10.png)
+
+
+
+### system
+
+表中只有一条数据. 这个类型是特殊的 `const` 类型.
+
+
 
 
 
@@ -291,8 +539,131 @@ key_len计算规则如下：
 
 
 
-# 联合索引最左匹配原则
+# 总结
 
-- 如何生效，如何失效（从哪个索引开始失效的）
 
-select * from table where a = 10 and b > 15 and c = 20;
+
+## 根据主键查询
+
+- 根据主键做等值连接查询 -> const
+- 根据主键做范围查询 -> range
+
+
+
+## 根据唯一索引查询
+
+- 根据唯一索引做等值连接查询 -> const
+- 根据唯一索引做范围查询 
+  - 查询的是该唯一索引 -> range
+  - 查询的是其余 -> ALL
+
+
+
+## 根据普通索引查询
+
+- 根据普通索引做等值连接查询 -> ref
+- 根据普通索引做范围查询 -> ALL
+
+
+
+## 联合查询
+
+
+
+## 子查询
+
+
+
+# 联合索引
+
+在mysql建立联合索引时会遵循最左前缀匹配的原则，即最左优先，在检索数据时从联合索引的最左边开始匹配，
+
+
+
+示例：对列col1、列col2和列col3建一个联合索引
+
+```mysql
+KEY test_col1_col2_col3 on test(col1,col2,col3);
+```
+
+联合索引 test_col1_col2_col3 实际建立了(col1)、(col1,col2)、(col,col2,col3)三个索引。
+
+
+
+## 优点：
+
+```tex
+1.减少开销：
+	建一个联合索引(col1,col2,col3)，实际相当于建了(col1),(col1,col2),(col1,col2,col3)三个索引。
+
+2.覆盖索引：
+	如果有如下的sql: select col1,col2,col3 from test where col1=1 and col2=2。
+	那么MySQL可以直接通过遍历索引取得数据，而无需回表，这减少了很多的随机io操作。
+	
+3.效率高：
+	索引列越多，通过索引筛选出的数据越少。有1000W条数据的表，有如下sql:select from table where col1=1 and col2=2 and col3=3,假设假设每个条件可以筛选出10%的数据，如果只有单值索引，那么通过该索引能筛选出1000W10%=100w条数据，然后再回表从100w条数据中找到符合col2=2 and col3= 3的数据，然后再排序，再分页；如果是联合索引，通过索引筛选出1000w10% 10% *10%=1w，效率提升可想而知！
+```
+
+
+
+## 使用
+
+### 1.多列索引AND查询
+
+```mysql
+select * from test where a=? and b=? and c=?；查询效率最高，索引全覆盖。
+
+select * from test where a=? and b=?；索引覆盖a和b。
+
+select * from test where b=? and a=?；经过mysql的查询分析器的优化，索引覆盖a和b。
+
+select * from test where a=?；索引覆盖a。
+
+select * from test where b=? and c=?；没有a列，不走索引，索引失效。
+
+select * from test where c=?；没有a列，不走索引，索引失效。
+```
+
+
+
+
+
+### 2.多列索引范围查询
+
+```mysql
+select * from test where a=? and b between ? and ? and c=?；索引覆盖a和b，因b列是范围查询，因此c列不能走索引。
+
+select * from test where a between ? and ? and b=?；a列走索引，因a列是范围查询，因此b列是无法使用索引。
+
+select * from test where a between ? and ? and b between ? and ? and c=?；a列走索引，因a列是范围查询，b列是范围查询也不能使用索引。
+```
+
+
+
+
+
+### 3.多列索引在排序中的应用
+
+```mysql
+select * from test where a=? and b=? order by c；a、b、c三列全覆盖索引，查询效率最高。
+
+select * from test where a=? and b between ? and ? order by c；a、b列使用索引查找，因b列是范围查询，因此c列不能使用索引，会出现file sort。
+```
+
+
+
+## 总结
+
+1.联合索引的使用在写where条件的顺序无关，mysql查询分析会进行优化而使用索引。但是减轻查询分析器的压力，最好和索引的从左到右的顺序一致。
+
+
+
+2.使用等值查询，多列同时查询，索引会一直传递并生效。因此等值查询效率最好。
+
+
+
+3.索引查找遵循最左侧原则。但是遇到**范围查询列之后的列索引失效**。
+
+
+
+4.排序也能使用索引，合理使用索引排序，避免出现file sort。
