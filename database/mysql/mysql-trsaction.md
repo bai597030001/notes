@@ -90,7 +90,7 @@ mysql默认隔离级别，InnoDB通过多版本并发控制（MVCC，Multiversio
 
 
 
-# 事务并发
+# 事务并发存在的问题
 
 
 
@@ -225,3 +225,199 @@ Undo + Redo的设计主要考虑的是提升IO性能（IO：输入Input和输出
 
 
 
+# InnoDB之MVCC
+
+- 多版本并发控制(`Multi-Version Concurrency Control`, `MVCC`)是`MySQL`中基于**乐观锁**理论实现隔离级别的方式，用于实现**读已提交**和**可重复读取**隔离级别的实现。
+- MVCC只在 `READ COMMITTED` 和 `REPEATABLE READ` 两个隔离级别下工作。其他两个隔离级别不能和MVCC兼容, 因为 `READ UNCOMMITTED` 总是读取最新的数据行, 而不是符合当前事务版本的数据行。而 `SERIALIZABLE` 则会对所有读取的行都加锁。
+- MVCC是被Mysql中 `事务型存储引擎InnoDB` 所支持的;
+
+
+
+## 相关概念
+
+系统版本号：一个递增的数字，每开始一个新的事务，系统版本号就会自动递增。
+
+事务版本号：事务开始时的系统版本号。
+
+
+
+InnoDB下每行数据的**隐藏列**：
+
+​	创建版本号(6-byte `DB_TRX_ID`)：创建一行数据时，将当前系统版本号作为创建版本号赋值
+
+​	删除版本号(7-byte `DB_ROLL_PT`))：删除一行数据时，将当前系统版本号作为删除版本号赋值
+
+​	行ID(6-byte `DB_ROW_ID` )：这个行ID随着插入新行而单调增加。如果InnoDB自动生成一个聚集索引，那么该索引将包含行ID值。否则，DB_ROW_ID列不会出现在任何索引中。
+
+
+
+```mysql
+SELECT * FROM INFORMATION_SCHEMA.INNODB_TRX;
+```
+
+
+
+- SELECT
+
+select时读取数据的规则为：创建版本号 `<=` 当前事务版本号 `&&` 删除版本号为空或 `>` 当前事务版本号。只有符合这两个条件的记录，才能返回作为查询结果
+
+> 创建版本号 `<=` 当前事务版本号：
+>
+> ​		保证取出的数据不会有后启动的事物中创建的数据。
+>
+> 删除版本号为空或 `>` 当前事务版本号：
+>
+> ​		保证了至少在该事物开启之前数据没有被删除，是应该被查出来的数据。
+
+
+
+- INSERT
+
+> `insert`时将当前的系统版本号赋值给创建版本号字段。
+
+
+
+- UPDATE
+
+> 插入一条新纪录，保存当前事务版本号为行创建版本号，同时保存当前事务版本号到原来删除的行，实际上这里的更新是通过`delete`和`insert`实现的。
+
+
+
+- DELETE
+
+> 删除时将当前的系统版本号赋值给删除版本号字段，标识该行数据在那一个事物中会被删除，即使实际上在未commit前该数据没有被删除。根据`select`的规则后开启的事务也不会查询到该数据。
+
+
+
+- 快照读和当前读
+
+  - 快照读
+
+    当执行select操作时，innodb默认会执行快照读，会记录下这次select后的结果，之后select 的时候就会返回这次快照的数据，即使其他事务提交了不会影响当前select的数据，这就实现了可重复读了。
+
+  - 当前读
+
+    对于会对数据修改的操作(update、insert、delete)都是采用当前读的模式。在执行这几个操作时会读取最新的记录，即使是别的事务提交的数据也可以查询到。
+
+    select的当前读需要手动的加锁：
+
+    ```mysql
+    select * from table where ? lock in share mode;
+    select * from table where ? for update;
+    ```
+
+
+
+## MVCC保证读一致性
+
+
+
+**示例**
+
+```mysql
+create table mvcctest( 
+id int primary key not null auto_increment, 
+name varchar(20));
+
+insert into mvcctest values(NULL,'mi');
+insert into mvcctest values(NULL,'kong');
+```
+
+
+
+假设系统初始事务ID为1；
+
+| ID   | NAME | 创建时间 | 过期时间  |
+| ---- | ---- | -------- | --------- |
+| 1    | mi   | 1        | undefined |
+| 2    | kong | 1        | undefined |
+
+
+
+`transaction1`：
+
+```mysql
+start transaction;
+select * from mvcctest;  //(1)
+select * from mvcctest;  //(2)
+commit
+```
+
+
+
+- 假设当执行事务1的过程中，准备执行语句(2)时，开始执行事务2：
+
+### SELECT
+
+`transaction2`：
+
+```mysql
+start transaction;
+insert into mvcctest values(NULL,'qu');
+commit;
+```
+
+
+
+| ID   | NAME | 创建时间 | 过期时间  |
+| ---- | ---- | -------- | --------- |
+| 1    | mi   | 1        | undefined |
+| 2    | kong | 1        | undefined |
+| 3    | qu   | 3        | undefined |
+
+事务2执行完毕，开始执行事务1 语句(2)，由于事务1只能查询创建时间小于等于2的，所以事务2新增的记录在事务1中是查不出来的，这就**通过乐观锁的方式避免了幻读的产生**
+
+
+
+### UPDATE
+
+- 假设当执行事务1的过程中，准备执行语句(2)时，开始执行事务2：
+
+`transaction3`：
+
+```mysql
+start transaction;
+update mvcctest set name = 'fan' where id = 2;
+commit;
+```
+
+InnoDB执行UPDATE，实际上是新插入了一行记录，并保存其创建时间为当前事务的ID，同时保存当前事务ID到要UPDATE的行的删除时间
+
+
+
+| ID   | NAME | 创建时间 | 过期时间  |
+| ---- | ---- | -------- | --------- |
+| 1    | mi   | 1        | undefined |
+| 2    | kong | 1        | 4         |
+| 2    | fan  | 4        | undefined |
+
+事务3执行完毕，开始执行事务1 语句(2)，由于事务1只能查询创建时间小于等于2的，所以事务修改的记录在事务1中是查不出来的，这样就保证了事务在两次读取时读取到的数据的状态是一致的
+
+
+
+### DELETE
+
+- 假设当执行事务1的过程中，准备执行语句(2)时，开始执行事务4：
+
+`transaction4`：
+
+```mysql
+start transaction;
+delete from mvcctest where id = 2;
+commit;
+```
+
+
+
+| ID   | NAME | 创建时间 | 过期时间  |
+| ---- | ---- | -------- | --------- |
+| 1    | mi   | 1        | undefined |
+| 2    | kong | 1        | 5         |
+
+事务4执行完毕，开始执行事务1 语句(2)，由于事务1只能查询创建时间小于等于2、并且过期时间大于等于2，所以id=2的记录在事务1的 语句2中，也是可以查出来的，这样就保证了事务在两次读取时读取到的数据的状态是一致的
+
+
+
+# InnoDB之LBCC
+
+- Lock-Based Concurrency Control，基于锁的并发控制
