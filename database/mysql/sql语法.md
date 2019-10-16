@@ -171,6 +171,43 @@ select salary*12 sal,salary*16 "year Sal" from  s_emp;
 
 ### 单行函数
 
+
+
+#### 处理时间
+
+- DATE_FORMAT(date，format)
+
+```mysql
+
+```
+
+
+
+- str_to_date，字符串转换为日期
+
+
+
+- to_days
+
+
+
+- time_to_sec
+
+
+
+- Unix 时间戳、日期 转换函数
+
+```mysql
+unix_timestamp(),
+unix_timestamp(date),
+from_unixtime(unix_timestamp),
+from_unixtime(unix_timestamp,format)
+```
+
+
+
+
+
 #### 处理字符串
 
 - upper, lower, initcap, length, concat, substr, nvl(可以处理任何类型但par1,par2的类型要保持一致),replace,
@@ -282,6 +319,72 @@ select salary*12 sal,salary*16 "year Sal" from  s_emp;
     from   之后
 ```
 
-### 日期类型的相关操作
 
-- DATE_FORMAT(date，format)
+
+# mysql数据类型
+
+
+
+## 时间
+
+
+
+| 类型名称  | 日期格式            | 日期范围                                          | 存储需求 |
+| --------- | ------------------- | ------------------------------------------------- | -------- |
+| YEAR      | YYYY                | 1901 ~ 2155                                       | 1 个字节 |
+| TIME      | HH:MM:SS            | -838:59:59 ~ 838:59:59                            | 3 个字节 |
+| DATE      | YYYY-MM-DD          | 1000-01-01 ~ 9999-12-3                            | 3 个字节 |
+| DATETIME  | YYYY-MM-DD HH:MM:SS | 1000-01-01 00:00:00 ~ 9999-12-31 23:59:59         | 8 个字节 |
+| TIMESTAMP | YYYY-MM-DD HH:MM:SS | 1980-01-01 00:00:01 UTC ~ 2040-01-19 03:14:07 UTC | 4 个字节 |
+
+
+
+另外，还可以使用`int`类型来存储unix时间戳
+
+
+
+- DATETIME于TIMESTAMP比较
+
+```txt
+datetime:
+	范围更大。
+	
+timestamp 类型: 
+	默认情况下，在 insert, update 数据时，timestamp 列会自动以当前时间（CURRENT_TIMESTAMP）填充/更新。
+```
+
+
+
+
+
+
+
+## 整形
+
+- 
+
+
+
+
+
+## 字符型
+
+- char
+
+```tex
+存储定长数据（比如定义char(10)，那么不论你存储的数据是否达到了10个字符，都要占去10个字符的空间（自动用空格填充））
+
+在存储的时候会截断尾部的空格
+
+CHAR字段上的索引效率很高
+```
+
+
+
+- varchar
+
+
+
+
+
+- text

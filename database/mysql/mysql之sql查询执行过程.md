@@ -539,6 +539,58 @@ key_len计算规则如下：
 
 
 
+### Using filesort
+
+- MySQL必须执行一个额外的遍历来找出如何以排序的顺序检索行。排序是通过根据连接类型遍历所有行并存储sort键和指向与WHERE子句匹配的所有行的指针来完成的。然后对键进行排序，并按排序的顺序检索行。
+- 这种情况下一般是要考虑使用索引来优化的。
+
+
+
+```mysql
+explain select * from user_info order by name; # name是普通索引/唯一索引
+```
+
+
+
+### Using temporary
+
+- 要解决查询，MySQL需要创建一个临时表来保存结果。如果查询包含以不同方式列出列的GROUP BY和ORDER BY子句，通常会发生这种情况。
+- 出现这种情况一般是要进行优化的，首先是想到用索引来优化。
+
+
+
+```mysql
+explain select distinct age from user_info;# age没有索引，此时创建了张临时表来distinct
+```
+
+
+
+### Using where
+
+- mysql服务器将在存储引擎检索行后再进行过滤。就是先读取整行数据，再按 where 条件进行检查，符合就留下，不符合就丢弃。
+
+
+
+```mysql
+explain select * from user_info where id > 3;
+```
+
+
+
+### Using index
+
+- 仅使用索引树中的信息从表中检索列信息，而不必执行额外的查找来读取实际行。当查询仅使用单个索引中的列时，可以使用此策略。
+
+
+
+```mysql
+explain select id from user_info order by id;# id为主键
+```
+
+
+
+
+
 # 总结
 
 
@@ -566,7 +618,7 @@ key_len计算规则如下：
 
 
 
-## 联合查询
+## 连接查询
 
 
 
