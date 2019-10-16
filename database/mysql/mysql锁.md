@@ -44,19 +44,18 @@
 
 - 表锁的语法很简单：
 
-```
+```mysql
+# 获取表锁
+LOCK TABLES
+tbl_name [[AS] alias] lock_type
+[, tbl_name [[AS] alias] lock_type] ...
 
-	# 获取表锁
-	LOCK TABLES
-	    tbl_name [[AS] alias] lock_type
-	    [, tbl_name [[AS] alias] lock_type] ...
-	 
-	lock_type:
-	    READ [LOCAL]
-	  | [LOW_PRIORITY] WRITE
-	 
-	# 释放表锁
-	UNLOCK TABLES
+lock_type:
+READ [LOCAL]
+| [LOW_PRIORITY] WRITE
+
+# 释放表锁
+UNLOCK TABLES
 ```
 
 ### 页锁
@@ -75,11 +74,12 @@
 
 - **使用行级锁定的主要是InnoDB存储引擎。**
 
-```
-
-	共享锁（Ｓ）：SELECT * FROM table_name WHERE ... LOCK IN SHARE MODE  
+```mysql
+# 共享锁（Ｓ）：
+SELECT * FROM table_name WHERE ... LOCK IN SHARE MODE  
 	
-	排他锁（X）：SELECT * FROM table_name WHERE ... FOR UPDATE
+# 排他锁（X）：
+SELECT * FROM table_name WHERE ... FOR UPDATE
 ```
 
 ### 总结
@@ -118,12 +118,12 @@
 InnoDB存储引擎有3种行锁的算法，其分别是：
 
 	Record Lock：记录锁，单个行记录上的锁。
-
+	
 	Gap Lock：间隙锁，锁定一个范围，但不包含记录本身。（只在RR[Repeatable Read]隔离级别下存在）
-
+	
 	Next-Key Lock：范维索，Gap Lock + Record Lock，锁定一个范围，并且锁定记录本身。（InnoDB默认的行锁算法）
 
-- Record Lock总是会去锁住索引记录，如果InnoDB存储引擎表在建立的时候没有设置任何一个索引，那么这时InnoDB存储引擎会使用隐式的主键来进行锁定。
+- Record Lock总是会去**锁住索引**记录，如果InnoDB存储引擎表在建立的时候没有设置任何一个索引，那么这时InnoDB存储引擎会使用隐式的主键来进行锁定。
 
 - Next-Key Lock是结合了Gap Lock和Record Lock的一种锁定算法，在Next-Key Lock算法下，InnoDB对于行的查询都是采用这种锁定算法。例如有一个索引有10，11，13和20这4个值，那么该索引可能被Next-Key Locking的区间为：
 
@@ -138,54 +138,61 @@ InnoDB存储引擎有3种行锁的算法，其分别是：
 - 接下来，我们来通过一个例子解释一下。
 
 ```
-
-	CREATE TABLE z (
-	    a INT,
-	    b INT,
-	    PRIMARY KEY(a),    // a是主键索引
-	    KEY(b)    // b是普通索引
-	);
-	INSERT INTO z select 1, 1;
-	INSERT INTO z select 3, 1;
-	INSERT INTO z select 5, 3;
-	INSERT INTO z select 7, 6;
-	INSERT INTO z select 10, 8;
+CREATE TABLE z (
+a INT,
+b INT,
+PRIMARY KEY(a),    	// a是主键索引
+KEY(b)    			// b是普通索引
+);
+INSERT INTO z select 1, 1;
+INSERT INTO z select 3, 1;
+INSERT INTO z select 5, 3;
+INSERT INTO z select 7, 6;
+INSERT INTO z select 10, 8;
 ```
 
-- 这时候在会话A中执行 SELECT * FROM z WHERE b = 3 FOR UPDATE ，索引锁定如下：
+- 这时候在会话A中执行 `SELECT * FROM z WHERE b = 3 FOR UPDATE` ，索引锁定如下：
 
 ![](img/mysqlLock7.png)
 
 - 这时候会话B执行的语句落在锁定范围内的都会进行waiting
 
-```
-
-	SELECT * FROM z WHERE a = 5 LOCK IN SHARE MODE;
-	INSERT INTO z SELECT 4, 2;
-	INSERT INTO z SELECT 6, 5;
+```mysql
+SELECT * FROM z WHERE a = 5 LOCK IN SHARE MODE;
+INSERT INTO z SELECT 4, 2;
+INSERT INTO z SELECT 6, 5;
 ```
 
 - 用户可以通过以下两种方式来显示的关闭Gap Lock：
 
 ```
+将事务的隔离级别设为 READ COMMITED。
 
-	将事务的隔离级别设为 READ COMMITED。
-	
-	将参数innodb_locks_unsafe_for_binlog设置为1。
+将参数innodb_locks_unsafe_for_binlog设置为1。
 ```
 
-- 从上面的例子可以看出来，**Gap Lock的作用**是为了**阻止多个事务将记录插入到同一个范围内**，设计它的**目的是用来解决Phontom Problem（幻读问题）**。在MySQL默认的隔离级别（Repeatable Read）下，InnoDB就是使用它来解决幻读问题。
+- 从上面的例子可以看出来，**Gap Lock的作用是为了阻止多个事务将记录插入到同一个范围内，设计它的目的是用来解决Phontom Problem（幻读问题）。在MySQL默认的隔离级别（Repeatable Read）下，InnoDB就是使用它来解决幻读问题。**
+
+
 
 ### 一致性非锁定读
 
-	一致性非锁定读（consistent nonlocking read）是指InnoDB存储引擎通过多版本控制（MVCC）的方式来读取当前执行时间数据库中行的数据。  
-	如果读取的这行正在执行DELETE或UPDATE操作，这时读取操作不会向XS锁一样去等待锁释放，而是会去读一个快照数据。  
+一致性非锁定读（consistent nonlocking read）:
+
+​	是指InnoDB存储引擎通过多版本控制（MVCC）的方式来读取当前执行时间数据库中行的数据。  
+​	如果读取的这行正在执行DELETE或UPDATE操作，这时读取操作不会向XS锁一样去等待锁释放，而是会去读一个快照数据。  
+
+
 
 ![](img/mysqlLock8.png)
+
+
 
 - 在事务隔离级别RC和RR下，InnoDB存储引擎使用非锁定的一致性读。然而对于快照数据的定义却不同，在RC级别下，对于快照数据，非一致性读总是读取被锁定行的最新一份快照数据。而在RR级别下，对于快照数据，非一致性读总是读取事务开始时的行数据版本。
 
 - 下面我们通过一个例子来看看大家是否对MVCC理解了。
+
+
 
 ![](img/mysqlLock9.png)
 
@@ -197,10 +204,10 @@ InnoDB存储引擎有3种行锁的算法，其分别是：
 
 - 前面说到，在默认隔离级别RR下，InnoDB存储引擎的SELECT操作使用一致性非锁定读。但是在某些情况下，用户需要显式地对数据库读取操作进行加锁以保证数据逻辑的一致性。InnoDB存储引擎对于SELECT语句支持两种一致性的锁定读（locking read）操作。
 
-```
+```mysql
+SELECT … FOR UPDATE （X锁）
 
-	SELECT … FOR UPDATE （X锁）
-	SELECT … LOCK IN SHARE MODE （S锁）
+SELECT … LOCK IN SHARE MODE （S锁）
 ```
 
 ## 锁带来的问题
@@ -209,37 +216,44 @@ InnoDB存储引擎有3种行锁的算法，其分别是：
 
 ![](img/mysqlLock10.png)
 
+
+
 - InnoDB存储引擎在RR级别就已经解决了所有问题，但是它和Serializable的区别在哪里呢？区别就在于**RR级别**还存在一个**丢失更新**问题，而SERIALIZABLE无论对于查询还是更新都会进行锁定操作。
+
+
 
 - 丢失更新问题
 
+
+
 ![](img/mysqlLock12.png)
+
+
 
 - 如图所示，用户原始金额为100，如果程序中对于转账和存款的判断是先查询再更新的话就会出现丢失更新的问题，也就是后面的更新覆盖了前面的更新。
 
 - 如果想避免这种问题，只能每次更新的时候金额基于表里最新的值来做。如果必须要先查询再更新，可以在更新的条件里判断金额（乐观锁），也可以通过mysql提供的锁机制来预防（悲观锁），也可以使用隔离级别最高的SERIALIZABLE。
 
 ```
+乐观锁：
 
-	乐观锁：
+    乐观锁中,我们会引入一个类似版本号的概念.比如给每一行加入一个version.
 
-		乐观锁中,我们会引入一个类似版本号的概念.比如给每一行加入一个version.
+    假定.我们查出的数据version为1
+    那我们这么update：update product set version = version + 1 where version = 1
+    如果更新成功.说明中间数据没有被修改.这次更新是成功的.如果失败.说明数据被修改过.我们需要重新读取数据.进行操作.
 
-		假定.我们查出的数据version为1
-		那我们这么update：update product set version = version + 1 where version = 1
-		如果更新成功.说明中间数据没有被修改.这次更新是成功的.如果失败.说明数据被修改过.我们需要重新读取数据.进行操作.
-		
-		那在我们这个扣减库存的场景中.
-		
-		我们可以不用引入版本号.而使用库存做版本号.
-		再进一步.我们实际上并不需要严格按照版本号来做.可以使用inventory - #{toOrder} > 0.我们只要判断,扣减之后是否库存大于0.业务上就可以满足需求.如果失败.就下单失败.
-		
-		总结：乐观锁不是真的锁.而是使用一种机制来保证读后写的正确性.这种方式可能会大量重试.需要根据业务场景合理使用.
+    那在我们这个扣减库存的场景中.
+
+    我们可以不用引入版本号.而使用库存做版本号.
+    再进一步.我们实际上并不需要严格按照版本号来做.可以使用inventory - #{toOrder} > 0.我们只要判断,扣减之后是否库存大于0.业务上就可以满足需求.如果失败.就下单失败.
+
+总结：乐观锁不是真的锁.而是使用一种机制来保证读后写的正确性.这种方式可能会大量重试.需要根据业务场景合理使用.
 ```
 
 
 	悲观锁：
-
+	
 		悲观锁,则类似于我们之前的处理办法.不过我们是使用Mysql的锁来实现.
 		Mysql的Innodb存储引擎支持行级锁.并且有两种,读共享锁和写独占锁.
 		读共享锁在这个场景下并没有用.所以直接看写独占锁.
@@ -251,7 +265,7 @@ InnoDB存储引擎有3种行锁的算法，其分别是：
 		然后我们进行更新.提交事务就可以安全的完成这个工作了.
 		需要注意的是.整个操作要加事务.
 		
-		总结：悲观锁是由数据库的锁来保证读后写的正确性
+	总结：悲观锁是由数据库的锁来保证读后写的正确性
 
 
 ## 死锁
@@ -357,25 +371,25 @@ InnoDB存储引擎有3种行锁的算法，其分别是：
 ### 悲观锁
 
 	正如其名，它指的是对数据被外界（包括本系统当前的其他事务，以及来自外部系统的事务处理）修改持保守态度，
-
+	
 	因此，在整个数据处理过程中，将数据处 于锁定状态。悲观锁的实现，往往依靠数据库提供的锁机制（也只有
-
+	
 	数据库层提供的锁机制才能真正保证数据访问的排他性，否则，即使在本系统中实现了加锁机 制，也无法保证外部系统不会修改数据）。
-
+	
 	在悲观锁的情况下，为了保证事务的隔离性，就需要一致性锁定读。读取数据时给加锁，其它事务无法修改这些数据。
-
+	
 	修改删除数据时也要加锁，其它事务无法读取这些数据。
 
 ### 乐观锁
 
 	相对悲观锁而言，乐观锁机制采取了更加宽松的加锁机制。悲观锁大多数情况下依靠数据库的锁机制实现，
-
+	
 	以保证操作最大程度的独占性。但随之而来的就是数据库性能的大量开销，特别是对长事务而言，这样的开销往往无法承受。
-
+	
 	而乐观锁机制在一定程度上解决了这个问题。乐观锁，大多是基于数据版本（ Version ）记录机制实现。何谓数据版本？
-
+	
 	即为数据增加一个版本标识，在基于数据库表的版本解决方案中，一般是通过为数据库表增加一个 “version” 字段来实现。
-
+	
 	读取出数据时，将此版本号一同读出，之后更新时，对此版本号加一。此时，将提交数据的版本数据与数据库表对应记录的
-
+	
 	当前版本信息进行比对，如 果提交的数据版本号大于数据库表当前版本号，则予以更新，否则认为是过期数据。

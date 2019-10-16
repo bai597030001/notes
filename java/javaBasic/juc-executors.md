@@ -1,12 +1,6 @@
 [TOC]
 
-# Executor框架
-
-- 线程的管理，用Executor框架
-
-
-
-## executor框架成员关系：
+# executor框架成员关系：
 
 ![](img/java-thread4.jpg)
 
@@ -40,7 +34,9 @@
   
   - **`ForkJoinPool`**：Fork/Join线程池，在`JDK1.7`时引入，是实现`Fork/Join`框架的核心类。
 
-## executor框架使用示意图：
+
+
+# executor框架使用示意图：
 
 ![](img/java-thread5.jpg)
 
@@ -55,9 +51,11 @@
     - `ExecutorService.submit`（Callable task）
   - 最后，主线程可以执行`FutureTask.get()`方法来等待任务执行完成。主线程也可以执行`FutureTask.cancel（boolean mayInterruptIfRunning）`来取消此任务的执行。
 
-## 类成员
 
-### Executors
+
+# 类和接口
+
+## Executors
 
 - 线程池工厂
 
@@ -161,7 +159,7 @@ ExecutorService e = Executors.newCachedThreadPool();
     e.execute(new MyRunnableImpl());
 ```
 
-#### FixedThreadPool详解
+### FixedThreadPool详解
 
 - 源代码中新创建的FixedThreadPool的corePoolSize和maximumPoolSize都被设置为nThreads。
 
@@ -186,7 +184,7 @@ ExecutorService e = Executors.newCachedThreadPool();
 
 
 
-#### SingleThreadExecutor详解
+### SingleThreadExecutor详解
 
 ![](img/java-thread8.jpg)
 
@@ -200,7 +198,7 @@ ExecutorService e = Executors.newCachedThreadPool();
 
   适用于需要保证顺序地执行各个任务并且在任意时间点，不会有多个线程是活动的应用场景。
 
-#### CachedThreadPool详解
+### CachedThreadPool详解
 
 - CachedThreadPool的corePoolSize被设置为空（0），maximumPoolSize被设置为Integer.MAX.VALUE，即它是无界的，这也就意味着如果主线程提交任务的速度高于maximumPool中线程处理任务的速度时，CachedThreadPool会不断创建新的线程。极端情况下，这样会导致耗尽cpu和内存资源。
 
@@ -277,16 +275,15 @@ System.out.print("result: " + result);
 
 - Future与底层的executor service紧密的结合在一起。记住，如果你关闭executor，所有的未中止的future都会抛出异常。
 
-### Executor
+## Executor
 
 ```java
 public interface Executor {
-
     void execute(Runnable command);
 }
 ```
 
-### Future
+## Future
 
 ```java
 public interface Future<V> {
@@ -316,7 +313,7 @@ public interface Future<V> {
 
 
 
-### RunnableFuture
+## RunnableFuture
 
 
 
@@ -332,7 +329,7 @@ public interface RunnableFuture<V> extends Runnable, Future<V> {
 
 
 
-### FutureTask
+## FutureTask
 
 - 是Future接口的唯一实现。
 - 一种可以取消的异步的计算任务。
@@ -360,7 +357,7 @@ public class FutureTask<V> implements RunnableFuture<V> {
 
 
 
-### ExecutorService
+## ExecutorService
 
 - 源码
 
@@ -448,7 +445,7 @@ System.out.println(result);
 
 
 
-### ScheduledExecutorService
+## ScheduledExecutorService
 
 调度线程池，支持任务调度，持续执行或者延迟一段时间后执行。
 
@@ -549,7 +546,7 @@ executor.scheduleWithFixedDelay(task, 0, 1, TimeUnit.SECONDS);
 
 
 
-### ThreadPoolExecutor
+## ThreadPoolExecutor
 
 ```java
 public class ThreadPoolExecutor extends AbstractExecutorService {
@@ -642,7 +639,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
 
   - 2.`Executors`工具类
 
-### ScheduledThreadPoolExecutor
+## ScheduledThreadPoolExecutor
 
 - 一个可定时调度任务的**线程池**
 
@@ -776,7 +773,7 @@ public class ScheduledThreadPoolDemo {
 }
 ```
 
-### CompletionService
+## CompletionService
 
 - 我们可以通过线程池的submit方法提交一个Callable任务，利用返回的Future的get方法来获取任务运行的结果，但是这种方法需要自己循环获取task，而且get方法会阻塞。
 - 还可以用CompletionService来实现，CompletionService维护一个保存Future对象的BlockQueue，当Future对象状态是结束的时候，会加入到队列中，可以通过take方法，取出Future对象。
@@ -798,6 +795,6 @@ public interface CompletionService<V> {
 }
 ```
 
-### ExecutorCompletionService
+## ExecutorCompletionService
 
 - CompletionService的实现类，实现了上述方法
