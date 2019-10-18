@@ -209,6 +209,8 @@ ExecutorService e = Executors.newCachedThreadPool();
 
   适用于需要保证顺序地执行各个任务并且在任意时间点，不会有多个线程是活动的应用场景。
 
+
+
 ### CachedThreadPool详解
 
 - CachedThreadPool的corePoolSize被设置为空（0），maximumPoolSize被设置为Integer.MAX.VALUE，即它是无界的，这也就意味着如果主线程提交任务的速度高于maximumPool中线程处理任务的速度时，CachedThreadPool会不断创建新的线程。极端情况下，这样会导致耗尽cpu和内存资源。
@@ -217,8 +219,8 @@ ExecutorService e = Executors.newCachedThreadPool();
 
 **上图说明：**
 
-1. 首先执行SynchronousQueue.offer(Runnable task)。如果当前maximumPool中有闲线程正在执行SynchronousQueue.poll(keepAliveTime,TimeUnit.NANOSECONDS)，那么主线程执行offer操作与空闲线程执行的poll操作配对成功，主线程把任务交给空闲线程执行，execute()方法执行完成，否则执行下面的步骤2；
-2. 当初始maximumPool为空，或者maximumPool中没有空闲线程时，将没有线程执行SynchronousQueue.poll(keepAliveTime,TimeUnit.NANOSECONDS)。这种情况下，步骤1将失败，此时CachedThreadPool会创建新线程执行任务，execute方法执行完成；
+1. 首先执行`SynchronousQueue.offer(Runnable task)`。如果当前`maximumPool`中有空闲线程正在执行`SynchronousQueue.poll(keepAliveTime,TimeUnit.NANOSECONDS)`，那么主线程执行`offer`操作与空闲线程执行的poll操作配对成功，主线程把任务交给空闲线程执行，`execute`()方法执行完成，否则执行下面的步骤2；
+2. 当初始`maximumPool`为空，或者`maximumPool`中没有空闲线程时，将没有线程执行`SynchronousQueue.poll(keepAliveTime,TimeUnit.NANOSECONDS)`。这种情况下，步骤1将失败，此时`CachedThreadPool`会创建新线程执行任务，`execute`方法执行完成；
 
 - 适用场景
 
@@ -284,7 +286,7 @@ System.out.println("future done? " + future.isDone());
 System.out.print("result: " + result);
 ```
 
-- Future与底层的executor service紧密的结合在一起。记住，如果你关闭executor，所有的未中止的future都会抛出异常。
+- `Future`与底层的`ExecutorService`紧密的结合在一起。记住，如果你关闭`executor`，所有的未中止的`future`都会抛出异常。
 
 
 
@@ -782,7 +784,8 @@ public interface ThreadFactory {
 
 
 ```java
-public class Executors {	
+public class Executors {
+    
 	//juc提供的缺省线程工厂
     static class DefaultThreadFactory implements ThreadFactory {
         private static final AtomicInteger poolNumber = new AtomicInteger(1);
@@ -975,24 +978,32 @@ private void decrementWorkerCount() {
 public void execute(Runnable command) {
     if (command == null)
         throw new NullPointerException();
-
+ 
     int c = ctl.get();
-    if (workerCountOf(c) < corePoolSize) {
-        if (addWorker(command, true))
+    if (workerCountOf(c) < corePoolSize) {// CASE1: 工作线程数 < 核心线程池上限
+        if (addWorker(command, true))// 添加工作线程并执行
             return;
         c = ctl.get();
     }
-    if (isRunning(c) && workQueue.offer(command)) {
+ 
+    // 执行到此处, 说明工作线程创建失败 或 工作线程数≥核心线程池上限
+    if (isRunning(c) && workQueue.offer(command)) {// CASE2: 插入任务至队列
+        // 再次检查线程池状态
         int recheck = ctl.get();
-        if (! isRunning(recheck) && remove(command))
+        if (!isRunning(recheck) && remove(command))
             reject(command);
         else if (workerCountOf(recheck) == 0)
             addWorker(null, false);
-    }
-    else if (!addWorker(command, false))
-        reject(command);
+    } else if (!addWorker(command, false))// CASE3: 插入队列失败, 判断工作线程数 < 总线程池上限
+        reject(command);// 执行拒绝策略
 }
 ```
+
+
+
+- 这里需要特别注意的是 **CASE2**中的`addWorker(null, false)`，当将任务成功添加到队列后，如果此时的工作线程数为0，就会执行**CASE2**这段代码。
+
+**一般来讲每个工作线程（Worker）都有一个Runnable任务和一个对应的执行线程Thread，当我们调用addWorker方法时，如果不传入相应的任务，那么就只是新建了一个没有任务的工作线程（Worker），该Worker就会从工作队列中取任务来执行（因为自己没有绑定任务）。如果传入了任务，新建的工作线程就会执行该任务。**
 
 
 
@@ -1009,6 +1020,9 @@ public void execute(Runnable command) {
 
 
 ```java
+//firstTask: 如果指定了该参数, 表示将立即创建一个新工作线程执行该firstTask任务;
+	//否则复用已有的工作线程，从工作队列中获取任务并执行
+//core: 执行任务的工作线程是否是核心线程池
 private boolean addWorker(Runnable firstTask, boolean core) {
     retry:
     for (;;) {
@@ -1124,7 +1138,7 @@ private final class Worker extends AbstractQueuedSynchronizer
 
 从Worker的源码中我们可以看到Woker继承AQS，实现Runnable接口，所以可以认为Worker既是一个可以执行的任务，也可以达到获取锁释放锁的效果。
 
-这里继承AQS主要是为了方便线程的中断处理。
+**这里继承AQS主要是为了方便线程的中断处理。**
 
 这里注意两个地方：构造函数、run()。
 
@@ -1147,13 +1161,15 @@ final void runWorker(Worker w) {
 
     // 释放锁，运行中断
     w.unlock(); // allow interrupts
+    
+    //表示该工作线程是否是因为中断而退出
     boolean completedAbruptly = true;
     try {
         while (task != null || (task = getTask()) != null) {
             // worker 获取锁
             w.lock();
 
-            // 确保只有当线程是stoping时，才会被设置为中断，否则清楚中断标示
+            // 确保只有当线程是stoping时，才会被设置为中断，否则清除中断标识
             // 如果线程池状态 >= STOP ,且当前线程没有设置中断状态，则wt.interrupt()
             // 如果线程池状态 < STOP，但是线程已经中断了，再次判断线程池是否 >= STOP，如果是 wt.interrupt()
             if ((runStateAtLeast(ctl.get(), STOP) ||
@@ -1194,11 +1210,11 @@ final void runWorker(Worker w) {
 
 运行流程
 
-1. 根据worker获取要执行的任务task，然后调用unlock()方法释放锁，这里释放锁的主要目的在于中断，因为在new Worker时，设置的state为-1，调用unlock()方法可以将state设置为0，这里主要原因就在于interruptWorkers()方法只有在state >= 0时才会执行；
-2. 通过getTask()获取执行的任务，调用task.run()执行，当然在执行之前会调用worker.lock()上锁，执行之后调用worker.unlock()放锁；
-3. 在任务执行前后，可以根据业务场景自定义beforeExecute() 和 afterExecute()方法，则两个方法在ThreadPoolExecutor中是空实现；
-4. 如果线程执行完成，则会调用getTask()方法从阻塞队列中获取新任务，如果阻塞队列为空，则根据是否超时来判断是否需要阻塞；
-5. task == null或者抛出异常（beforeExecute()、task.run()、afterExecute()均有可能）导致worker线程终止，则调用processWorkerExit()方法处理worker退出流程。
+1. 根据`worker`获取要执行的任务`task`，然后调用`unlock`()方法释放锁，**这里释放锁的主要目的在于中断，因为在`new Worker`时，设置的`state`为-1，调用`unlock`()方法可以将state设置为0，这里主要原因就在于`interruptWorkers`()方法只有在`state >= 0`时才会执行；**
+2. 通过`getTask`()获取执行的任务，调用`task.run()`执行，当然在执行之前会调用`worker.lock()`上锁，执行之后调用`worker.unlock()`放锁；
+3. 在任务执行前后，可以根据业务场景自定义`beforeExecute()` 和 `afterExecute()`方法，两个方法在`ThreadPoolExecutor`中是空实现；
+4. 如果线程执行完成，则会调用`getTask`()方法从阻塞队列中获取新任务，如果阻塞队列为空，则根据是否超时来判断是否需要阻塞；
+5. `task == null`或者抛出异常（`beforeExecute()、task.run()、afterExecute()`均有可能）导致`worker`线程终止，则调用`processWorkerExit`()方法处理`worker`退出流程。
 
 
 
@@ -1299,7 +1315,9 @@ private void processWorkerExit(Worker w, boolean completedAbruptly) {
 
 
 
-首先completedAbruptly的值来判断是否需要对线程数-1处理，如果completedAbruptly == true，说明在任务运行过程中出现了异常，那么需要进行减1处理，否则不需要，因为减1处理在getTask()方法中处理了。然后从HashSet中移出该worker，过程需要获取mainlock。然后调用tryTerminate()方法处理，该方法是对最后一个线程退出做终止线程池动作。如果线程池没有终止，那么线程池需要保持一定数量的线程，则通过addWorker(null,false)新增一个空的线程。
+首先`completedAbruptly`的值来判断是否需要对线程数`-1`处理，如果`completedAbruptly == true`，说明在任务运行过程中出现了异常，那么需要进行减1处理，否则不需要，因为减1处理在`getTask`()方法中处理了。然后从`HashSet`中移出该`worker`，过程需要获取`mainlock`。
+
+然后调用`tryTerminate`()方法处理，该方法是对最后一个线程退出做终止线程池动作。如果线程池没有终止，那么线程池需要保持一定数量的线程，则通过`addWorker(null,false)`新增一个空的线程，来**替换掉当前执行`processWorkerExit`退出的线程。（注意：`addWorker(null,false)`，当参数为`null,false`时，其中`new Worker(firstTask)`添加的是一个`null`的`worker`节点，该节点的`runWorker`方法会从任务队列取出任务去执行）**
 
 
 
@@ -1445,8 +1463,8 @@ public List<Runnable> shutdownNow() {
 
 
 
-- 如果任务是 **CPU 密集型**（需要进行大量计算、处理），则应该配置尽量少的线程，比如 CPU 个数 + 1，这样可以避免出现每个线程都需要使用很长时间但是有太多线程争抢资源的情况；
-- 如果任务是 **IO密集型**（主要时间都在 I/O，CPU 空闲时间比较多），则应该配置多一些线程，比如 CPU 数的两倍，这样可以更高地压榨 CPU。
+- 如果任务是 **CPU 密集型**（需要进行大量计算、处理），则应该配置尽量少的线程，比如 **CPU 个数 + 1**，这样可以避免出现每个线程都需要使用很长时间但是有太多线程争抢资源的情况；
+- 如果任务是 **IO密集型**（主要时间都在 I/O，CPU 空闲时间比较多），则应该配置多一些线程，比如 **CPU 数的两倍**，这样可以更高地压榨 CPU。
 
 
 
@@ -1462,25 +1480,25 @@ public List<Runnable> shutdownNow() {
 
 - 实现：
 
-  ScheduledThreadPoolExecutor使用的任务队列DelayQueue封装了一个PriorityQueue，PriorityQueue会对队列中的任务进行排序，执行所需时间短的放在前面先被执行(ScheduledFutureTask的time变量小的先执行)，如果执行所需时间相同则先提交的任务将被先执行(ScheduledFutureTask的squenceNumber变量小的先执行)。
+  `ScheduledThreadPoolExecutor`使用的任务队列`DelayQueue`封装了一个`PriorityQueue`，`PriorityQueue`会对队列中的任务进行排序，执行所需时间短的放在前面先被执行(`ScheduledFutureTask`的`time`变量小的先执行)，如果执行所需时间相同则先提交的任务将被先执行(`ScheduledFutureTask`的`squenceNumber`变量小的先执行)。
 
-- ScheduledThreadPoolExecutor和Timer的比较：
+- `ScheduledThreadPoolExecutor`和`Timer`的比较：
 
-  - Timer对系统时钟的变化敏感，ScheduledThreadPoolExecutor不是；
+  - `Timer`对系统时钟的变化敏感，`ScheduledThreadPoolExecutor`不是；
 
-  - Timer只有一个执行线程，因此长时间运行的任务可以延迟其他任务。 ScheduledThreadPoolExecutor可以配置任意数量的线程。 此外，如果你想（通过提供ThreadFactory），你可以完全控制创建的线程;
+  - `Timer`只有一个执行线程，因此长时间运行的任务可以延迟其他任务。 `ScheduledThreadPoolExecutor`可以配置任意数量的线程。 此外，如果你想（通过提供`ThreadFactory`），你可以完全控制创建的线程;
 
-  - 在TimerTask中抛出的运行时异常会杀死一个线程，从而导致Timer死机:-( ...即计划任务将不再运行。ScheduledThreadExecutor不仅捕获运行时异常，还允许您在需要时处理它们（通过重写afterExecute方法 ThreadPoolExecutor）。抛出异常的任务将被取消，但其他任务将继续运行。
+  - 在`TimerTask`中抛出的运行时异常会杀死一个线程，从而导致`Timer`死机:-( ...即计划任务将不再运行。`ScheduledThreadExecutor`不仅捕获运行时异常，还允许您在需要时处理它们（通过重写`afterExecute`方法 `ThreadPoolExecutor`）。抛出异常的任务将被取消，但其他任务将继续运行。
 
 - **综上，在JDK1.5之后，你没有理由再使用Timer进行任务调度了。**
 
 > **备注：** Quartz是一个由java编写的任务调度库，由OpenSymphony组织开源出来。在实际项目开发中使用Quartz的还是居多，比较推荐使用Quartz。因为Quartz理论上能够同时对上万个任务进行调度，拥有丰富的功能特性，包括任务调度、任务持久化、可集群化、插件等等。
 
-- ScheduledThreadPoolExecutor运行机制
+- `ScheduledThreadPoolExecutor`运行机制
 
 ![](img/java-thread10.jpg)
 
-- ScheduledThreadPoolExecutor执行周期任务的步骤
+- `ScheduledThreadPoolExecutor`执行周期任务的步骤
 
 ![](img/java-thread11.jpg)
 
@@ -1586,8 +1604,8 @@ public class ScheduledThreadPoolDemo {
 
 ## CompletionService
 
-- 我们可以通过线程池的submit方法提交一个Callable任务，利用返回的Future的get方法来获取任务运行的结果，但是这种方法需要自己循环获取task，而且get方法会阻塞。
-- 还可以用CompletionService来实现，CompletionService维护一个保存Future对象的BlockQueue，当Future对象状态是结束的时候，会加入到队列中，可以通过take方法，取出Future对象。
+- 我们可以通过线程池的`submit`方法提交一个`Callable`任务，利用返回的`Future`的`get`方法来获取任务运行的结果，但是这种方法需要自己循环获取`task`，而且`get`方法会阻塞。
+- 针对上述情况，可以用`CompletionService`来实现，`CompletionService`维护一个保存`Future`对象的`BlockQueue`，当`Future`对象状态是结束的时候，会加入到队列中，可以通过take`方法`，取出`Future`对象。
 
 ```java
 //提供一种分离任务提交和获取执行结果的服务
@@ -1608,6 +1626,133 @@ public interface CompletionService<V> {
 }
 ```
 
+
+
 ## ExecutorCompletionService
 
 - CompletionService的实现类，实现了上述方法
+
+
+
+```java
+public class ExecutorCompletionService<V> implements CompletionService<V> {
+    
+    private final Executor executor;
+    private final AbstractExecutorService aes;
+    private final BlockingQueue<Future<V>> completionQueue;
+
+    private class QueueingFuture extends FutureTask<Void> {
+        QueueingFuture(RunnableFuture<V> task) {
+            super(task, null);
+            this.task = task;
+        }
+        //实现FutureTask父类中的模板方法，其在任务完成后的finishCompletion中被调用
+        protected void done() { completionQueue.add(task); }
+        private final Future<V> task;
+    }
+
+    private RunnableFuture<V> newTaskFor(Callable<V> task) {
+        if (aes == null)
+            return new FutureTask<V>(task);
+        else
+            return aes.newTaskFor(task);
+    }
+
+    private RunnableFuture<V> newTaskFor(Runnable task, V result) {
+        if (aes == null)
+            return new FutureTask<V>(task, result);
+        else
+            return aes.newTaskFor(task, result);
+    }
+
+    public ExecutorCompletionService(Executor executor) {
+        if (executor == null)
+            throw new NullPointerException();
+        this.executor = executor;
+        this.aes = (executor instanceof AbstractExecutorService) ?
+            (AbstractExecutorService) executor : null;
+        this.completionQueue = new LinkedBlockingQueue<Future<V>>();
+    }
+
+    public ExecutorCompletionService(Executor executor,
+                                     BlockingQueue<Future<V>> completionQueue) {
+        if (executor == null || completionQueue == null)
+            throw new NullPointerException();
+        this.executor = executor;
+        this.aes = (executor instanceof AbstractExecutorService) ?
+            (AbstractExecutorService) executor : null;
+        this.completionQueue = completionQueue;
+    }
+
+    public Future<V> submit(Callable<V> task) {
+        if (task == null) throw new NullPointerException();
+        RunnableFuture<V> f = newTaskFor(task);
+        executor.execute(new QueueingFuture(f));
+        return f;
+    }
+
+    public Future<V> submit(Runnable task, V result) {
+        if (task == null) throw new NullPointerException();
+        RunnableFuture<V> f = newTaskFor(task, result);
+        executor.execute(new QueueingFuture(f));
+        return f;
+    }
+
+    public Future<V> take() throws InterruptedException {
+        return completionQueue.take();
+    }
+
+    public Future<V> poll() {
+        return completionQueue.poll();
+    }
+
+    public Future<V> poll(long timeout, TimeUnit unit)
+            throws InterruptedException {
+        return completionQueue.poll(timeout, unit);
+    }
+
+}
+```
+
+
+
+### 使用示例
+
+
+
+- 声明task执行载体，线程池executor；
+- 声明CompletionService，通过参数指定执行task的线程池，存放已完成状态task的阻塞队列，队列默认为基于链表结构的阻塞队列LinkedBlockingQueue；
+- 调用submit方法提交task；
+- 调用take方法获取已完成状态task。
+
+
+
+```java
+import org.junit.Test;
+import java.util.concurrent.*;
+
+public class CompletionServiceTest {
+
+    @Test
+    public void test() throws InterruptedException, ExecutionException {
+
+        Executor executor = Executors.newFixedThreadPool(10);
+
+        CompletionService<Integer> completionService = new ExecutorCompletionService<>(executor);
+
+        for(int i = 0; i < 10; i++){
+            int finalI = i;
+            completionService.submit(() -> finalI * finalI);
+        }
+
+        for(int i = 0; i < 10; i++){
+            System.out.println(completionService.take().get());
+        }
+    }
+}
+```
+
+
+
+
+

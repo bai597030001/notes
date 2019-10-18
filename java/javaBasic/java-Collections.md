@@ -646,6 +646,12 @@ public class LinkedHashSet<E>
 
 ## 3.Map
 
+我们知道，一般的Map都是无序的，也就是只能通过键的hash值进行定位。JDK为了实现有序的Map，提供了一个**SortedMap**接口，SortedMap提供了一些根据键范围进行查找的功能，比如返回整个Map中 key最小/大的键、返回某个范围内的子Map视图等等。
+
+为了进一步对有序Map进行增强，JDK又引入了**NavigableMap**接口，该接口进一步扩展了SortedMap的功能，提供了根据指定Key返回最接近项、按升序/降序返回所有键的视图等功能。
+
+同时，也提供了一个基于NavigableMap的实现类——**TreeMap**，TreeMap底层基于红黑树设计，是一种有序的Map。
+
 
 
 ![](img/jdk-map1.png)
@@ -1180,6 +1186,88 @@ public class Hashtable<K,V>
 
 
 ### LinkedList
+
+
+
+## 5.Deque
+
+双端队列，队首和队尾都可以进行“出队”和“入队”操作。
+
+| 操作类型 | 抛出异常      | 返回特殊值    |
+| :------- | :------------ | :------------ |
+| 队首入队 | addFirst(e)   | offerFirst(e) |
+| 队首出队 | removeFirst() | pollFirst()   |
+| 队首读取 | getFirst()    | peekFirst()   |
+| 队尾入队 | addLast(e)    | offerLast(e)  |
+| 队尾出队 | removeLast()  | pollLast()    |
+| 队尾读取 | getLast()     | peekLast()    |
+
+
+
+除此之外，`Deque`还可以当作“栈”来使用，我们知道“栈”是一种具有**“LIFO”**特点的数据结构，`Deque`提供了`push`、`pop`、`peek`这三个栈方法，一般实现这三个方法时，可以利用已有方法，即有如下映射关系：
+
+| 栈方法 | Deque方法     |
+| :----- | :------------ |
+| push   | addFirst(e)   |
+| pop    | removeFirst() |
+| peek   | peekFirst()   |
+
+
+
+## 6.Stack
+
+- 先进先出的数据结构
+
+
+
+```java
+public class Stack<E> extends Vector<E> {
+
+    public Stack() {
+    }
+
+    public E push(E item) {
+        addElement(item);
+
+        return item;
+    }
+
+    public synchronized E pop() {
+        E       obj;
+        int     len = size();
+
+        obj = peek();
+        removeElementAt(len - 1);
+
+        return obj;
+    }
+
+    public synchronized E peek() {
+        int     len = size();
+
+        if (len == 0)
+            throw new EmptyStackException();
+        return elementAt(len - 1);
+    }
+
+    public boolean empty() {
+        return size() == 0;
+    }
+
+    public synchronized int search(Object o) {
+        int i = lastIndexOf(o);
+
+        if (i >= 0) {
+            return size() - i;
+        }
+        return -1;
+    }
+
+    private static final long serialVersionUID = 1224463164541339165L;
+}
+```
+
+
 
 
 

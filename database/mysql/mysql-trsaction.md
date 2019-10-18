@@ -202,26 +202,116 @@ mysql默认隔离级别，InnoDB通过多版本并发控制（MVCC，Multiversio
 
 ## mysql如何保证原子性
 
-Undo Log是实现事务原子性的保障，它的原理很简单，为了满足事务的原子性，在操作任何数据之前，首先将数据备份到一个地方（这个存储备份数据的地方称为Undo Log）。然后再进行数据的修改，如果出现了错误或者用户执行了rollback语句，系统可以利用Undo Log中的备份将数据恢复到事务开始之前的状态
-在MySQL数据库的InnoDB存储引擎中，还用Undo Log来实现多版本并发控制（简称：MVCC）
+
+
+share tablespace或.ibd文件
 
 
 
-## mysql如何保证一致性
+实现原子性的关键，是当事务回滚时能够撤销所有已经成功执行的`sql`语句。
 
-事务一旦完成，该事务对数据库所做的所有修改都会持久的保存到数据库中。为了保证持久性，数据库系统会将修改后的数据完全记录到持久的存储上（即Redo Log）
-和Undo Log相反，Redo Log记录的是新数据的备份。在事务提交前，只要将Redo Log持久化即可，不需要将数据持久化。当系统崩溃时，虽然数据没有持久化，但是Redo Log已经持久化。系统可以根据Redo Log的内容，将所有数据恢复到最新的状态
-所以，Undo Log保证事务的原子性，Redo Log保证事务的持久性
-Undo + Redo的设计主要考虑的是提升IO性能（IO：输入Input和输出Output的首字母缩写）
-事务的持久性并不代表事务中做的数据修改以后不能改变，是和临时对比来说的
+InnoDB实现回滚，靠的是`undo log`：当事务对数据库进行修改时，`InnoDB`会生成对应的`undo log`；如果事务执行失败或调用了`rollback`，导致事务需要回滚，便可以利用`undo log`中的信息将数据回滚到修改之前的样子。
+
+`undo log`属于逻辑日志，它记录的是`sql`执行相关的信息：当发生回滚时，`InnoDB`会根据`undo log`的内容做与之前相反的工作：对于每个insert，回滚时会执行`delete`；对于每个delete，回滚时会执行`insert`；对于每个`update`，回滚时会执行一个相反的`update`，把数据改回去。
+
+以`update`操作为例：当事务执行`update`时，其生成的`undo log`中会包含被修改行的主键(以便知道修改了哪些行)、修改了哪些列、这些列在修改前后的值等信息，回滚时便可以使用这些信息将数据还原到`update`之前的状态。
+
+
+
+## mysql如何保证持久性
+
+- redo log
+
+
+
+ib_logfileN
+
+
+
+InnoDB作为MySQL的存储引擎，数据是存放在磁盘中的，但如果每次读写数据都需要磁盘IO，效率会很低。为此，InnoDB提供了缓存(Buffer Pool)，Buffer Pool中包含了磁盘中部分数据页的映射，作为访问数据库的缓冲：当从数据库读取数据时，会首先从Buffer Pool中读取，如果Buffer Pool中没有，则从磁盘读取后放入Buffer Pool；当向数据库写入数据时，会首先写入Buffer Pool，Buffer Pool中修改的数据会定期刷新到磁盘中（这一过程称为刷脏）。
+
+Buffer Pool的使用大大提高了读写数据的效率，但是也带了新的问题：如果MySQL宕机，而此时Buffer Pool中修改的数据还没有刷新到磁盘，就会导致数据的丢失，事务的持久性无法保证。
+
+于是，redo log被引入来解决这个问题：当数据修改时，除了修改Buffer Pool中的数据，还会在redo log记录这次操作；当事务提交时，会调用fsync接口对redo log进行刷盘。如果MySQL宕机，重启时可以读取redo log中的数据，对数据库进行恢复。redo log采用的是WAL（Write-ahead logging，预写式日志），所有修改先写入日志，再更新到Buffer Pool，保证了数据不会因MySQL宕机而丢失，从而满足了持久性要求。
+
+既然redo log也需要在事务提交时将日志写入磁盘，为什么它比直接将Buffer Pool中修改的数据写入磁盘(即刷脏)要快呢？主要有以下两方面的原因：
+
+（1）刷脏是随机IO，因为每次修改的数据位置随机，但写redo log是追加操作，属于顺序IO。
+
+（2）刷脏是以数据页（Page）为单位的，MySQL默认页大小是16KB，一个Page上一个小修改都要整页写入；而redo log中只包含真正需要写入的部分，无效IO大大减少。
+
+
+
+请记住 3 点：
+
+​		重做日志是在 InnoDB 层产生的。
+
+​		重做日志是物理格式日志，记录的是对每个页的修改。
+
+​		重做日志在事务进行中不断被写入。
+
+
+
+![](img/mysql-redolog1.png)
+
+
+
+由于重做日志文件打开没有使用O_DIRECT选项（open日志文件的时候，open没有使用O_DIRECT标志位），因此重做日志缓冲先写入文件系统缓存。为了确保重做日志写入磁盘，必须进行一次fsync操作。由于fsync的效率取决于磁盘的性能，因此磁盘的性能决定了事务提交的性能，也就是数据库的性能。由此我们可以得出在进行批量操作的时候，不要for循环里面嵌套事务。
+
+参数 `innodb_flush_log_at_trx_commit` 用来控制重做日志刷新到磁盘的策略，该参数有3个值：0、1和2。
+
+- 0：表示事务提交时不进行写redo log file的操作，这个操作仅在master thread中完成（master thread每隔1秒进行一次fsync操作）。
+- 1：默认值，表示每次事务提交时进行写redo log file的操作。
+- 2：表示事务提交时将redo log写入文件，不过仅写入文件系统的缓存中，不进行fsync操作。
+
+我们可以看到0和2的设置都比1的效率要高，但是破坏了数据库的ACID特性，不建议使用！
+
+
+
+- redo log block
+
+在InnoDB引擎中，redo log都是以512字节进行存储的（和磁盘扇区的大小一样，因此redo log写入可以保证原子性，不需要double write），也就是重做日志缓存和文件都是以块的方式进行保存的，称为redo log block，每个block占512字节。
+
+
+
+- crash recovery
+
+事务提交成功后，事务内的所有修改都会保存到数据库，哪怕这时候数据库crash了，也要有办法来进行恢复。也就是Crash Recovery。
+
+说到恢复，我们先来了解一个概念：什么是**LSN**？
+
+LSN(log sequence number) 用于记录日志序号，它是一个不断递增的 unsigned long long 类型整数，占用8字节。它代表的含义有：
+
+- redo log写入的总量。
+- checkpoint的位置。
+- 页的版本，用来判断是否需要进行恢复操作。
+
+> checkpoint：它是redo log中的一个检查点，这个点之前的所有数据都已经刷新回磁盘，当DB crash后，通过对checkpoint之后的redo log进行恢复就可以了。
+
+我们可以通过命令**show engine innodb status**来观察LSN的情况：
+
+
+
+Log sequence number表示当前的LSN，Log flushed up to表示刷新到redo log文件的LSN，Last checkpoint at表示刷新到磁盘的LSN。如果把它们三个简写为 `A、B、C` 的话，它们的值的大小肯定为 `A>=B>=C`。
+
+InnoDB引擎在启动时不管上次数据库运行时是否正常关闭，都会进行恢复操作。因为重做日志记录的是物理日志，因此恢复的速度比逻辑日志，如二进制日志要快很多。恢复的时候只需要找到redo log的checkpoint进行恢复即可。
 
 
 
 ## mysql如何保证隔离性
 
+- (一个事务)写操作对(另一个事务)写操作的影响：锁机制保证隔离性
+- (一个事务)写操作对(另一个事务)读操作的影响：MVCC保证隔离性
 
 
-## mysql如何保证持久性
+
+
+
+## mysql如何保证一致性
+
+- 原子性，持久性，隔离性最终保证一致性
+
+
 
 
 
