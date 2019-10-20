@@ -85,7 +85,7 @@ public enum State {
 
   一个运行状态的线程完成任务或者其他终止条件发生时，该线程就切换到终止状态。
 
-# 创建一个线程
+# 创建线程
 
 - 通过实现 Runnable 接口；
 - 通过继承 Thread 类本身；
@@ -332,11 +332,11 @@ public class CallableThreadTest implements Callable<Integer> {
   future.get() // return 返回值，阻塞直到该线程运行结束
   ```
 
-# 停止一个线程
+# 停止线程
 
-- stop() destroy() resume()等方法已经被废弃，那么如何停止一个线程呢？
+- `stop() destroy() resume()`等方法已经被废弃，那么如何停止一个线程呢？
 
-## 使用标志位终止线程
+## 终止线程(标志位)
 
 - 用修改标志位的方式来结束 run() 方法。
 
@@ -365,13 +365,49 @@ public class ServerThread extends Thread {
 
 
 
-##  使用 interrupt() 中断线程
+##  中断线程( interrupt)
 
-- 注意：
+线程收到中断时，通常**表示应该**停止当前的工作，比如退出循环、停止监听、从`wait/sleep/join`状态立即结束等。具体处理方式完全由程序决定。
 
-  interrupt() 方法并不像在 for 循环语句中使用 break 语句那样干脆，马上就停止循环。调用 interrupt() 方法仅仅是在当前线程中打一个停止的标记，并不是真的停止线程。
 
-  也就是说，线程中断并不会立即终止线程，而是通知目标线程，有人希望你终止。至于目标线程收到通知后会如何处理，则完全由目标线程自行决定。这一点很重要，如果中断后，线程立即无条件退出，那么我们又会遇到 stop() 方法的老问题。
+
+```java
+public class Thread{
+	public void interrupt(){}    //中断目标线程，实际上就是设置中断状态为true
+	public boolean isInterrupted(){} //返回目标线程的中断状态
+	public static boolean interrupted(){} //清除当前线程的中断状态，并返回它之前的值
+}
+```
+
+
+
+### 中断的用途
+
+
+
+- 一个正常运行的线程，收到中断后，不会有任何问题，可以不需要做任何处理，当然程序可以通过显式的判断`isInterrupted`，来决定下一步动作，比如下面这样的：
+
+```java
+while (!Thread.currentThread().isInterrupted()) {
+	// 循环做某件事情
+}
+```
+
+- 当线程被`Object.wait、Thread.join和Thread.sleep`三种方法之一阻塞时，这时如果收到中断请求，则会抛出`InterruptedException`**并清除中断标志**。这是中断非常有用的一点，可以提前从阻塞状态返回
+
+- 做为一种约定，`Java API`里任何声明为抛出`InterruptedException`的方法，在抛出异常之前，都会先清除掉中断标志。
+
+
+
+`Thread.interrupt()` 方法并不像在 for 循环语句中使用 break 语句那样干脆，马上就停止循环。调用 `interrupt`() 方法仅仅是在当前线程中打一个停止的标记（**中断标记**），并不是真的停止线程。
+
+也就是说，线程中断并不会立即终止线程，而是通知目标线程，有人希望你终止。至于目标线程收到通知后会如何处理，则完全由目标线程自行决定。
+
+
+
+### 使用示例
+
+
 
 ```java
 public class InterruptThread1 extends Thread{
@@ -402,9 +438,11 @@ public class InterruptThread1 extends Thread{
 }
 ```
 
-- 这种方式看起来与之前介绍的“使用标志位终止线程”非常类似，**但是在遇到 sleep() 或者 wait() 这样的操作，我们只能通过中断来处理了**。
-- Thread.sleep() 方法会抛出一个 InterruptedException 异常，当线程被 sleep() 休眠时，如果被中断，这会就抛出这个异常。
-- 注意：Thread.sleep() 方法由于中断而抛出的异常，是会清除中断标记的。
+
+
+例如，线程通过wait()进入阻塞状态，此时通过`interrupt()`中断该线程；调用`interrupt`()会立即将线程的中断标记设为“`true`”，但是由于线程处于阻塞状态，所以该“中断标记”会立即被清除为“`false`”，同时，会产生一个`InterruptedException`的异常。
+
+
 
 # 线程调度
 

@@ -1171,7 +1171,7 @@ final void runWorker(Worker w) {
 
             // 确保只有当线程是stoping时，才会被设置为中断，否则清除中断标识
             // 如果线程池状态 >= STOP ,且当前线程没有设置中断状态，则wt.interrupt()
-            // 如果线程池状态 < STOP，但是线程已经中断了，再次判断线程池是否 >= STOP，如果是 wt.interrupt()
+            // 如果线程池状态 < STOP，但是线程已经中断了，再次判断线程池是否 >= STOP，如果是则调用wt.interrupt()
             if ((runStateAtLeast(ctl.get(), STOP) ||
                     (Thread.interrupted() &&
                             runStateAtLeast(ctl.get(), STOP))) &&
