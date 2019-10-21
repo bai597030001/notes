@@ -1754,5 +1754,284 @@ public class CompletionServiceTest {
 
 
 
+## Fork/Join框架
 
 
+
+### 分治思想
+
+算法领域有一种基本思想叫做“**分治**”，所谓“分治”就是将一个难以直接解决的大问题，分割成一些规模较小的子问题，以便各个击破，分而治之。
+
+比如：对于一个规模为N的问题，若该问题可以容易地解决，则直接解决；否则将其分解为K个规模较小的子问题，这些子问题互相独立且与原问题性质相同，递归地解这些子问题，然后将各子问题的解合并得到原问题的解，这种算法设计策略叫做分治法。
+
+基于“分治”的思想，J.U.C在JDK1.7时引入了一套**Fork/Join**框架。Fork/Join框架的基本思想就是将一个大任务分解（**Fork**）成一系列子任务，子任务可以继续往下分解，当多个不同的子任务都执行完成后，可以将它们各自的结果合并（**Join**）成一个大结果，最终合并成大任务的结果：
+
+
+
+![](img/juc-executor3.png)
+
+
+
+### 工作窃取算法
+
+从上述Fork/Join框架的描述可以看出，我们需要一些线程来执行Fork出的任务，在实际中，如果每次都创建新的线程执行任务，对系统资源的开销会很大，所以Fork/Join框架利用了线程池来调度任务。
+
+另外，这里可以思考一个问题，既然由线程池调度，根据我们之前学习线程池的经验，必然存在两个要素：
+
+- 工作线程
+- 任务队列
+
+一般的线程池只有一个任务队列，但是对于Fork/Join框架来说，由于Fork出的各个子任务其实是平行关系，为了提高效率，减少线程竞争，应该将这些平行的任务放到不同的队列中去，如上图中，大任务分解成三个子任务：子任务1、子任务2、子任务3，那么就创建三个任务队列，然后再创建3个工作线程与队列一一对应。
+
+由于线程处理不同任务的速度不同，这样就可能存在某个线程先执行完了自己队列中的任务的情况，这时为了提升效率，我们可以让该线程去“窃取”其它任务队列中的任务，这就是所谓的**工作窃取算法**。
+
+“工作窃取”的示意图如下，当线程1执行完自身任务队列中的任务后，尝试从线程2的任务队列中“窃取”任务：
+
+
+
+![](img/juc-executor4.png)
+
+
+
+对于一般的队列来说，入队元素都是在“队尾”，出队元素在“队首”，要满足“工作窃取”的需求，任务队列应该支持从“队尾”出队元素，这样可以减少与其它工作线程的冲突（因为正常情况下，其它工作线程从“队首”获取自己任务队列中的任务），满足这一需求的任务队列其实就是我们在`juc-collections`框架中介绍过的双端阻塞队列——`LinkedBlockingDeque`。当然，出于性能考虑，`J.U.C`中的`Fork/Join`框架并没有直接利用`LinkedBlockingDeque`作为任务队列，而是自己重新实现了一个。
+
+
+
+### 使用示例
+
+- 假设有个非常大的long[]数组，通过FJ框架求解数组所有元素的和。
+
+> 任务类定义，因为需要返回结果，所以继承RecursiveTask，并覆写**compute**方法。任务的fork通过ForkJoinTask的**fork**方法执行，join方法方法用于等待任务执行后返回：
+
+
+
+```java
+package com.juc.demo.executor;
+
+import org.junit.Test;
+
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
+import java.util.concurrent.RecursiveTask;
+
+public class ForkJoinPoolTest {
+
+    @Test
+    public void test1() {
+        ForkJoinPool executor = new ForkJoinPool();
+        ArraySumTask task = new ArraySumTask(new int[10000], 0, 9999);
+
+        ForkJoinTask future = executor.submit(task);
+
+        // some time passed...
+        if (future.isCompletedAbnormally()) {
+            System.out.println(future.getException());
+        }
+        try {
+            System.out.println("result: " + future.get());
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    @Test
+    public void test2() {
+
+        ForkJoinPool forkJoinPool = new ForkJoinPool();
+        IntegerSumTask task = new IntegerSumTask(0, Short.MAX_VALUE);
+
+        ForkJoinTask future = forkJoinPool.submit(task);
+        if (future.isCompletedAbnormally()) {
+            System.out.println(future.getException());
+        }
+        try {
+            System.out.println(future.get());
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+
+class IntegerSumTask extends RecursiveTask<Long> {
+
+    private int begin;
+    private int end;
+
+    private static final int THRESHOLD = 100;
+
+    public IntegerSumTask(int begin, int end) {
+        this.begin = begin;
+        this.end = end;
+    }
+
+    @Override
+    protected Long compute() {
+        long sum = 0;
+
+        if (end - begin + 1 < THRESHOLD) {
+            for (int i = begin; i <= end; i++) {
+                sum += i;
+            }
+        } else {
+            int middle = (begin + end) / 2;
+            IntegerSumTask task1 = new IntegerSumTask(begin, middle);
+            IntegerSumTask task2 = new IntegerSumTask(middle + 1, end);
+
+            task1.fork();
+            task2.fork();
+            sum += task1.join();
+            sum += task2.join();
+        }
+
+        return sum;
+    }
+}
+
+class ArraySumTask extends RecursiveTask<Long> {
+
+    private final int[] array;
+    private final int begin;
+    private final int end;
+
+    private static final int THRESHOLD = 100;
+
+    public ArraySumTask(int[] array, int begin, int end) {
+        this.array = array;
+        this.begin = begin;
+        this.end = end;
+    }
+
+    @Override
+    protected Long compute() {
+        long sum = 0;
+
+        if (end - begin + 1 < THRESHOLD) {      // 小于阈值, 直接计算
+            for (int i = begin; i <= end; i++) {
+                sum += array[i];
+            }
+        } else {
+            int middle = (end + begin) / 2;
+            ArraySumTask subtask1 = new ArraySumTask(this.array, begin, middle);
+            ArraySumTask subtask2 = new ArraySumTask(this.array, middle + 1, end);
+
+            subtask1.fork();
+            subtask2.fork();
+
+            long sum1 = subtask1.join();
+            long sum2 = subtask2.join();
+            sum = sum1 + sum2;
+        }
+        return sum;
+    }
+}
+```
+
+
+
+**注意**：
+
+ForkJoinTask在执行的时候可能会抛出异常，但是没办法在主线程里直接捕获异常，所以ForkJoinTask提供了`isCompletedAbnormally()`方法来检查任务是否已经抛出异常或已经被取消了，并且可以通过ForkJoinTask的`getException`方法获取异常.
+
+
+
+### 核心组件
+
+F/J框架的实现非常复杂，内部大量运用了位操作和无锁算法，撇开这些实现细节不谈，该框架主要涉及三大核心组件：`ForkJoinPool`（线程池）、`ForkJoinTask`（任务）、`ForkJoinWorkerThread`（工作线程），外加`WorkQueue`（任务队列）：
+
+- **ForkJoinPool**：`ExecutorService`的实现类，负责工作线程的管理、任务队列的维护，以及控制整个任务调度流程；
+- **ForkJoinTask**：`Future`接口的实现类，`fork`是其核心方法，用于分解任务并异步执行；而`join`方法在任务结果计算完毕之后才会运行，用来合并或返回计算结果；
+- **ForkJoinWorkerThread**：`Thread`的子类，作为线程池中的工作线程（`Worker`）执行任务；
+- **WorkQueue**：任务队列，用于保存任务；
+
+
+
+#### ForkJoinPool
+
+```java
+@sun.misc.Contended
+public class ForkJoinPool extends AbstractExecutorService {
+
+}
+```
+
+
+
+ForkJoinPool的主要工作如下：
+
+1. 接受外部任务的提交（外部调用`ForkJoinPool`的`invoke`/`execute`/`submit`方法提交任务）；
+2. 接受`ForkJoinTask`自身**fork**出的子任务的提交；
+3. 任务队列数组（`WorkQueue[]`）的初始化和管理；
+4. 工作线程（`Worker`）的创建/管理。
+
+
+
+ForkJoinPool提供了3类外部提交任务的方法：**invoke**、**execute**、**submit**，它们的主要区别在于任务的执行方式上。
+
+- 通过**invoke**方法提交的任务，调用线程直到任务执行完成才会返回，也就是说这是一个**同步**方法，且**有返回结果**；
+- 通过**execute**方法提交的任务，调用线程会立即返回，也就是说这是一个**异步**方法，且**没有返回结果**；
+- 通过**submit**方法提交的任务，调用线程会立即返回，也就是说这是一个**异步**方法，且**有返回结果**（返回Future实现类，可以通过get获取结果）。
+
+
+
+构造方式
+
+1. 通过3种构造器的任意一种进行构造；
+2. 通过`ForkJoinPool.commonPool()`静态方法构造。
+
+
+
+```java
+/**
+ * @param parallelism      并行级别, 默认为CPU核心数
+ * @param factory          工作线程工厂
+ * @param handler          异常处理器
+ * @param mode        调度模式: true表示FIFO_QUEUE; false表示LIFO_QUEUE
+ * @param workerNamePrefix 工作线程的名称前缀
+ */
+private ForkJoinPool(int parallelism, ForkJoinWorkerThreadFactory factory, UncaughtExceptionHandler handler,
+                     int mode, String workerNamePrefix) {
+    this.workerNamePrefix = workerNamePrefix;
+    this.factory = factory;
+    this.ueh = handler;
+    this.config = (parallelism & SMASK) | mode;
+    long np = (long) (-parallelism); // offset ctl counts
+    this.ctl = ((np << AC_SHIFT) & AC_MASK) | ((np << TC_SHIFT) & TC_MASK);
+
+}
+
+//JDK8以后，ForkJoinPool又提供了一个静态方法commonPool()，
+//这个方法返回一个ForkJoinPool内部声明的静态ForkJoinPool实例，
+//主要是为了简化线程池的构建，这个ForkJoinPool实例可以满足大多数的使用场景
+public static ForkJoinPool commonPool() {
+     // assert common != null : "static init error";
+     return common;
+ }
+```
+
+- **parallelism**：默认值为CPU核心数，ForkJoinPool里工作线程数量与该参数有关，但它不表示最大线程数；
+- **factory**：工作线程工厂，默认是DefaultForkJoinWorkerThreadFactory，其实就是用来创建工作线程对象——ForkJoinWorkerThread；
+- **handler**：异常处理器；
+- **config**：保存parallelism和mode信息，供后续读取；
+- **ctl**：线程池的核心控制字段
+
+
+
+重点是`mode`这个字段，`ForkJoinPool`支持两种模式：
+
+1. 同步模式（默认方式）
+2. 异步模式
+
+```java
+mode = asyncMode ? FIFO_QUEUE : LIFO_QUEUE
+```
+
+> **注意：**这里的同步/异步并不是指F/J框架本身是采用同步模式还是采用异步模式工作，而是指其中的工作线程的工作方式。在F/J框架中，每个工作线程（Worker）都有一个属于自己的任务队列（WorkQueue），这是一个底层采用数组实现的**双向队列**。
+> 同步是指：对于工作线程（Worker）自身队列中的任务，采用**后进先出（LIFO）**的方式执行；异步是指：对于工作线程（Worker）自身队列中的任务，采用**先进先出（FIFO）**的方式执行。
+
+
+
+#### ForkJoinTask
