@@ -199,7 +199,7 @@ $ HLEN key: 获取属性的个数。
 
 
 ```shell
-$ lpush 1,2,3,......
+$ lpush mylist  1,2,3,......
 $ rpush 1,2,3,......
 $ lrange 0, -1
 # LRANGE 带有两个索引，一定范围的第一个和最后一个元素。这两个索引都可以为负来告知Redis从尾部开始计数，因此-1表示最后一个元素，-2表示list中的倒数第二个元素，以此类推。
@@ -227,11 +227,70 @@ $ rpoplpush srckey dstkey
 
 
 
-适用场景：
+### 适用场景：
 
 - list可被用来实现聊天系统。还可以作为不同进程间传递消息的队列。（关键是，你可以每次都以原先添加的顺序访问数据。）
 
 
+
+### List上的阻塞操作
+
+可以使用Redis来实现生产者和消费者模型，如使用LPUSH和RPOP来实现该功能。但会遇到这种情景：list是空，这时候消费者就需要轮询来获取数据，这样就会增加redis的访问压力、增加消费端的cpu时间，而很多访问都是无用的。为此redis提供了阻塞式访问 [BRPOP](http://www.redis.cn/commands/brpop.html) 和 [BLPOP](http://www.redis.cn/commands/blpop.html) 命令。 消费者可以在获取数据时指定如果数据不存在阻塞的时间，如果在时限内获得数据则立即返回，如果超时还没有数据则返回null, 0表示一直阻塞。
+
+同时redis还会为所有阻塞的消费者以先后顺序排队。
+
+如需了解详细信息请查看 [RPOPLPUSH](http://www.redis.cn/commands/rpoplpush.html) 和 [BRPOPLPUSH](http://www.redis.cn/commands/brpoplpush.html)。
+
+
+
+### key 的自动创建和删除
+
+在我们的例子中，我们没有在推入元素之前创建空的 list，或者在 list 没有元素时删除它。在 list 为空时删除 key，并在用户试图添加元素（比如通过 `LPUSH`）而键不存在时创建空 list，是 Redis 的职责。
+
+这不光适用于 lists，还适用于所有包括多个元素的 Redis 数据类型 – Sets, Sorted Sets 和 Hashes。
+
+基本上，我们可以用三条规则来概括它的行为：
+
+1. 当我们向一个聚合数据类型中添加元素时，如果目标键不存在，就在添加元素前创建空的聚合数据类型。
+
+   ```shell
+   > del mylist
+   (integer) 1
+   > lpush mylist 1 2 3
+   (integer) 3
+   ```
+
+2. 当我们从聚合数据类型中移除元素时，如果值仍然是空的，键自动被销毁。
+
+   ```shell
+   > lpush mylist 1 2 3
+   (integer) 3
+   > exists mylist
+   (integer) 1
+   > lpop mylist
+   "3"
+   > lpop mylist
+   "2"
+   > lpop mylist
+   "1"
+   > exists mylist
+   (integer) 0
+   ```
+
+   所有的元素被弹出之后， key 不复存在。
+
+3. 对一个空的 key 调用一个只读的命令，比如 `LLEN` （返回 list 的长度），或者一个删除元素的命令，将总是产生同样的结果。该结果和对一个空的聚合类型做同个操作的结果是一样的。
+
+   ```shell
+   > del mylist
+   (integer) 0
+   > llen mylist
+   (integer) 0
+   > lpop mylist
+   (nil)
+   ```
+
+   
 
 ## set
 
