@@ -179,43 +179,6 @@ $ jstack [ option ] [server-id@]remote-hostname-or-IP
 
 
 
-示例：
-
-```shell
-1.top查找出哪个进程消耗的cpu高。执行top命令，默认是进程视图，其中PID是进程号
-co_ad2    18   0 1817m 776m 9712 S  3.3  4.9  12:03.24 java                                                                                           
-co_ad     21   0 3028m 2.5g 9432 S  1.0 16.3   6629:44 ja
-
-
-这里我们分析21125这个java进程
-2.top中shift+h 或“H”查找出哪个线程消耗的cpu高 
-先输入top，然后再按shift+h 或“H”，此时打开的是线程视图，pid为线程号
-co_ad2    15   0 1807m 630m 9492 S  1.3  4.0   0:05.12 java                                                                                           
-co_ad2_s  15   0 1360m 560m 9176 S  0.3  3.6   0:46.72 java                                                                                           
-
-这里我们分析21233这个线程，并且注意的是，这个线程是属于21125这个进程的。 
-
-3.使用jstack命令输出这一时刻的线程栈，保存到文件，命名为jstack.log。注意：输出线程栈和保存top命令快照尽量同时进行。
-  由于jstack.log文件记录的线程ID是16进制，需要将top命令展示的线程号转换为16进制。
-
-4. jstack查找这个线程的信息 
-jstack [进程]|grep -A 10 [线程的16进制] 
-即： jstack 21125|grep -A 10 52f1  
-
--A 10表示查找到所在行的后10行。21233用计算器转换为16进制52f1，注意字母是小写。 
-结果： 
- 
-"http-8081-11" daemon prio=10 tid=0x00002aab049a1800 nid=0x52bb in Object.wait() [0x0000000042c75000]  
-   java.lang.Thread.State: WAITING (on object monitor)  
-     at java.lang.Object.wait(Native Method)  
-     at java.lang.Object.wait(Object.java:485)  
-     at org.apache.tomcat.util.net.JIoEndpoint$Worker.await(JIoEndpoint.java:416)  
-
-在结果中查找52f1，可看到当前线程在做什么。
-```
-
-
-
 ## jstat
 
 `Java Virtual Machine statistics monitoring tool`，对Java应用程序的**资源**和**性能**进行**实时**的命令行的监控，包括了对Heap size和垃圾回收状况的监控。
