@@ -643,7 +643,61 @@ appendfsync everysec # fsync only one time every second. Compromise.
 
 # sentinel
 
- `Sentinel` 是一个管理多个 `Redis` 实例的工具，它可以实现对 `Redis` 的 **监控**、**通知**、**自动故障转移**。 
+ `Sentinel` 是一个管理多个 `Redis` 实例的工具，它可以实现对 `Redis` 的 **监控**、**通知**、**自动故障转移**和**配置中心**。 
+
+- **（1）集群监控**：负责监控Redis master和slave进程是否正常工作
+- **（2）消息通知**：如果某个Redis实例有故障，那么哨兵负责发送消息作为报警通知给管理员
+
+- **（3）故障转移**：如果master node挂掉了，会自动转移到slave node上
+
+- **（4）配置中心**：如果故障转移发生了，通知client客户端新的master地址
+
+
+
+## Sentinel 命令
+
+```shell
+$ PING ：# 返回 PONG 。
+
+# 列出所有被监视的主服务器，以及这些主服务器的当前状态。
+$ sentinel masters <master name>
+
+# 列出给定主服务器的所有从服务器，以及这些从服务器的当前状态。
+$ sentinel slaves <master name>
+
+# 展示指定<master name>的Sentinel节点集合（不包含当前Sentinel节点）
+$ sentinel sentinels<master name>
+
+# 返回给定名字的主服务器的 IP 地址和端口号。 如果这个主服务器正在执行故障转移操作， 
+# 或者针对这个主服务器的故障转移操作已经完成， 那么这个命令返回新的主服务器的 IP 地址和端口号。
+$ sentinel get-master-addr-by-name <master name>
+
+# 重置所有名字和给定模式 pattern 相匹配的主服务器。 pattern 参数是一个 Glob 风格的模式。 
+# 重置操作清楚主服务器目前的所有状态， 包括正在执行中的故障转移， 并移除目前已经发现和关联的， 
+# 主服务器的所有从服务器和 Sentinel 
+$ sentinel reset <pattern>
+
+# 当主服务器失效时， 在不询问其他 Sentinel 意见的情况下， 强制开始一次
+# 自动故障迁移 （不过发起故障转移的 Sentinel 会向其他 Sentinel 发送一个新的配置，
+# 其他 Sentinel 会根据这个配置进行相应的更新）。
+$ sentinel failover <master name>
+
+# 检测当前可达的Sentinel节点总数是否达到<quorum>的个数。
+# 例如quorum=3， 而当前可达的Sentinel节点个数为2个，那么将无法进行故障转移，Redis Sentinel的高可用特性也将失去。
+$ sentinel ckquorum<master name>
+
+# 将Sentinel节点的配置强制刷到磁盘上，这个命令Sentinel节点自身用得比较多，
+# 对于开发和运维人员只有当外部原因（例如磁盘损坏）造成配置文件损坏或者丢失时，这个命令是很有用的。
+$ sentinel flushconfig
+
+# 取消当前Sentinel节点对于指定<master name>主节点的监控。
+$ sentinel remove<master name>
+
+# 这个命令和配置文件中的含义是完全一样的， 只不过是通过命令的形式来完成Sentinel节点对主节点的监控。
+$ sentinel monitor<master name><ip><port><quorum>
+
+$ sentinel set<master name> # 动态修改Sentinel节点配置选项
+```
 
 
 
@@ -669,6 +723,10 @@ Redis 集群有16384个哈希槽,每个key通过CRC16校验后对16384取模来�
 - 节点 C 包含11001 到 16384号哈希槽.
 
 > 这种结构很容易添加或者删除节点. 比如如果我想新添加个节点D, 我需要从节点 A, B, C中得部分槽到D上. 如果我想移除节点A,需要将A中的槽移到B和C节点上,然后将没有任何槽的A节点从集群中移除即可. 由于从一个节点将哈希槽移动到另一个节点并不会停止服务,所以无论添加删除或者改变某个节点的哈希槽的数量都不会造成集群不可用的状态.
+
+
+
+![](img/redis-cluster-slots1.png)
 
 
 
@@ -963,6 +1021,21 @@ Redis 客户端可以订阅任意数量的频道。
 | PUNSUBSCRIBE [pattern [pattern ...\]]         | 退订所有给定模式的频道           |
 | [SUBSCRIBE channel [channel ...]              | 订阅给定的一个或多个频道的信息   |
 | UNSUBSCRIBE [channel [channel ...\]]          | 指退订给定的频道。               |
+
+
+
+## 通过频道和模式接收同一条信息
+
+如果客户端订阅的多个模式匹配了同一个频道， 或者客户端同时订阅了某个频道、以及匹配这个频道的某个模式， 那么它可能会多次接收到同一条信息。
+
+举个例子， 如果客户端执行了以下命令：
+
+```shell
+> SUBSCRIBE foo
+> PSUBSCRIBE f*
+```
+
+那么当有信息发送到频道 `foo` 时， 客户端将收到两条信息： 一条来自频道 `foo` ，信息类型为 `message` ； 另一条来自模式 `f*` ，信息类型为 `pmessage` 。
 
 
 
