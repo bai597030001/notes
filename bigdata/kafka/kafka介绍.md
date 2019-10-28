@@ -1,14 +1,14 @@
-# Kafka
-
 [Kafka 入门介绍-博客链接](<https://lotabout.me/2018/kafka-introduction/>)
 
 [kafka官网](<https://kafka.apache.org/>)
 
 [confluent](<https://www.confluent.io/>)
 
-## 1.相关概念
 
-`massage`： kafka中最基本的传递对象，有固定格式。
+
+# 相关概念
+
+`massage`： kafka中最基本的传递对象，有固定格式。 
 
 `topic`：话题，代表 一类消息，如page view，click行为等。
 
@@ -30,7 +30,28 @@
 
 ![](img/kafka1.webp)
 
-- 每个topic可以分为多个partition，一个partition相当于一个大目录，每个partition下面有多个大小相等的segment文件，这个segment是由message组成的，而每一个的segment不一定由大小相等的message组成。segment大小及生命周期在server.properties文件中配置。offset用于定位位于段里的唯一消息。
+- 每个topic可以分为多个partition，一个partition相当于一个大目录，每个partition下面有多个**大小相等**的segment文件，这个segment是由message组成的，而每一个的segment不一定由大小相等的message组成。segment大小及生命周期在server.properties文件中配置。offset用于定位位于段里的唯一消息。
+
+  ```properties
+  # The following configurations control the disposal of log segments. The policy can
+  # be set to delete segments after a period of time, or after a given size has accumulated.
+  # A segment will be deleted whenever *either* of these criteria are met. Deletion always happens
+  # from the end of the log.
+  
+  # The minimum age of a log file to be eligible for deletion due to age
+  log.retention.hours=168
+  
+  # A size-based retention policy for logs. Segments are pruned from the log unless the remaining
+  # segments drop below log.retention.bytes. Functions independently of log.retention.hours.
+  #log.retention.bytes=1073741824
+  
+  # The maximum size of a log segment file. When this size is reached a new log segment will be created.
+  log.segment.bytes=1073741824
+  
+  # The interval at which log segments are checked to see if they can be deleted according
+  # to the retention policies
+  log.retention.check.interval.ms=300000
+  ```
 
   
 
@@ -51,7 +72,7 @@
 - kafka消息传递语义
 
 ```properties
-# 有这么几种可能的delivery guarantee：
+# 有这么几种可能的 delivery guarantee：
 At most once 消息可能会丢，但绝不会重复传输
 At least one 消息绝不会丢，但可能会重复传输
 Exactly once 每条消息肯定会被传输一次且仅传输一次，很多时候这是用户所想要的。
@@ -121,9 +142,9 @@ Exactly once 每条消息肯定会被传输一次且仅传输一次，很多时候这是用户所想要的。
 
   
 
-## 2.实例讲解
+# 实例讲解
 
-### 2.1创建一个 test2 test-demo（注意这里的 partitions 参数为 3）：
+- 创建一个 test2 test-demo（注意这里的 partitions 参数为 3）：
 
 ```shell
 [root@spark-master ~]# kafka-topics --create --partitions 3 --replication-factor 2  --zookeeper spark-master:2181 --topic test-demo
@@ -131,7 +152,7 @@ Exactly once 每条消息肯定会被传输一次且仅传输一次，很多时候这是用户所想要的。
 Created topic "test-demo".
 ```
 
-### 2.2查看`test-demo`
+- 查看`test-demo`
 
 ```shell
 [root@spark-master ~]# kafka-topics --describe  --zookeeper spark-master:2181 | grep test-demo
@@ -143,7 +164,7 @@ Topic:test-demo PartitionCount:3        ReplicationFactor:2     Configs:
 
 > PartitionCount:3 表示该话题有3个分区（0，1，2）；Leader1，2，3表示3个分区分别为broker1，2，3；Replicas表示该分区的备份broker id
 
-### 2.3进入kafka数据目录查看
+- 进入kafka数据目录查看
 
 ```shell
 # broker 1
@@ -166,7 +187,7 @@ test-demo-2
 
 ```
 
-### 2.4生产数据（producer）
+- 生产数据（producer）
 
 ```shell
 [root@spark-slave0 ~]# kafka-console-producer --broker-list spark-slave1:9092 --topic test-demo
@@ -175,7 +196,7 @@ test-demo-2
 >answer:jams
 ```
 
-### 2.5消费数据（consumer）
+- 消费数据（consumer）
 
 ```shell
 [root@spark-slave0 ~]# kafka-console-consumer --bootstrap-server spark-slave1:9092 --topic test-demo [--consumer-property group.id=group_test] --from-beginning
@@ -184,7 +205,7 @@ answer:jams
 hello:world
 ```
 
-### 2.6查看话题偏移量（offset）
+- 查看话题偏移量（offset）
 
 ```shell
 [root@spark-slave0 confluent-4.0.0]# bin/kafka-consumer-groups --bootstrap-server spark-slave1:9092 --describe --group group_test
@@ -210,7 +231,7 @@ test-demo:1:2
 test-demo:0:4
 ```
 
-### 2.7命令行调整offset
+- 命令行调整offset
 
 前提是：consumer group状态必须是inactive的，即不能是处于正在工作中的状态。
 
@@ -248,6 +269,8 @@ test-demo                      0          20
   - --execute：执行真正的位移调整
   - --export：把位移调整方案按照CSV格式打印，方便用户成csv文件，供后续直接使用
 
+
+
 查看kafka数据文件.log
 
 ```shell
@@ -263,9 +286,9 @@ $ kafka-run-class kafka.tools.DumpLogSegments --files /home/data/kafka/kafkadata
 
 
 
-## 3.kafka文件存储机制
+# kafka文件存储机制
 
-### 3.1topic中partition存储分布
+### topic中partition存储分布
 
 - 同一个topic下有多个不同partition，每个partition为一个目录，partiton命名规则为topic名称+有序序号
 
@@ -277,12 +300,14 @@ $ kafka-run-class kafka.tools.DumpLogSegments --files /home/data/kafka/kafkadata
   1. 一个partition只能被一个消费者消费（一个消费者可以同时消费多个partition）因此，如果设置的partition的数量小于consumer的数量，就会有消费者消费不到数据。所以，推荐partition的数量一定要大于同时运行的consumer的数量。
   2. 建议partition的数量大于集群broker的数量，这样leader partition就可以均匀的分布在各个broker中，最终使得集群负载均衡。
 
-### 3.2partiton中文件存储方式 (partition在linux服务器上就是一个目录)
+### partiton中文件存储方式 
+
+- partition在linux服务器上就是一个目录
 
 - 每个partion(目录)相当于一个巨型文件被平均分配到多个大小相等segment(段)数据文件中。但每个段segment file消息数量不一定相等，这种特性方便old segment file快速被删除。
 - 每个partiton只需要支持顺序读写就行了，segment文件生命周期由**服务端配置参数**决定。
 
-### 3.3partiton中segment文件存储结构
+### partiton中segment文件存储结构
 
 producer发message到某个topic，message会被均匀的分布到多个partition上（随机或根据用户指定的回调函数进行分布），kafka broker收到message往对应partition的最后一个segment上添加该消息，当某个segment上的消息条数达到配置值或消息发布时间超过阈值时，segment上的消息会被flush到磁盘，只有flush到磁盘上的消息consumer才能消费，segment达到一定的大小后将不会再往该segment写数据，broker会创建新的segment。
 
@@ -324,7 +349,7 @@ producer发message到某个topic，message会被均匀的分布到多个partition上（随机或根据
 | K byte key          | 可选                                                         |
 | value bytes payload | 表示实际消息数据。                                           |
 
-### 3.4在partition中如何通过offset查找message
+### 在partition中如何通过offset查找message
 
 例如读取offset=368776的message，需要通过下面2个步骤查找。
 
@@ -338,9 +363,9 @@ producer发message到某个topic，message会被均匀的分布到多个partition上（随机或根据
 
 segment index file采取稀疏索引存储方式，它减少索引文件大小，通过mmap可以直接内存操作，稀疏索引为数据文件的每个对应message设置一个元数据指针,它 比稠密索引节省了更多的存储空间，但查找起来需要消耗更多的时间。
 
-## 4.Kafka 生产者-消费者
+# Kafka 生产者-消费者
 
-### 4.1Producers
+### Producers
 
 - Producers直接发送消息到broker上的leader partition，不需要经过任何中介或其他路由转发。为了实现这个特性，kafka集群中的每个broker都可以响应producer的请求，并返回topic的一些元信息，这些元信息包括哪些机器是存活的，topic的leader partition都在哪，现阶段哪些leader partition是可以直接被访问的。
 
@@ -354,7 +379,7 @@ segment index file采取稀疏索引存储方式，它减少索引文件大小，通过mmap可以直接内存
 
 - Kafka没有限定单个消息的大小，但我们推荐消息大小不要超过1MB,通常一般消息大小都在1~10k
 
-### 4.2Consumers
+### Consumers
 
 - Kafka提供了两套consumer api，分为`high-level api`和`sample-api`。
 
