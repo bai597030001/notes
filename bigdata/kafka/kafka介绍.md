@@ -33,23 +33,21 @@
 - 每个topic可以分为多个partition，一个partition相当于一个大目录，每个partition下面有多个**大小相等**的segment文件，这个segment是由message组成的，而每一个的segment不一定由大小相等的message组成。segment大小及生命周期在server.properties文件中配置。offset用于定位位于段里的唯一消息。
 
   ```properties
-  # The following configurations control the disposal of log segments. The policy can
-  # be set to delete segments after a period of time, or after a given size has accumulated.
-  # A segment will be deleted whenever *either* of these criteria are met. Deletion always happens
-  # from the end of the log.
+  # 以下配置控制日志段 segments 的处理。策略可以将其设置为在一段时间之后，或在给定大小累积之后删除段。
+  # 只要满足*其中*一个条件，段就会被删除。删除总是发生在日志的最后。
   
-  # The minimum age of a log file to be eligible for deletion due to age
+  # 日志文件的最小删除年龄
   log.retention.hours=168
   
-  # A size-based retention policy for logs. Segments are pruned from the log unless the remaining
-  # segments drop below log.retention.bytes. Functions independently of log.retention.hours.
-  #log.retention.bytes=1073741824
+  # 基于日志大小的保留策略。除非剩下的片段被从日志中删除
+  # 段位于 log.retention.bytes. 功能独立于 log.retention.hours.
+  log.retention.bytes=1073741824
   
-  # The maximum size of a log segment file. When this size is reached a new log segment will be created.
+  # 日志段文件的最大大小。当达到这个大小时，将创建一个新的日志段。
   log.segment.bytes=1073741824
   
-  # The interval at which log segments are checked to see if they can be deleted according
-  # to the retention policies
+  # The interval at which log segments are checked to see if they can be deleted according to the retention policies
+  # 时间间隔： 检查日志segments以查看是否可以根据保留策略删除它们 的 时间间隔
   log.retention.check.interval.ms=300000
   ```
 
@@ -144,13 +142,60 @@ Exactly once 每条消息肯定会被传输一次且仅传输一次，很多时候这是用户所想要的。
 
 # 实例讲解
 
+## 创建话题
+
 - 创建一个 test2 test-demo（注意这里的 partitions 参数为 3）：
 
 ```shell
-[root@spark-master ~]# kafka-topics --create --partitions 3 --replication-factor 2  --zookeeper spark-master:2181 --topic test-demo
+# --partitions 3 : 表示该话题使用3个分区
+# --replication-factor 2 ： 表示副本个数为2个
+
+$ kafka-topics --create --partitions 3 --replication-factor 2  --zookeeper spark-master:2181 --topic test-demo
 
 Created topic "test-demo".
 ```
+
+
+
+## 删除话题
+
+```shell
+# 移除话题，若移除话题失败需要在Kafka服务端配置中添加设定 
+# delete.topic.enble = true
+$ kafka-topics --delete --topic [话题名称] --zookeeper [Zookeeper集群IP:端口]
+
+eg:
+$ kafka-topics --delete --topic test --zookeeper hadoop-cluster01:2181
+```
+
+
+
+## 修改话题
+
+```shell
+$ kafka-topics --zookeeper zk_host:port --alter --topic my_topic_name --partitions 3
+```
+
+关于修改partition数量，有两点需要注意：
+
+1. partition只能增加，不支持减少
+2. 新增的partition只会对将来写入的数据起作用，以前存在的数据不会被移动到新的partition中
+
+除了修改partition数量，我们还可以修改topic层面的配置，增加配置项：
+
+```shell
+$ kafka-topics --zookeeper zk_host:port/chroot --alter --topic my_topic_name --config x=y
+```
+
+删除配置项：
+
+```shell
+$ kafka-topics --zookeeper zk_host:port/chroot --alter --topic my_topic_name --delete-config x
+```
+
+
+
+## 查看话题
 
 - 查看`test-demo`
 
@@ -162,7 +207,18 @@ Topic:test-demo PartitionCount:3        ReplicationFactor:2     Configs:
       Topic: test-demo        Partition: 2    Leader: 3       Replicas: 3,2   Isr: 3,2
 ```
 
+
+
 > PartitionCount:3 表示该话题有3个分区（0，1，2）；Leader1，2，3表示3个分区分别为broker1，2，3；Replicas表示该分区的备份broker id
+
+
+
+```shell
+#查看topic：
+$ kafka-topics --list --zookeeper 172.16.0.126:2181
+```
+
+
 
 - 进入kafka数据目录查看
 
@@ -187,6 +243,10 @@ test-demo-2
 
 ```
 
+
+
+## 生产数据
+
 - 生产数据（producer）
 
 ```shell
@@ -196,16 +256,32 @@ test-demo-2
 >answer:jams
 ```
 
+
+
+## 消费数据
+
 - 消费数据（consumer）
 
 ```shell
-[root@spark-slave0 ~]# kafka-console-consumer --bootstrap-server spark-slave1:9092 --topic test-demo [--consumer-property group.id=group_test] --from-beginning
+#消费消息：
+#使用 --from-beginning 参数输出该话题从创建开始后的消息
+#使用 --consumer.config 参数指定消费端使用的配置文件
+#使用 --offset [偏移量] --partion [分区编号] 参数自定义读取消息时的偏移量
+$ kafka-console-consumer --bootstrap-server [listeners IP:端口] --topic [话题名称] [--consumer-property group.id=group_test]
+
+eg:
+
+$ kafka-console-consumer --bootstrap-server spark-slave1:9092 --topic test-demo [--consumer-property group.id=group_test] --from-beginning
 question:what is your name?
 answer:jams
 hello:world
 ```
 
-- 查看话题偏移量（offset）
+
+
+## 偏移量操作
+
+### 查看Offset
 
 ```shell
 [root@spark-slave0 confluent-4.0.0]# bin/kafka-consumer-groups --bootstrap-server spark-slave1:9092 --describe --group group_test
@@ -223,6 +299,10 @@ test-demo                      0          4               4               0     
 # lag可以理解为未消费记录条数。
 ```
 
+
+
+### 查看partition状态
+
 ```shell
 $ bin/kafka-run-class kafka.tools.GetOffsetShell --broker-list spark-slave1:9092 --topic test-demo --time -1
 
@@ -231,7 +311,9 @@ test-demo:1:2
 test-demo:0:4
 ```
 
-- 命令行调整offset
+
+
+### 调整offset
 
 前提是：consumer group状态必须是inactive的，即不能是处于正在工作中的状态。
 
@@ -271,18 +353,24 @@ test-demo                      0          20
 
 
 
-查看kafka数据文件.log
+## 查看数据文件
 
 ```shell
 # --print-data-log 是表示查看消息内容的，不加此项是查看不到详细的消息内容。如果要查看多个log文件可以用逗号分隔。
 $ kafka-run-class kafka.tools.DumpLogSegments --files /home/data/kafka/kafkadata/test-demo-1/00000000000000000000.log --print-data-log
 ```
 
-查看kafka索引文件.index
+
+
+## 查看索引文件
 
 ```shell
 $ kafka-run-class kafka.tools.DumpLogSegments --files /home/data/kafka/kafkadata/test-demo-1/00000000000000000000.index
 ```
+
+
+
+## 扩展集群
 
 
 
@@ -365,7 +453,7 @@ segment index file采取稀疏索引存储方式，它减少索引文件大小，通过mmap可以直接内存
 
 # Kafka 生产者-消费者
 
-### Producers
+## Producers
 
 - Producers直接发送消息到broker上的leader partition，不需要经过任何中介或其他路由转发。为了实现这个特性，kafka集群中的每个broker都可以响应producer的请求，并返回topic的一些元信息，这些元信息包括哪些机器是存活的，topic的leader partition都在哪，现阶段哪些leader partition是可以直接被访问的。
 
@@ -379,7 +467,7 @@ segment index file采取稀疏索引存储方式，它减少索引文件大小，通过mmap可以直接内存
 
 - Kafka没有限定单个消息的大小，但我们推荐消息大小不要超过1MB,通常一般消息大小都在1~10k
 
-### Consumers
+## Consumers
 
 - Kafka提供了两套consumer api，分为`high-level api`和`sample-api`。
 
@@ -410,3 +498,27 @@ segment index file采取稀疏索引存储方式，它减少索引文件大小，通过mmap可以直接内存
   - 如果consumer从多个partition读到数据，不保证数据间的顺序性，kafka只保证在一个partition上数据是有序的，但多个partition，根据你读的顺序会有不同
   - 增减consumer，broker，partition会导致rebalance，所以rebalance后consumer对应的partition会发生变化
   - High-level接口中获取不到数据的时候是会block的
+
+
+
+# 消息投递语义
+
+kafka支持3种消息投递语义
+	
+
+- At most once：最多一次，消息可能会丢失，但不会重复
+
+  > \>1. 设置‘enable.auto.commit’ 为 true.
+  >
+  > \>2. 设置 ‘auto.commit.interval.ms’ 为一个较小的值.
+
+- At least once：最少一次，消息不会丢失，可能会重复
+
+  > 1. 设置‘enable.auto.commit’ 为 false 或者
+  >
+  > 设置‘enable.auto.commit’ 为 true 并设置‘auto.commit.interval.ms’ 为一个较大的值.
+
+- Exactly once：只且一次，消息不丢失不重复，只且消费一次
+
+
+

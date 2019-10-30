@@ -1305,13 +1305,70 @@ public class ThreadLocal<T> {
 
 **使用示例**：ThreadLocal解决SimpleDataFormat线程不安全问题。
 
+```java
+public class SimpleDateFormatTest {
+
+    //(1)创建单例实例
+    static SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+    static ThreadLocal<DateFormat> tsdf = new ThreadLocal<DateFormat>(){
+        @Override
+        protected DateFormat initialValue() {
+            return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        }
+    };
+
+    @Test
+    public void test1() {
+        //(2)创建多个线程，并启动
+        for (int i = 0; i <100; ++i) {
+            Thread thread = new Thread(() -> {
+                try {
+                    //(3)使用单例日期实例解析文本
+                    System.out.println(sdf.parse("2017-12-13 15:17:27"));
+                } catch (ParseException e) {
+                    e.printStackTrace();
+                }
+            });
+            thread.start();//(4)启动线程
+        }
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Test
+    public void test2() {
+        //(2)创建多个线程，并启动
+        for (int i = 0; i <100; ++i) {
+            Thread thread = new Thread(() -> {
+                try {
+                    //(3)使用单例日期实例解析文本
+                    System.out.println(tsdf.get().parse("2017-12-13 15:17:27"));
+                } catch (ParseException e) {
+                    e.printStackTrace();
+                }
+            });
+            thread.start();//(4)启动线程
+        }
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
 
 
 **常见问题**：
 
 ​	**1.内存泄漏问题**：
 
-​	**2.hash冲突**
+​	**2.hash冲突如何处理的**
 
 
 
