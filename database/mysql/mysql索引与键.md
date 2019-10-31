@@ -324,4 +324,4 @@ FULLTEXT 是全文索引，用于在一篇文章中，检索文本信息的。
 
 - 图示
 
-![](/img/index1.png)
+![](img/index1.png)
