@@ -1303,7 +1303,28 @@ public class ThreadLocal<T> {
 
 
 
-**使用示例**：ThreadLocal解决SimpleDataFormat线程不安全问题。
+```java
+public class Thread implements Runnable {
+
+    /* ThreadLocal values pertaining to this thread. This map is maintained
+     * by the ThreadLocal class. */
+    ThreadLocal.ThreadLocalMap threadLocals = null;
+
+    /*
+     * InheritableThreadLocal values pertaining to this thread. This map is
+     * maintained by the InheritableThreadLocal class.
+     */
+    ThreadLocal.ThreadLocalMap inheritableThreadLocals = null;
+    
+    // ......
+}
+```
+
+
+
+### 使用示例
+
+`ThreadLocal`解决`SimpleDataFormat`线程不安全问题。
 
 ```java
 public class SimpleDateFormatTest {
@@ -1364,11 +1385,288 @@ public class SimpleDateFormatTest {
 
 
 
-**常见问题**：
+### 原理详解
 
-​	**1.内存泄漏问题**：
+- 例如上述中的`ThreadLocal<DateFormat>`，当`new`一个`ThreadLocal<DateFormat>`时，需要重写其`initialValue`方法，构造自己需要的实例。
 
-​	**2.hash冲突如何处理的**
+  ```java
+  static ThreadLocal<DateFormat> tsdf = new ThreadLocal<DateFormat>(){
+      @Override
+      protected DateFormat initialValue() {
+          return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+      }
+  };
+  ```
+
+  
+
+- 随后在测试用例中使用，当调用其`get()`方法时，该方法内部会获取当前线程的`ThreadLocalMap`实例`threadLocals`，并判断`threadLocals`中是否存储了以当前`ThreadLocal`为`key`的数值。
+
+  ```java
+  /**
+  * Returns the value in the current thread's copy of this
+  * thread-local variable.  If the variable has no value for the
+  * current thread, it is first initialized to the value returned
+  * by an invocation of the {@link #initialValue} method.
+  *
+  * @return the current thread's value of this thread-local
+  */
+  public T get() {
+      //获取当前线程
+      Thread t = Thread.currentThread();
+      //获取当前线程的 ThreadLocalMap 变量 -> threadLocals
+      ThreadLocalMap map = getMap(t);
+      if (map != null) {
+          //如果当前线程的 threadLocals 不为空，则获取该map中的值
+          //此处 this : 即为当前ThreadLocal<T>, 也就是上边示例的 ThreadLocal<DateFormat> tsdf
+          ThreadLocalMap.Entry e = map.getEntry(this);
+          if (e != null) {
+              @SuppressWarnings("unchecked")
+              T result = (T)e.value;
+              return result;
+          }
+      }
+      //如果map为空，则初始化
+      return setInitialValue();
+  }
+  
+  /**
+  * Variant of set() to establish initialValue. Used instead
+  * of set() in case user has overridden the set() method.
+  *
+  * @return the initial value
+  */
+  private T setInitialValue() {
+      //此处调用initialValue() 即为调用初始化ThreadLocal<DateFormat>时重写的initialValue()
+      T value = initialValue();
+      //当前线程
+      Thread t = Thread.currentThread();
+      //获取当前线程的ThreadLocalMap变量 threadLocals
+      ThreadLocalMap map = getMap(t);
+      if (map != null)
+          map.set(this, value);
+      else
+          createMap(t, value);
+      return value;
+  }
+  
+  /**
+  * Create the map associated with a ThreadLocal. Overridden in
+  * InheritableThreadLocal.
+  *
+  * @param t the current thread
+  * @param firstValue value for the initial entry of the map
+  */
+  void createMap(Thread t, T firstValue) {
+      t.threadLocals = new ThreadLocalMap(this, firstValue);
+  }
+  ```
+
+
+
+`ThreadLocal`的实现是这样的：每个`Thread` 维护一个 `ThreadLocalMap` 映射表，这个映射表的 `key` 是 `ThreadLocal` 实例本身，`value` 是真正需要存储的 `Object`。
+
+也就是说 `ThreadLocal` 本身并不存储值，它只是作为一个 `key` 来让线程从 `ThreadLocalMap` 获取 `value`。值得注意的是图中的虚线，表示 `ThreadLocalMap` 是使用 `ThreadLocal` 的弱引用作为 `Key` 的，弱引用的对象在 `GC` 时会被回收。
+
+![](img/threadLocal1..webp)
+
+
+
+### 常见问题
+
+
+
+#### 内存泄漏问题
+
+`ThreadLocalMap`使用`ThreadLocal`的弱引用作为`key`，如果一个`ThreadLocal`没有外部强引用来引用它，那么系统 `GC` 的时候，这个`ThreadLocal`势必会被回收，这样一来，`ThreadLocalMap`中就会出现`key`为`null`的`Entry`，就没有办法访问这些`key`为`null`的`Entry`的`value`，如果当前线程再迟迟不结束的话，这些`key`为`null`的`Entry`的`value`就会一直存在一条强引用链：`Thread Ref -> Thread -> ThreaLocalMap -> Entry -> value`永远无法回收，造成内存泄漏。
+
+
+
+其实，`ThreadLocalMap`的设计中已经考虑到这种情况，也加上了一些防护措施：在`ThreadLocal`的`get(),set(),remove()`的时候都会清除线程`ThreadLocalMap`里所有`key`为`null`的`value`。
+
+
+
+但是这些被动的预防措施并不能保证不会内存泄漏：
+
+​	使用`static`的`ThreadLocal`，延长了`ThreadLocal`的生命周期，可能导致的内存泄漏。
+
+
+
+内存泄漏示例：
+
+```java
+public void testMemoryLose() {
+    // t是强引用，当函数结束后强引用就没了
+    ThreadLocal<String> t = new ThreadLocal<String>(){
+        @Override
+        protected String initialValue() {
+            return new String("yyyy-MM-dd HH:mm:ss");
+        }
+    };
+    // ThreadLocalMap实例中的key为弱引用，在下次gc时候会被回收掉。
+    // 这时候value “yyyy-MM-dd HH:mm:ss”就没有访问路径了，无法被gc回收，产生了内存泄漏。
+    // 只要当前线程不结束，并且不调用set/get/remove方法（这些方法会对key为null的entry进行释放），这片内存会被一直占用。
+}
+
+@Test
+public void test3() {
+    testMemoryLose();
+    Thread thread = Thread.currentThread();
+    System.out.println();
+}
+```
+
+
+
+线程池中使用变量readLocal
+
+```java
+public class ThreadPoolTest {
+
+    static class LocalVariable {
+        private Long[] a = new Long[1024*1024];
+    }
+
+    // (1)
+    final static ThreadPoolExecutor poolExecutor = new ThreadPoolExecutor(5, 5, 1, TimeUnit.MINUTES,
+            new LinkedBlockingQueue<>());
+    // (2)
+    final static ThreadLocal<LocalVariable> localVariable = new ThreadLocal<LocalVariable>();
+
+    public static void main(String[] args) throws InterruptedException {
+        // (3)
+        for (int i = 0; i < 50; ++i) {
+            poolExecutor.execute(new Runnable() {
+                public void run() {
+                    // (4)
+                    localVariable.set(new LocalVariable());
+                    // (5)
+                    System.out.println("use local varaible");
+                    //TODO
+                    //localVariable.remove();
+
+                }
+            });
+
+            Thread.sleep(1000);
+        }
+        // (6)
+        System.out.println("pool execute over");
+    }
+    
+// 代码（1）创建了一个核心线程数和最大线程数为5的线程池，这个保证了线程池里面随时都有5个线程在运行。
+// 代码（2）创建了一个ThreadLocal的变量，泛型参数为LocalVariable，LocalVariable内部是一个Long数组。
+// 代码（3）向线程池里面放入50个任务
+// 代码（4）设置当前线程的localVariable变量，也就是把new的LocalVariable变量放入当前线程的threadLocals变量。
+// 由于没有调用线程池的shutdown或者shutdownNow方法所以线程池里面的用户线程不会退出，进而JVM进程也不会退出。
+```
+
+ 从运行结果一可知，当主线程处于休眠时候进程占用了大概77M内存，运行结果二则占用了大概25M内存，可知运行代码一时候内存发生了泄露。
+
+
+
+示例：
+
+```java
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class ThreadLocalOOMDemo {
+
+    private static final int THREAD_LOOP_SIZE = 500;
+    private static final int MOCK_DIB_DATA_LOOP_SIZE = 10000;
+
+    private static ThreadLocal<List<User>> threadLocal = new ThreadLocal<>();
+
+    public static void main(String[] args) throws InterruptedException {
+
+        ExecutorService executorService = Executors.newFixedThreadPool(THREAD_LOOP_SIZE);
+
+        for (int i = 0; i < THREAD_LOOP_SIZE; i++) {
+            executorService.execute(() -> {
+                threadLocal.set(new ThreadLocalOOMDemo().addBigList());
+                Thread t = Thread.currentThread();
+                System.out.println(Thread.currentThread().getName());
+                //threadLocal.remove(); //不取消注释的话就可能出现OOM
+            });
+            try {
+                Thread.sleep(1000L);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        //executorService.shutdown();
+    }
+
+    private List<User> addBigList() {
+        List<User> params = new ArrayList<>(MOCK_DIB_DATA_LOOP_SIZE);
+        for (int i = 0; i < MOCK_DIB_DATA_LOOP_SIZE; i++) {
+            params.add(new User("xuliugen", "password" + i, "男", i));
+        }
+        return params;
+    }
+
+    class User {
+        private String userName;
+        private String password;
+        private String sex;
+        private int age;
+
+        public User(String userName, String password, String sex, int age) {
+            this.userName = userName;
+            this.password = password;
+            this.sex = sex;
+            this.age = age;
+        }
+    }
+}
+```
+
+
+
+```shell
+$ java -Xms256m ThreadLocalOOMDemo
+```
+
+
+
+#### 为什么使用弱引用
+
+我们先来看看官方文档的说法：
+
+`To help deal with very large and long-lived usages, the hash table entries use WeakReferences for keys.`
+
+为了应对非常大和长时间的用途，哈希表使用弱引用的 key。
+
+下面我们分两种情况讨论：
+
+**key 使用强引用**：引用的`ThreadLocal`的对象被回收了，但是`ThreadLocalMap`还持有`ThreadLocal`的强引用，如果没有手动删除，`ThreadLocal`不会被回收，导致Entry内存泄漏。
+
+**key 使用弱引用**：引用的`ThreadLocal`的对象被回收了，由于`ThreadLocalMap`持有`ThreadLocal`的弱引用，即使没有手动删除，`ThreadLocal`也会被回收。`value`在下一次`ThreadLocalMap`调用`set,get，remove`的时候会被清除。
+
+比较两种情况，我们可以发现：由于`ThreadLocalMap`的生命周期跟Thread一样长，如果都没有手动删除对应key，都会导致内存泄漏，但是使用弱引用可以多一层保障：**弱引用`ThreadLocal`不会内存泄漏，对应的value在下一次`ThreadLocalMap`调用`set,get,remove`的时候会被清除**。
+
+因此，`ThreadLocal`内存泄漏的根源是：由于`ThreadLocalMap`的生命周期跟`Thread`一样长，如果没有手动删除对应`key`就会导致内存泄漏，而不是因为弱引用。
+
+
+
+#### 使用注意事项
+
+综合上面的分析，我们可以理解`ThreadLocal`内存泄漏的前因后果，那么怎么避免内存泄漏呢？
+
+每次使用完`ThreadLocal`，都调用它的`remove()`方法，清除数据。
+
+在使用线程池的情况下，没有及时清理`ThreadLocal`，不仅是内存泄漏的问题，更严重的是可能导致业务逻辑出现问题。所以，使用`ThreadLocal`就跟加锁完要解锁一样，用完就清理。
+
+
+
+ 建议用static修饰 `static ThreadLocal<HttpHeader> headerLocal = new ThreadLocal();` 这样可以避免重复创建线程对象，导致浪费；但是延长了`ThreadLocal`变量的生命周期，容易造成内存泄漏。
+
+
+
+#### hash冲突如何处理的
 
 
 
