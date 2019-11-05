@@ -555,25 +555,238 @@ Kafka在Zookeeper中为每一个partition动态的维护了一个ISR，这个ISR里的所有replica都
 
 ## Producers
 
-- Producers直接发送消息到broker上的leader partition，不需要经过任何中介或其他路由转发。为了实现这个特性，kafka集群中的每个broker都可以响应producer的请求，并返回topic的一些元信息，这些元信息包括哪些机器是存活的，topic的leader partition都在哪，现阶段哪些leader partition是可以直接被访问的。
-- **Producer客户端自己控制着消息被推送到哪些partition。**实现的方式可以是随机分配、实现一类随机负载均衡算法，或者指定一些分区算法。Kafka提供了接口供用户实现自定义的partition，用户可以为每个消息指定一个partitionKey，通过这个key来实现一些hash分区算法。比如，把userid作为partitionkey的话，相同userid的消息将会被推送到同一个partition。
-- 以`Batch`的方式推送数据可以极大的提高处理效率，kafka Producer 可以将消息在内存中累计到一定数量后作为一个batch发送请求。Batch的数量大小可以通过Producer的参数控制，参数值可以设置为累计的消息的数量（如500条）、累计的时间间隔（如100ms）或者累计的数据大小(64KB)。通过增加batch的大小，可以减少网络请求和磁盘IO的次数，当然具体参数设置需要在效率和时效性方面做一个权衡。
-- Kafka没有限定单个消息的大小，但我们推荐消息大小不要超过1MB,通常一般消息大小都在1~10k
+![](img/kafka5.webp)
 
 
 
-### 发送确认
-
-```properties
-# 是否等待消息commit（是否等待所有的”in sync replicas“都成功复制了数据）
-request.required.acks = 0/1/n/-1
+```java
+public class ProducerRecord<K, V> {
+    private final String topic;
+    private final Integer partition;
+    private final Headers headers;
+    private final K key;
+    private final V value;
+    private final Long timestamp;
+}
 ```
 
- Producer可以通过`acks`参数指定最少需要多少个Replica确认收到该消息才视为该消息发送成功。`acks`的默认值是1，即Leader收到该消息后立即告诉Producer收到该消息，此时如果在ISR中的消息复制完该消息前Leader宕机，那该条消息会丢失。 
+注：ProducerRecord允许用户在创建消息对象的时候就直接指定要发送的分区，这样producer后续发送该消息时可以直接发送到指定分区，而不用先通过Partitioner计算目标分区了。另外，我们还可以直接指定消息的时间戳——但一定要慎重使用这个功能，因为它有可能会令时间戳索引机制失效。
 
 
 
- 推荐的做法是，将`acks`设置为`all`或者`-1`，此时只有ISR中的所有Replica都收到该数据（也即该消息被Commit），Leader才会告诉Producer该消息发送成功，从而保证不会有未知的数据丢失。 
+```java
+public final class RecordMetadata {
+    public static final int UNKNOWN_PARTITION = -1;
+    private final long offset;
+    private final long timestamp;
+    private final int serializedKeySize;
+    private final int serializedValueSize;
+    private final TopicPartition topicPartition;
+    private volatile Long checksum;
+}
+```
+
+
+
+### 消息发送流程
+
+用户首先构建待发送的消息对象ProducerRecord；
+
+然后调用KafkaProducer#send方法进行发送。
+
+KafkaProducer接收到消息后首先对其进行序列化，然后结合本地缓存的元数据信息一起发送给partitioner去确定目标分区，最后追加写入到内存中的消息缓冲池(accumulator)。此时KafkaProducer#send方法成功返回。同时，KafkaProducer中还有一个专门的Sender IO线程负责将缓冲池中的消息分批次发送给对应的broker，完成真正的消息发送逻辑。
+
+
+
+ **特点：**
+
+ 总共创建两个线程：执行KafkaPrducer#send逻辑的线程——我们称之为“用户主线程”；
+
+?									执行发送逻辑的IO线程——我们称之为“Sender线程”。 
+
+ batch机制——“分批发送“机制。每个批次(batch)中包含了若干个PRODUCE请求，因此具有更高的吞吐量。 
+
+
+
+### 消息发送方式
+
+1、发送并忘记( fire-and-forget)：我们把消息发送给服务器，但井不关心它是否正常到达。大多数情况下，消息会正常到达，因为 Kafka是高可用的，而且生产者会自动尝试重发。不过，使用这种方式有时候也会丢失一些消息。
+
+```java
+ProducerRecord<String, String> record = new ProducerRecord<String, String>("CustomerCountry", "Precision Products", "France");
+
+try {
+  producer.send(record);
+} catch (Exception e) {
+  e.printStackTrace();
+}
+```
+
+2、同步发送：我们使用send()方怯发送消息， 它会返回一个Future对象，调用get()方法进行等待， 就可以知道悄息是否发送成功。
+
+```java
+ProducerRecord<String, String> record = new ProducerRecord<String, String>("CustomerCountry", "Precision Products", "France");
+
+try {
+  producer.send(record).get();
+} catch (Exception e) {
+  e.printStackTrace();
+}
+```
+
+3、异步发送：我们调用 send() 方怯，并指定一个回调函数， 服务器在返回响应时调用该函数。
+
+```java
+private class DemoProducerCallback implements Callback {
+  @Override
+  public void onCompletion(RecordMetadata recordMetadata, Exception e) {
+    if (e != null) {
+	  e.printStackTrace();
+	}
+  }
+}
+
+ProducerRecord<String, String> record = new ProducerRecord<String, String>("CustomerCountry", "Precision Products", "France");
+
+producer.send(record, new DemoProducerCallback());
+```
+
+
+
+### 消息发送内部流程
+
+ 当用户调用`KafkaProducer.send(ProducerRecord, Callback)`时Kafka内部流程分析： 
+
+#### 序列化+计算目标分区
+
+ 这是KafkaProducer#send逻辑的第一步，即为待发送消息进行序列化并计算目标分区，如下图所示： 
+
+![](img/kafka6.webp)
+
+如上图所示，一条所属`topic`是"`test`"，消息体是"`message`"的消息被序列化之后结合`KafkaProducer`缓存的元数据(比如该`topic`分区数信息等)共同传给后面的`Partitioner`实现类进行目标分区的计算。
+
+#### 追加写入消息缓冲区(accumulator)
+
+producer创建时会创建一个默认32MB(由buffer.memory参数指定)的accumulator缓冲区，专门保存待发送的消息。除了之前在“关键参数”段落中提到的linger.ms和batch.size等参数之外，该数据结构中还包含了一个特别重要的集合信息：消息批次信息(batches)。该集合本质上是一个HashMap，里面分别保存了每个topic分区下的batch队列，即前面说的批次是按照topic分区进行分组的。这样发往不同分区的消息保存在对应分区下的batch队列中。举个简单的例子，假设消息M1, M2被发送到test的0分区但属于不同的batch，M3分送到test的1分区，那么batches中包含的信息就是：{"test-0" -> [batch1, batch2], "test-1" -> [batch3]}。
+ 单个topic分区下的batch队列中保存的是若干个消息批次。每个batch中最重要的3个组件包括：
+ compressor: 负责执行追加写入操作
+ batch缓冲区：由batch.size参数控制，消息被真正追加写入到的地方
+ thunks：保存消息回调逻辑的集合
+ 这一步的目的就是将待发送的消息写入消息缓冲池中，具体流程如下图所示：
+
+![](img/kafka7.webp)
+
+ 这一步执行完毕之后理论上讲KafkaProducer.send方法就执行完毕了，用户主线程所做的事情就是等待Sender线程发送消息并执行返回结果了。 
+
+#### Sender线程预处理及消息发送
+
+此时，该Sender线程登场了。严格来说，Sender线程自KafkaProducer创建后就一直都在运行着 。它的工作流程基本上是这样的：
+
+- 不断轮询缓冲区寻找**已做好发送准备的分区** ；
+- 将轮询获得的各个batch按照目标分区所在的leader broker进行分组；
+- 将分组后的batch通过底层创建的**Socket连接**发送给各个broker；
+- 等待服务器端发送response回来。
+
+为了说明上的方便，还是基于图的方式来解释Sender线程的工作原理：
+
+![](img/kafka8.webp)
+
+####  
+
+#### Sender线程处理response
+
+上图中Sender线程会发送PRODUCE请求给对应的broker，broker处理完毕之后发送对应的PRODUCE response。一旦Sender线程接收到response将依次(按照消息发送顺序)调用batch中的回调方法，如下图所示：
+
+![](img/kafka9.webp)
+
+做完这一步，producer发送消息就可以算作是100%完成了。通过这4步我们可以看到新版本producer发送事件完全是异步过程。**因此在调优producer前我们就需要搞清楚性能瓶颈到底是在用户主线程还是在Sender线程**。
+ 由于KafkaProducer是线程安全的，因此在使用上有两种基本的使用方法：
+
+
+
+### 相关参数
+
+```properties
+# producer采用分批发送机制，该参数即控制一个batch的大小。默认是16KB
+batch.size
+
+# 指定生产者在发送批量消息前等待的时间，当设置此参数后，即便没有达到批量消息的指定大小，
+# 到达时间后生产者也会发送批量消息到broker。默认情况下，生产者的发送消息线程只要空闲了就
+# 会发送消息，即便只有一条消息。设置这个参数后，发送线程会等待一定的时间，这样可以批量发送
+# 消息增加吞吐量，但同时也会增加延迟。
+linger.ms
+
+# acks控制多少个副本必须写入消息后生产者才能认为写入成功，这个参数对消息丢失可能性有很大影响。这个参数有三种取值：
+
+# 	acks=0：生产者把消息发送到broker即认为成功，不等待broker的处理结果。这种方式的吞吐最高，但也是最容易丢失消息的。
+#
+# 	acks=1：生产者会在该分区的群首（leader）写入消息并返回成功后，认为消息发送成功。
+#	如果群首写入消息失败，生产者会收到错误响应并进行重试。这种方式能够一定程度避免消息丢失，
+#	但如果群首宕机时该消息没有复制到其他副本，那么该消息还是会丢失。另外，如果我们使用同步方式来发送，
+#	延迟会比前一种方式大大增加（至少增加一个网络往返时间）；如果使用异步方式，应用感知不到延迟，
+#	吞吐量则会受异步正在发送中的数量限制。
+# 	
+#	acks=all：生产者会等待所有副本成功写入该消息，这种方式是最安全的，能够保证消息不丢失，但是延迟也是最大的。
+request.required.acks = 0, 1, n, -1/all
+
+# 设置生产者缓冲发送的消息的内存大小，如果应用调用send方法的速度大于生产者发送的速度，
+# 那么调用会阻塞或者抛出异常，具体行为取决于block.on.buffer.full（这个参数在0.9.0.0版本
+# 被max.block.ms代替，允许抛出异常前等待一定时间）参数。
+buffer.memory
+
+# 指定使用消息压缩，参数可以取值为snappy、gzip或者lz4
+# 	snappy压缩算法由Google研发，这种算法在性能和压缩比取得比较好的平衡；
+# 	相比之下，gzip消耗更多的CPU资源，但是压缩效果也是最好的。通过使用压缩，我们可以节省网络带宽和Kafka存储成本。
+compresstion.type
+
+# 当生产者发送消息收到一个可恢复异常时，会进行重试，这个参数指定了重试的次数。
+#	在实际情况中，这个参数需要结合retry.backoff.ms（重试等待间隔）来使用，
+#	建议总的重试时间比集群重新选举群首的时间长，这样可以避免生产者过早结束重试导致失败。
+retries
+
+# 这个参数可以是任意字符串，它是broker用来识别消息是来自哪个客户端的。在broker进行打印日志、衡量指标或者配额限制时会用到。
+client.id
+
+# 这个参数指定生产者可以发送多少消息到broker并且等待响应.
+# 设置此参数较高的值可以提高吞吐量，但同时也会增加内存消耗。另外，如果设置过高反而会降低吞吐量，
+# 因为批量消息效率降低。设置为1，可以保证发送到broker的顺序和调用send方法顺序一致，
+# 即便出现失败重试的情况也是如此。
+max.in.flight.requests.per.connection
+
+# 这些参数控制生产者等待broker的响应时间。
+#	request.timeout.ms指定发送数据的等待响应时间，
+#	metadata.fetch.timeout.ms指定获取元数据（例如获取分区的群首信息）的等待响应时间。
+#	timeout.ms则指定broker在返回结果前等待其他副本（与acks参数相关）响应的时间，如果时间到了但其他副本没有响应结果，则返回消息写入失败。
+timeout.ms
+request.timeout.ms
+metadata.fetch.timeout.ms
+
+#  指定应用调用send方法或者获取元数据方法（例如partitionFor）时的阻塞时间，超过此时间则抛出timeout异常。
+max.block.ms
+
+# 限制生产者发送数据包的大小，数据包的大小与消息的大小、消息数相关。如果我们指定了最大数据包大小为1M，
+# 那么最大的消息大小为1M，或者能够最多批量发送1000条消息大小为1K的消息。
+# 另外，broker也有message.max.bytes参数来控制接收的数据包大小。
+# 在实际中，建议这些参数值是匹配的，避免生产者发送了超过broker限定的数据大小。
+max.request.size
+
+# 这两个参数设置用来发送/接收数据的TCP连接的缓冲区，如果设置为-1则使用操作系统自身的默认值。
+# 如果生产者与broker在不同的数据中心，建议提高这个值，因为不同数据中心往往延迟比较大。
+receive.buffer.bytes
+send.buffer.bytes
+```
+
+
+
+### 保证分区的顺序
+
+ Kafka保证分区的顺序，也就是说，如果生产者以一定的顺序发送消息到Kafka的某个分区，那么Kafka在分区内部保持此顺序，而且消费者也按照同样的顺序消费。但是，应用调用send方法的顺序和实际发送消息的顺序不一定是一致的。举个例子，如果retries参数不为0，而max.in.flights.requests.per.session参数大于1，那么有可能第一个批量消息写入失败，但是第二个批量消息写入成功，然后第一个批量消息重试写入成功，那么这个顺序乱序的。因此，如果需要保证消息顺序，建议设置max.in.flights.requests.per.session为1，这样可以在第一个批量消息发送失败重试时，第二个批量消息需要等待。 
+
+
+
+### 序列化
+
+ [http://www.dengshenyu.com/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/2017/11/12/kafka-producer.html](http://www.dengshenyu.com/分布式系统/2017/11/12/kafka-producer.html)
 
 
 
