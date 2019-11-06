@@ -6,6 +6,10 @@
 
 
 
+[Toc]
+
+
+
 # 相关概念
 
 `massage`： kafka中最基本的传递对象，有固定格式。 
@@ -590,21 +594,27 @@ public final class RecordMetadata {
 
 ### 消息发送流程
 
-用户首先构建待发送的消息对象ProducerRecord；
+用户首先构建待发送的消息对象`ProducerRecord`；
 
-然后调用KafkaProducer#send方法进行发送。
+然后调用`KafkaProducer#send`方法进行发送；
 
-KafkaProducer接收到消息后首先对其进行序列化，然后结合本地缓存的元数据信息一起发送给partitioner去确定目标分区，最后追加写入到内存中的消息缓冲池(accumulator)。此时KafkaProducer#send方法成功返回。同时，KafkaProducer中还有一个专门的Sender IO线程负责将缓冲池中的消息分批次发送给对应的broker，完成真正的消息发送逻辑。
+`KafkaProducer`接收到消息后首先对其进行序列化；
+
+然后结合本地缓存的元数据信息一起发送给`partitioner`去确定目标分区；
+
+最后追加写入到内存中的消息缓冲池(`accumulator`)。此时`KafkaProducer#send`方法成功返回；
+
+同时，`KafkaProducer`中还有一个专门的`Sender IO`线程负责将缓冲池中的消息分批次发送给对应的`broker`，完成真正的消息发送逻辑。
 
 
 
  **特点：**
 
- 总共创建两个线程：执行KafkaPrducer#send逻辑的线程——我们称之为“用户主线程”；
+1.总共创建两个线程：执行KafkaPrducer#send逻辑的线程——我们称之为“用户主线程”；
 
-?									执行发送逻辑的IO线程——我们称之为“Sender线程”。 
+?									  执行发送逻辑的IO线程——我们称之为“Sender线程”。 
 
- batch机制——“分批发送“机制。每个批次(batch)中包含了若干个PRODUCE请求，因此具有更高的吞吐量。 
+2.batch机制——“分批发送“机制。每个批次(batch)中包含了若干个PRODUCE请求，因此具有更高的吞吐量。 
 
 
 
@@ -657,50 +667,80 @@ producer.send(record, new DemoProducerCallback());
 
  当用户调用`KafkaProducer.send(ProducerRecord, Callback)`时Kafka内部流程分析： 
 
+
+
 #### 序列化+计算目标分区
 
- 这是KafkaProducer#send逻辑的第一步，即为待发送消息进行序列化并计算目标分区，如下图所示： 
+ 这是`KafkaProducer#send`逻辑的第一步，即为待发送消息进行序列化并计算目标分区，如下图所示： 
 
 ![](img/kafka6.webp)
 
 如上图所示，一条所属`topic`是"`test`"，消息体是"`message`"的消息被序列化之后结合`KafkaProducer`缓存的元数据(比如该`topic`分区数信息等)共同传给后面的`Partitioner`实现类进行目标分区的计算。
 
+
+
 #### 追加写入消息缓冲区(accumulator)
 
-producer创建时会创建一个默认32MB(由buffer.memory参数指定)的accumulator缓冲区，专门保存待发送的消息。除了之前在“关键参数”段落中提到的linger.ms和batch.size等参数之外，该数据结构中还包含了一个特别重要的集合信息：消息批次信息(batches)。该集合本质上是一个HashMap，里面分别保存了每个topic分区下的batch队列，即前面说的批次是按照topic分区进行分组的。这样发往不同分区的消息保存在对应分区下的batch队列中。举个简单的例子，假设消息M1, M2被发送到test的0分区但属于不同的batch，M3分送到test的1分区，那么batches中包含的信息就是：{"test-0" -> [batch1, batch2], "test-1" -> [batch3]}。
- 单个topic分区下的batch队列中保存的是若干个消息批次。每个batch中最重要的3个组件包括：
- compressor: 负责执行追加写入操作
- batch缓冲区：由batch.size参数控制，消息被真正追加写入到的地方
- thunks：保存消息回调逻辑的集合
- 这一步的目的就是将待发送的消息写入消息缓冲池中，具体流程如下图所示：
+`producer`创建时会创建一个默认`32MB`(由`buffer.memory`参数指定)的`accumulator`缓冲区，专门保存待发送的消息。除了`linger.ms`和`batch.size`等参数之外，该数据结构中还包含了一个特别重要的集合信息：消息批次信息(`batches`)。该集合本质上是一个`HashMap`，里面分别保存了每个`topic`分区下的`batch`队列，即前面说的批次是按照`topic`分区进行分组的。这样发往不同分区的消息保存在对应分区下的`batch`队列中。
+
+举个简单的例子，假设消息M1, M2被发送到test的0分区但属于不同的`batch`，M3分送到test的1分区，那么`batches`中包含的信息就是：
+
+```java
+{
+	"test-0" -> [batch1, batch2], 
+	"test-1" -> [batch3]
+}
+```
+
+
+
+单个`topic`分区下的`batch`队列中保存的是若干个消息批次。每个`batch`中最重要的3个组件包括：
+
+?	`compressor`: 负责执行追加写入操作
+
+?	`batch`缓冲区：由`batch.size`参数控制，消息被真正追加写入到的地方
+
+?	`thunks`：保存消息回调逻辑的集合
+
+这一步的目的就是将待发送的消息写入消息缓冲池中，具体流程如下图所示：
 
 ![](img/kafka7.webp)
 
- 这一步执行完毕之后理论上讲KafkaProducer.send方法就执行完毕了，用户主线程所做的事情就是等待Sender线程发送消息并执行返回结果了。 
+ 这一步执行完毕之后理论上讲`KafkaProducer.send`方法就执行完毕了，用户主线程所做的事情就是等待`Sender`线程发送消息并执行返回结果了。 
+
+
 
 #### Sender线程预处理及消息发送
 
-此时，该Sender线程登场了。严格来说，Sender线程自KafkaProducer创建后就一直都在运行着 。它的工作流程基本上是这样的：
+此时，该`Sender`线程登场了。严格来说，`Sender`线程自`KafkaProducer`创建后就一直都在运行着 。它的工作流程基本上是这样的：
 
-- 不断轮询缓冲区寻找**已做好发送准备的分区** ；
-- 将轮询获得的各个batch按照目标分区所在的leader broker进行分组；
-- 将分组后的batch通过底层创建的**Socket连接**发送给各个broker；
-- 等待服务器端发送response回来。
+- 不断轮询缓冲区寻找已做好发送准备的分区 ；
+- 将轮询获得的各个`batch`按照目标分区所在的`leader broker`进行分组；
+- 将分组后的`batch`通过底层创建的**Socket连接**发送给各个broker；
+- 等待服务器端发送`response`回来。
 
-为了说明上的方便，还是基于图的方式来解释Sender线程的工作原理：
+为了说明上的方便，还是基于图的方式来解释`Sender`线程的工作原理：
 
 ![](img/kafka8.webp)
 
-####  
+
 
 #### Sender线程处理response
 
-上图中Sender线程会发送PRODUCE请求给对应的broker，broker处理完毕之后发送对应的PRODUCE response。一旦Sender线程接收到response将依次(按照消息发送顺序)调用batch中的回调方法，如下图所示：
+上图中`Sender`线程会发送`PRODUCE`请求给对应的`broker`，`broker`处理完毕之后发送对应的`PRODUCE response`。一旦`Sender`线程接收到`response`将<font color="#00dd00">依次(按照消息发送顺序)</font>调用`batch`中的回调方法，如下图所示：
 
 ![](img/kafka9.webp)
 
-做完这一步，producer发送消息就可以算作是100%完成了。通过这4步我们可以看到新版本producer发送事件完全是异步过程。**因此在调优producer前我们就需要搞清楚性能瓶颈到底是在用户主线程还是在Sender线程**。
- 由于KafkaProducer是线程安全的，因此在使用上有两种基本的使用方法：
+做完这一步，`producer`发送消息就可以算作是100%完成了。
+
+通过这4步我们可以看到新版本`producer`发送事件完全是异步过程。**因此在调优producer前我们就需要搞清楚性能瓶颈到底是在用户主线程还是在Sender线程**。
+
+由于`KafkaProducer`是线程安全的，因此在使用上有两种基本的使用方法：
+
+|                     | 说明                              | 优势                                                         | 劣势                                                         |
+| ------------------- | --------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 单KafkaProducer实例 | 所有线程共享一个KafkaProducer实例 | 实现简单，性能好                                             | 1.所有线程公用一个内存缓冲池，可能需要较多的内存空间<br />2.一旦崩溃所有用户线程都无法工作 |
+| 多KafkaProducer实例 | 每个线程维护一个KafkaProducer实例 | 1.每个线程拥有专属的KafkaProducer实例、缓冲区空间以及一组配置参数，支持更细粒度的调优<br />2.单个KafkaProducer实例崩溃不影响其他实例的工作 | 较大的对象分配开销                                           |
 
 
 
@@ -729,7 +769,7 @@ linger.ms
 #	acks=all：生产者会等待所有副本成功写入该消息，这种方式是最安全的，能够保证消息不丢失，但是延迟也是最大的。
 request.required.acks = 0, 1, n, -1/all
 
-# 设置生产者缓冲发送的消息的内存大小，如果应用调用send方法的速度大于生产者发送的速度，
+# 设置生产者缓冲发送的消息的内存大小(即：Batch缓冲总的大小->accumulator)，如果应用调用send方法的速度大于生产者发送的速度，
 # 那么调用会阻塞或者抛出异常，具体行为取决于block.on.buffer.full（这个参数在0.9.0.0版本
 # 被max.block.ms代替，允许抛出异常前等待一定时间）参数。
 buffer.memory
@@ -780,7 +820,9 @@ send.buffer.bytes
 
 ### 保证分区的顺序
 
- Kafka保证分区的顺序，也就是说，如果生产者以一定的顺序发送消息到Kafka的某个分区，那么Kafka在分区内部保持此顺序，而且消费者也按照同样的顺序消费。但是，应用调用send方法的顺序和实际发送消息的顺序不一定是一致的。举个例子，如果retries参数不为0，而max.in.flights.requests.per.session参数大于1，那么有可能第一个批量消息写入失败，但是第二个批量消息写入成功，然后第一个批量消息重试写入成功，那么这个顺序乱序的。因此，如果需要保证消息顺序，建议设置max.in.flights.requests.per.session为1，这样可以在第一个批量消息发送失败重试时，第二个批量消息需要等待。 
+`Kafka`可以保证同一个分区里的消息是有序的。也就是说，如果生产者按照一定的顺序发送消息， `broker`就会按照这个顺序把它们写入分区，消费者也会按照同样的顺序读取它们。在某些情况下 ， 顺序是非常重要的。如果把`retries` 设为非零整数，同时把 `max.in.flight.requests.per.connection` 设为比 1大的数，那么，如果第一个批次消息写入失败，而第二个批次写入成功， `broker`会重试写入第一个批次。如果此时第一个批次也写入成功，那 么两个批次的顺序就反过来了。
+
+ 一般来说，如果某些场景要求消息是有序的，那么消息是否写入成功也是 很关键的，所以不建议把顺序是非常重要的。如果把`retries` 设为 0。可以把 `max.in.flight.requests.per.connection`设为 1，这样在生产者尝试发送第一批消息时，就不会有其他的消息发送给 broker。不过这样**会严重影响生产者的吞吐量** ，所以只有在 对消息的顺序有严格要求的情况下才能这么做。
 
 
 
@@ -805,7 +847,7 @@ send.buffer.bytes
 
   
 
-  High level api和Low level api是针对consumer而言的，和producer无关。
+  **High level api和Low level api是针对consumer而言的，和producer无关。**
 
   
 
@@ -826,22 +868,83 @@ send.buffer.bytes
 
 # 消息投递语义
 
-kafka支持3种消息投递语义
-	
+Kafka支持的三种消息投递语义:
 
-- At most once：最多一次，消息可能会丢失，但不会重复
+- `at most once`:至多一次，消息可能会丢，但不会重复
+- `at least once`:至少一次，消息肯定不会丢失，但可能重复
+- `exactly once`:有且只有一次，消息不丢失不重复，且只消费一次。
 
-  > \>1. 设置‘enable.auto.commit’ 为 true.
-  >
-  > \>2. 设置 ‘auto.commit.interval.ms’ 为一个较小的值.
 
-- At least once：最少一次，消息不会丢失，可能会重复
 
-  > 1. 设置‘enable.auto.commit’ 为 false 或者
-  >
-  > 设置‘enable.auto.commit’ 为 true 并设置‘auto.commit.interval.ms’ 为一个较大的值.
+消息的投递和消费分为两端:`producer-broker，broker-consumer。`
 
-- Exactly once：只且一次，消息不丢失不重复，只且消费一次
+**producer-broker**: 当`producer`向`broker`发送消息时，一旦这条消息`commit`了，由于`broker`有`replication`的存在，这条消息就不会丢失，这样就可以在`producer-broker`端保证`at least once`消息语义。当然，也可以通过设置`Producer`异步发送来实现`at most once`语义。
+
+**broker-consumer**: `consumer`在消费消息时，每个`consumer`都会在保存`offset`来记录自己消费的位置(从`__consumer_offsets`这个`topic`中取，老版本存储在zk中)。当`consumer`挂了的时候，就会发生负载均衡，需要`consumer group`中另外的`consumer`来接管并继续消费。`consumer`在处理消息和修改`offset`时也有两种处理方式:
+
+- `consumer`读取消息后，先修改`offset`，然后处理消息。
+- `consumer`读取消息后，先处理消息，然后修改`offset`。
+
+如果`consumer`在处理消息的过程中挂掉了，我们无法确认`consumer`是否已经处理完了消息。所以处理方式一，虽然消息会丢，但消息不会被重复消费，确保了`at most once`语义。处理方式二，因为`consumer`还没有修改`offset`就挂了，所以`consumer group`中接管的`consumer`会从上次消费的`offset`处接手继续消费，虽然消息会重复，但消息肯定不会丢，保证了`at least once`语义。
+
+
+
+ 想要做到`exactly once`，就需要`producer-broker、broker-consumer`端两端同时保证。 
+
+## 幂等
+
+对于producer，如果broker配置了`enable.idempotence = true`,每个producer在初始化的时候都会被分配一个唯一的`Producer ID`，producer向指定topic的partition发送消息时，携带一个自己维护的自增的`Sequence Number`。broker会维护一个<pid,topic,partition>对应的seqNum。 每次broker接收到producer发来的消息，会和之前的seqNum做比对，如果刚好大一，则接受;如果相等，说明消息重复;如果相差大于一，则说明中间存在丢消息，拒绝接受。
+
+这个设计解决了两个问题:
+
+- broker保存消息后，发送ACK前宕机，producer认为没有发送成功并重试，造成消息重复
+- 前一条消息发送失败，后一条成功，前一条消息重试后成功，造成消息乱序
+
+## 事务性保证
+
+上述的幂等操作，只能保证单个producer对于同一个<topic,partition>的`exactly once`,并不能保证向多个topic partitions写操作时的原子性。更不能保证多个读写操作时的原子性。例如某个场景是，从某个topic消费消息，处理转换后回写到另一个topic中。
+
+事务性保证可以使应用程序将生产数据和消费数据当作一个原子单元来处理，即使该生产或消费跨多个<Topic, Partition>。应用程序也可以在重启后，从上一个事物点恢复，也即事物恢复。
+
+因为消息可以是跨topic和partition的，所以为实现这一效果，必须是应用程序提供一个稳定的（重启后不变）唯一的ID `Transaction ID`，使得PID 和 Transaction ID 一一对应起来。
+
+## conusmer端
+
+以上事务性保证只是针对producer端的，对consumer端依然无法保证。
+
+如果是消费kafka中的topic，并将结果回写到另一个topic，那么可以将消费消息和发送消息绑定为一个事务。 如果要将处理消息后的结果保存到外部系统，就要用到两阶段提交了。
+
+
+
+## 如何保证投递寓意
+
+### At least once
+
+默认为至少一次。
+
+
+
+
+
+
+
+
+
+### At most once
+
+通过禁止生产者重试和处理一批消息前提交它的偏移量来实现 “最多一次”传递 
+
+
+
+
+
+
+
+### Exactly once
+
+
+
+
 
 
 
@@ -1057,6 +1160,8 @@ Kafka提供了一个参数——producer.type来控制是不是主动flush，如果Kafka写入到mmap之
 
 ## 零拷贝（读取数据）
 
+[https://www.ibm.com/developerworks/cn/linux/l-cn-zerocopy2/](https://www.ibm.com/developerworks/cn/linux/l-cn-zerocopy2/)
+
 ### 传统文件IO
 
  传统模式下，文件传输的操作流程，例如一个程序要把文件内容发送到网络。这个过程发生在用户空间，文件和网络socket属于硬件资源，两者之间有一个内核空间，在操作系统内部，整个过程为:
@@ -1078,6 +1183,12 @@ Kafka提供了一个参数——producer.type来控制是不是主动flush，如果Kafka写入到mmap之
 以上细节是传统read/write方式进行网络文件传输的方式，我们可以看到，在这个过程当中，文件数据实际上是经过了四次copy操作：
 
 > 硬盘—>内核buf—>用户buf—>socket相关缓冲区—>协议引擎
+
+
+
+附：
+
+![](img/kafka10.webp)
 
 
 
@@ -1109,16 +1220,65 @@ sendfile(socket, file, len);
 
 ![](img/kafka4.webp)
 
- 通过分段的方式，每次文件操作都是对一个小文件的操作，非常轻便，同时也增加了并行处理能力。 
+通过分段的方式，每次文件操作都是对一个小文件的操作，非常轻便，同时也增加了并行处理能力。 
 
 
 
 ## 批量发送 batch
 
+客户端发送消息给`kafka`服务器的时候，是有一个内存缓冲机制的。 也就是说，消息会先写入一个内存缓冲中，然后直到多条消息组成了一个Batch，才会一次网络通信把Batch发送过去。 如下图所示：
+
+![](img/kafka11.webp)
+
+延申：内存缓冲造成的频繁GC问题如何解决？
+
+
+
+这种内存缓冲机制的本意，其实就是把多条消息组成一个Batch，一次网络请求就是一个Batch或者多个Batch。
+
+这样每次网络请求都可以发送很多数据过去，避免了一条消息一次网络请求。从而提升了吞吐量，即单位时间内发送的数据量。
+
+但是问题来了，一个Batch中的数据，会取出来然后封装在底层的网络包里，通过网络发送出去到达Kafka服务器。 等到这个Batch里的数据都发送过去了，现在Batch里的数据应该怎么处理？ 
+
+要知道，这些Batch里的数据此时可还在客户端的JVM的内存里啊！那么此时从代码实现层面，一定会尝试避免任何变量去引用这些Batch对应的数据，然后尝试触发JVM自动回收掉这些内存垃圾。
+
+这样不断的让JVM回收垃圾，就可以不断的清理掉已经发送成功的Batch了，然后就可以不断的腾出来新的内存空间让后面新的数据来使用。
+
+->  实际线上运行的时候一定会有问题，**最大的问题，就是JVM GC问题。** 如下：
+
+![](img/kafka12.webp)
+
+Kafka实现的缓冲池机制
+
+![](img/kafka13.webp)
+
+配置：
+
+```properties
+# 生产者可用于缓冲等待发送到服务器的记录的内存总字节数。
+# 如果记录发送的速度比发送到服务器的速度快，那么生产者将阻塞max.block。之后，它将抛出一个异常。
+# 此设置应该大致对应于生产者将使用的总内存，但不是硬限制，因为生产者使用的并非所有内存都用于缓冲。
+# 一些额外的内存将用于压缩(如果启用了压缩)以及维护运行中的请求。
+buffer.memory = 33554432 # 32M
+max.block.ms = 60000
+
+batch.size = 16384 # 16k
+linger.ms = 0
+```
+
 
 
 ## 数据压缩
 
+ Kafka支持多种消息压缩方式（gzip、snappy、lz4） 
+
 
 
 ## 页缓存
+
+这个其实时在linux操作系统层面提供的优化。
+
+[https://www.jianshu.com/p/3b6612318c23](https://www.jianshu.com/p/3b6612318c23)
+
+[https://juejin.im/post/5d59638c518825291e3dd77f](https://juejin.im/post/5d59638c518825291e3dd77f)
+
