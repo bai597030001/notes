@@ -14,7 +14,7 @@
 
 ### CountDownLatch
 
-- 利用它可以实现类似计数器的功能。比如有一个任务A，它要等待其他4个任务执行完毕之后才能执行，此时就可以利用CountDownLatch来实现这种功能了。
+- 利用它可以实现类似计数器的功能。比如有一个（也可以是多个）任务A，它要等待其他4个任务执行完毕之后才能执行，此时就可以利用CountDownLatch来实现这种功能了。
 
 
 
@@ -78,7 +78,7 @@ public class CountDownLatchTest {
 
 ### CyclicBarrier
 
-- 回环栅栏，通过它可以实现让一组线程等待至某个状态之后再全部同时执行。叫做回环是因为当所有等待线程都被释放以后，CyclicBarrier可以被重用。我们暂且把这个状态就叫做barrier，当调用await()方法之后，线程就处于barrier了。
+- 回环栅栏，通过它可以实现让**一组线程等待至某个状态之后再全部同时执行**。叫做回环是因为当所有等待线程都被释放以后，CyclicBarrier可以被重用。我们暂且把这个状态就叫做barrier，当调用await()方法之后，线程就处于barrier了。
 
 ```java
 // 参数parties指让多少个线程或者任务等待至barrier状态；参数barrierAction为当这些线程都达到barrier状态时会执行的内容。

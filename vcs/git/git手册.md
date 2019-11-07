@@ -47,7 +47,7 @@ $ git config [--global] user.email "[email address]"
 
 
 
-# 1.git本地操作
+# git本地操作
 
 - 创建仓库
 
@@ -96,14 +96,50 @@ $ git reset --hard 1094a		# 版本号没必要写全，前几位就可以了
 ```
 
 ```shell
-git reflog 用来记录你的每一次命令
+$ git reflog 用来记录你的每一次命令
+
+$ git log --graph 查看分支合并图
+
+$ git rm -r --cached 文件/文件夹名字 取消文件被版本控制
+
+$ git merge --no-ff -m '合并描述' 分支名 不使用Fast forward方式合并，采用这种方式合并可以看到合并记录
+
+$ git check-ignore -v 文件名 查看忽略规则
 ```
 
 
 
-# 2.git远程操作
+- 忽略已加入到版本库中的文件
 
-## 2.1提交本地仓库代码到远程仓库
+```shell
+$ git update-index --assume-unchanged file 忽略单个文件
+
+$ git rm -r --cached 文件/文件夹名字 (. 忽略全部文件)
+```
+
+
+
+- 取消忽略文件
+
+```shell
+$ git update-index --no-assume-unchanged file
+```
+
+
+
+- 合并提交
+
+```shell
+# 在没有推送到远程之前，如果想合并多次的提交，并且修改提交信息
+
+$ git rebase -i [SHA] # SHA 是上一次提交之前的那次提交的
+```
+
+
+
+# git远程操作
+
+## 提交本地仓库代码到远程仓库
 
 github新建 `new repository`
 
@@ -128,7 +164,9 @@ git@github.com:bai597030001/network_optimize.git
 
 
 
-### 2.1.1本地已经建好了源码文件/文件夹并且已经有了代码,即本地仓库已经存在
+### 本地已经建好了源码文件
+
+即：文件夹并且已经有了代码,即本地仓库已经存在
 
 
 
@@ -176,7 +214,7 @@ $ git push -u origin master
 
 
 
-### 2.1.2本地仓库还没有代码
+### 本地仓库还没有代码
 
 - 1).把github上面的仓库克隆到本地
 
@@ -198,7 +236,9 @@ $ git commit  -m  "提交信息"
 $ git push -u origin master # （注：此操作目的是把本地仓库push到github上面，此步骤需要你输入帐号和密码）
 ```
 
-## 2.2本地与远程不一致如何同步
+
+
+## 本地与远程不一致如何同步
 
 3.拉取 github 最新代码到本地
 
@@ -218,15 +258,71 @@ $ git brach -d temp
 
 
 
-# 3.git分支管理
+# 分支管理
 
 [原文链接](https://www.cnblogs.com/videring/articles/6962005.html)
 
-# 4.git标签
+```shell
+$ git branch 创建分支
+$ git branch -b 创建并切换到新建的分支上
+$ git checkout 切换分支
+$ git branch 查看分支列表
+$ git branch -v 查看所有分支的最后一次操作
+$ git branch -vv 查看当前分支
+$ git brabch -b 分支名 origin/分支名 创建远程分支到本地
+$ git branch --merged 查看别的分支和当前分支合并过的分支
+$ git branch --no-merged 查看未与当前分支合并的分支
+$ git branch -d 分支名 删除本地分支
+$ git branch -D 分支名 强行删除分支
+$ git branch origin :分支名 删除远处仓库分支
+$ git merge 分支名 合并分支到当前分支上
+```
 
-# 5.常见问题
 
-5.1 `error : warning: LF will be replaced by CRLF`
+
+# 暂存
+
+```shell
+$ git stash 暂存当前修改
+$ git stash apply 恢复最近的一次暂存
+$ git stash pop 恢复暂存并删除暂存记录
+$ git stash list 查看暂存列表
+$ git stash drop 暂存名(例：stash@{0}) 移除某次暂存
+$ git stash clear 清除暂存
+```
+
+
+
+# 标签
+
+```shell
+$ git tag 标签名 添加标签(默认对当前版本)
+$ git tag 标签名 commit_id 对某一提交记录打标签
+$ git tag -a 标签名 -m '描述' 创建新标签并增加备注
+$ git tag 列出所有标签列表
+$ git show 标签名 查看标签信息
+$ git tag -d 标签名 删除本地标签
+$ git push origin 标签名 推送标签到远程仓库
+$ git push origin --tags 推送所有标签到远程仓库
+$ git push origin :refs/tags/标签名 从远程仓库中删除标签
+```
+
+
+
+# 回退操作
+
+```shell
+$ git reset --hard HEAD^ 回退到上一个版本
+$ git reset --hard ahdhs1(commit_id) 回退到某个版本
+$ git checkout -- file撤销修改的文件(如果文件加入到了暂存区，则回退到暂存区的，如果文件加入到了版本库，则还原至加入版本库之后的状态)
+$ git reset HEAD file 撤回暂存区的文件修改到工作区
+```
+
+
+
+# 常见问题
+
+`error : warning: LF will be replaced by CRLF`
 
 ```shell
 # windows中的换行符为 CRLF， 而在linux下的换行符为LF，所以在执行add . 时出现提示
@@ -237,7 +333,7 @@ $ git config --global core.autocrlf false  //禁用自动转换
 
 
 
-# 6.git/github 删除
+# git/github 删除
 
 git rm		删除文件
 

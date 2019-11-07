@@ -21,16 +21,67 @@
 
 ```java
 public enum State {
+    /**
+         * Thread state for a thread which has not yet started.
+         */
     NEW,
 
+    /**
+         * Thread state for a runnable thread.  A thread in the runnable
+         * state is executing in the Java virtual machine but it may
+         * be waiting for other resources from the operating system
+         * such as processor.
+         */
     RUNNABLE,
 
+    /**
+         * Thread state for a thread blocked waiting for a monitor lock.
+         * A thread in the blocked state is waiting for a monitor lock
+         * to enter a synchronized block/method or
+         * reenter a synchronized block/method after calling
+         * {@link Object#wait() Object.wait}.
+         */
     BLOCKED,
 
+    /**
+         * Thread state for a waiting thread.
+         * A thread is in the waiting state due to calling one of the
+         * following methods:
+         * <ul>
+         *   <li>{@link Object#wait() Object.wait} with no timeout</li>
+         *   <li>{@link #join() Thread.join} with no timeout</li>
+         *   <li>{@link LockSupport#park() LockSupport.park}</li>
+         * </ul>
+         *
+         * <p>A thread in the waiting state is waiting for another thread to
+         * perform a particular action.
+         *
+         * For example, a thread that has called <tt>Object.wait()</tt>
+         * on an object is waiting for another thread to call
+         * <tt>Object.notify()</tt> or <tt>Object.notifyAll()</tt> on
+         * that object. A thread that has called <tt>Thread.join()</tt>
+         * is waiting for a specified thread to terminate.
+         */
     WAITING,
 
+    /**
+         * Thread state for a waiting thread with a specified waiting time.
+         * A thread is in the timed waiting state due to calling one of
+         * the following methods with a specified positive waiting time:
+         * <ul>
+         *   <li>{@link #sleep Thread.sleep}</li>
+         *   <li>{@link Object#wait(long) Object.wait} with timeout</li>
+         *   <li>{@link #join(long) Thread.join} with timeout</li>
+         *   <li>{@link LockSupport#parkNanos LockSupport.parkNanos}</li>
+         *   <li>{@link LockSupport#parkUntil LockSupport.parkUntil}</li>
+         * </ul>
+         */
     TIMED_WAITING,
 
+    /**
+         * Thread state for a terminated thread.
+         * The thread has completed execution.
+         */
     TERMINATED;
 }
 ```
@@ -74,12 +125,6 @@ public enum State {
 - 阻塞状态:
 
   “阻塞状态”与“等待状态”的区别是：“阻塞状态”在等待着获取到一个排它锁，这个事件将在另外一个线程放弃这个锁的时候发生；而“等待状态”则是在等待一段时间，或者唤醒动作的发生。在程序等待进入同步区域（synchronized）的时候，线程将进入这种状态。
-
-  可以分为三种：
-
-  - 等待阻塞：运行状态中的线程执行 wait() 方法，使线程进入到等待阻塞状态。
-  - 同步阻塞：线程在获取 synchronized 同步锁失败(因为同步锁被其他线程占用)。
-  - 其他阻塞：通过调用线程的 sleep() 或 join() 发出了 I/O 请求时，线程就会进入到阻塞状态。当sleep() 状态超时，join() 等待线程终止或超时，或者 I/O 处理完毕，线程重新转入就绪状态。
 
 - 死亡状态:
 
@@ -197,7 +242,6 @@ public class TestThread {
 - 常用方法
 
 ```java
-构造：
 public Thread() {
         init(null, null, "Thread-" + nextThreadNum(), 0);
     }
@@ -210,7 +254,7 @@ public Thread(ThreadGroup group, Runnable target) {
         init(group, target, "Thread-" + nextThreadNum(), 0);
     }
 
-......
+//......
 
 
 public static native Thread currentThread();
@@ -229,10 +273,13 @@ public final void stop();
 @Deprecated
 public final synchronized void stop(Throwable obj);
 
+//中断目标线程，实际上就是设置中断状态为true
 public void interrupt();
 
+//清除当前线程的中断状态，并返回它之前的值
 public static boolean interrupted();
 
+//返回目标线程的中断状态
 public boolean isInterrupted();
 
 @Deprecated
@@ -273,7 +320,6 @@ public final boolean isDaemon();
 
 public final void checkAccess();
 
-
 public long getId();
 
 public State getState();
@@ -292,32 +338,25 @@ public class CallableThreadTest implements Callable<Integer> {
     {  
         CallableThreadTest ctt = new CallableThreadTest();  
         FutureTask<Integer> ft = new FutureTask<>(ctt);  
-        for(int i = 0;i < 100;i++)  
-        {  
+        for(int i = 0;i < 100;i++)  {  
             System.out.println(Thread.currentThread().getName()+" 的循环变量i的值"+i);  
-            if(i==20)  
-            {  
+            if(i==20){  
                 new Thread(ft,"有返回值的线程").start();  
             }  
         }  
-        try  
-        {  
+        try  {  
             System.out.println("子线程的返回值："+ft.get());  
-        } catch (InterruptedException e)  
-        {  
+        } catch (InterruptedException e){  
             e.printStackTrace();  
-        } catch (ExecutionException e)  
-        {  
+        } catch (ExecutionException e){  
             e.printStackTrace();  
         }  
   
     }
     @Override  
-    public Integer call() throws Exception  
-    {  
+    public Integer call() throws Exception {  
         int i = 0;  
-        for(;i<100;i++)  
-        {  
+        for(;i<100;i++){  
             System.out.println(Thread.currentThread().getName()+" "+i);  
         }  
         return i;  
@@ -383,8 +422,6 @@ public class Thread{
 
 ### 中断的用途
 
-
-
 - 一个正常运行的线程，收到中断后，不会有任何问题，可以不需要做任何处理，当然程序可以通过显式的判断`isInterrupted`，来决定下一步动作，比如下面这样的：
 
 ```java
@@ -440,7 +477,9 @@ public class InterruptThread1 extends Thread{
 
 
 
-例如，线程通过wait()进入阻塞状态，此时通过`interrupt()`中断该线程；调用`interrupt`()会立即将线程的中断标记设为“`true`”，但是由于线程处于阻塞状态，所以该“中断标记”会立即被清除为“`false`”，同时，会产生一个`InterruptedException`的异常。
+- 例如：
+
+  线程通过`wait()`进入阻塞状态，此时通过`interrupt()`中断该线程；调用`interrupt`()会立即将线程的中断标记设为“`true`”，但是由于线程处于阻塞状态，所以该“中断标记”会立即被清除为“`false`”，同时，会产生一个`InterruptedException`的异常。
 
 
 
@@ -481,30 +520,44 @@ Thread类的setPriority()和getPriority()方法分别用来设置和获取线程
 
 - join()方法，等待其他线程终止。在当前线程中调用另一个线程的join()方法，则当前线程转入阻塞状态，直到另一个进程运行结束，当前线程再由阻塞转为就绪状态。
 
+
+
 # 线程间通信
 
 ## wait/notify
 
 - `wait()`与`notify()`的成对使用， 是一种**线程间通信**的手段。（进一步分析， `wait()` 操作的调用必然是在等待某种条件的成立， 而条件的成立必然是由其他的线程来完成的。）
 - 在Java中，可以通过配合调用`Object`对象的`wait`方法和`notify`方法或`notifyAll`方法来实现**线程间的协作通信**。在线程中调用wait方法，将阻塞等待其他线程的通知(其他线程调用`notify`方法或`notifyAll`方法)，在线程中调用`notify`方法或`notifyAll`方法，将通知其他线程从`wait`方法处返回。
-- 在JDK1.4之后出现了一个**Condition类**，这个类也能够实现**线程间的协作通信**，并且一般建议使用Condition替代`wait,notify,notifyAll`家族，实现更安全的线程间协作通信功能，比如`ArrayBlockingQueue`就是使用`Condition`实现阻塞队列的。
+- 在`JDK1.4`之后出现了一个**Condition类**，这个类也能够实现**线程间的协作通信**，并且一般建议使用Condition替代`wait,notify,notifyAll`家族，实现更安全的线程间协作通信功能，比如`ArrayBlockingQueue`就是使用`Condition`实现阻塞队列的。
 - 注意
   - `Object.wait()`与`Object.notify()`**必须要与**同步块或同步方法(**synchronized**块或者`synchronized`方法)一起使用，也就是`wait`与`notify`是针对已经获取了`Object`锁进行操作，从语法角度来说就是说`Object.wait(),Object.notify`必须在同步块或同步方法内。
   - `wait`：线程在获取对象锁后，主动释放对象锁，同时本线程休眠。直到有其它线程调用对象的`notify()`唤醒该线程，才能继续获取对象锁，并继续执行。
-  - `notify`：对对象锁的唤醒操作。有一点需要注意的是`notify()`调用后，并**不是马上就释放对象锁**的，而是在相应的同步块或同步方法中执行结束，自动释放锁后，JVM会在`wait`()对象锁的线程中随机选取一线程，赋予其对象锁，唤醒线程，继续执行。这样就提供了在线程间同步、唤醒的操作。
+  - `notify`：对对象锁的唤醒操作。有一点需要注意的是`notify()`调用后，并**不是马上就释放对象锁**的，而是在相应的同步块或同步方法中执行结束，自动释放锁后，`JVM`会在`wait`()对象锁的线程中随机选取一线程，赋予其对象锁，唤醒线程，继续执行。这样就提供了在线程间同步、唤醒的操作。
 
 ### 为什么需要和synchronized一起使用
 
-**每个对象都可以被认为是一个"监视器monitor"，这个监视器由三部分组成（一个独占锁，一个入口队列，一个等待队列）(ps:和AQS的state，同步队列，等待队列好相似)。**注意是一个对象只能有一个独占锁，但是任意线程线程都可以拥有这个独占锁。
+**每个对象都可以被认为是一个"监视器monitor"，这个监视器由三部分组成（一个独占锁，一个入口队列，一个等待队列）(和AQS的state，同步队列，等待队列很相似)。**注意是一个对象只能有一个独占锁，但是任意线程线程都可以拥有这个独占锁。
 
 - 对于对象的<font color="#dd0000">非同步方法</font>而言，任意时刻可以有任意个线程调用该方法。（即普通方法同一时刻可以有多个线程调用）
-
 - 对于对象的<font color="#dd000">同步方法</font>而言，只有拥有这个对象的独占锁才能调用这个同步方法。如果这个独占锁被其他线程占用，那么另外一个调用该同步方法的线程就会处于阻塞状态，**此线程进入入口队列**。
-
 - 若一个拥有该独占锁的线程调用该对象同步方法的`wait`()方法，则该线程会释放独占锁，并**加入对象的等待队列**。只要该线程在该对象的等待队列中， 就会一直处于闲置状态， 不会被调度执行。（要注意`wait()`方法会强迫线程先进行释放锁操作，所以在调用`wait()`时， 该线程必须已经获得锁，否则会抛出异常。由于`wait()`在`synchonized`的方法内部被执行， 锁一定已经获得， 就不会抛出异常了。）
-
 - 某个线程调用`notify`(),`notifyAll`()方法是**将等待队列的线程转移到入口队列，然后在入口队列中的多个线程就会竞争该对象的锁**，所以这个<font color="00dd00">调用线程本身必须拥有锁</font>。
 - `wait()`与`notify()`的成对使用， 是一种**线程间通信**的手段。（进一步分析， `wait()` 操作的调用必然是在等待某种条件的成立， 而条件的成立必然是由其他的线程来完成的。）所以实际上， 我们调用 wait() 的时候， 实际上希望达到如下的效果
+
+
+
+总结：<u>监视器：独占锁，入口队列，等待队列</u>
+
+```properties
+同步方法
+	如果当前没有线程获取该同步方法的对象锁，则当前线程获取该独占锁；
+	此时其余调用该同步方法的线程全部阻塞，进入入口队列，等待锁释放后去抢占锁。
+	
+wait()				-> 释放锁，并且将当前线程加入对象的等待队列
+notify/notifyAll	-> 将等待队列的线程转移到入口队列，然后在入口队列中的多个线程就会竞争该对象的锁
+```
+
+
 
 ```java
 // 线程A 的代码
@@ -599,7 +652,6 @@ public class WaitNotifyTest {
         }
 
         // new Thread(new Notifier(s), "notifier").start();
-
         for(int i = 1; i <= 10; i ++){
             new Thread(new Notifier(s), "notifier" + i).start();
         }
@@ -740,7 +792,7 @@ public class UseSingleConditionWaitNotify {
 }
 ```
 
-![](img/java-condition)
+<u>![](img/java-condition)</u>
 
 
 
@@ -866,7 +918,7 @@ public class MyserviceMoreCondition {
 }
 ```
 
-![](img/java-condition1.)
+<u>![](img/java-condition1.)</u>
 
 只有A线程被唤醒了。
 
@@ -1029,6 +1081,8 @@ public class VolatileTest {
 
 如果将a和b都改成volatile类型的变量再执行，则再也不会出现b=3;a=1的结果了。
 
+
+
 ## synchronized
 
 - 保证线程执行代码块/方法的原子性
@@ -1063,6 +1117,8 @@ public class VolatileTest {
 ```
 
 - Java中的每个对象都有一个锁（lock），或者叫做监视器（monitor），当一个线程访问某个对象的synchronized方法时，**将该对象上锁**，<font color="#STCAIYUN">其他任何线程都无法再去访问该对象的synchronized方法了（这里是指所有的同步方法，而不仅仅是同一个方法）</font>，直到之前的那个线程执行方法完毕后（或者是抛出了异常），才将该对象的锁释放掉，其他线程才有可能再去访问该对象的synchronized方法。
+
+
 
 代码示例
 
@@ -1366,7 +1422,6 @@ public class SimpleDateFormatTest {
         for (int i = 0; i <100; ++i) {
             Thread thread = new Thread(() -> {
                 try {
-                    //(3)使用单例日期实例解析文本
                     System.out.println(tsdf.get().parse("2017-12-13 15:17:27"));
                 } catch (ParseException e) {
                     e.printStackTrace();
@@ -1385,7 +1440,7 @@ public class SimpleDateFormatTest {
 
 
 
-### 原理详解
+### <u>原理详解</u>
 
 - 例如上述中的`ThreadLocal<DateFormat>`，当`new`一个`ThreadLocal<DateFormat>`时，需要重写其`initialValue`方法，构造自己需要的实例。
 
@@ -1400,7 +1455,7 @@ public class SimpleDateFormatTest {
 
   
 
-- 随后在测试用例中使用，当调用其`get()`方法时，该方法内部会获取当前线程的`ThreadLocalMap`实例`threadLocals`，并判断`threadLocals`中是否存储了以当前`ThreadLocal`为`key`的数值。
+- 随后在使用中，当调用其`get()`方法时，该方法内部会获取当前线程的`ThreadLocalMap`实例`threadLocals`，并判断`threadLocals`中是否存储了以当前`ThreadLocal`为`key`的数值。
 
   ```java
   /**
@@ -1468,7 +1523,7 @@ public class SimpleDateFormatTest {
 
 也就是说 `ThreadLocal` 本身并不存储值，它只是作为一个 `key` 来让线程从 `ThreadLocalMap` 获取 `value`。值得注意的是图中的虚线，表示 `ThreadLocalMap` 是使用 `ThreadLocal` 的弱引用作为 `Key` 的，弱引用的对象在 `GC` 时会被回收。
 
-![](img/threadLocal1..webp)
+<u>![](img/threadLocal1..webp)</u>
 
 
 
@@ -1518,7 +1573,7 @@ public void test3() {
 
 
 
-线程池中使用变量readLocal
+线程池中使用变量`ThreadLocal`
 
 ```java
 public class ThreadPoolTest {
@@ -1656,7 +1711,13 @@ $ java -Xms256m ThreadLocalOOMDemo
 
 综合上面的分析，我们可以理解`ThreadLocal`内存泄漏的前因后果，那么怎么避免内存泄漏呢？
 
-每次使用完`ThreadLocal`，都调用它的`remove()`方法，清除数据。
+
+
+**总结**：
+
+​	要防止内存泄漏，对于那些长期存活的线程中如果要使用`ThreadLocal<T>`变量，在使用完后尽量调用其`threadLocal.remove()`方法将其删除，防止长期占用内存导致泄露。
+
+
 
 在使用线程池的情况下，没有及时清理`ThreadLocal`，不仅是内存泄漏的问题，更严重的是可能导致业务逻辑出现问题。所以，使用`ThreadLocal`就跟加锁完要解锁一样，用完就清理。
 
@@ -1670,7 +1731,672 @@ $ java -Xms256m ThreadLocalOOMDemo
 
 
 
-## juc-Atomic
+#### 疑问
+
+​	每次新建`ThreadLocal`，使用，然后`remove`删除，这样操作频繁，会频繁触发`GC`，怎么办？
+
+
+
+## juc-Atomic类
+
+`juc`下的`Atomic`类都是线程安全的，他们的内部实现线程安全的方式是`CAS`。
+
+[https://segmentfault.com/a/1190000015558984](https://segmentfault.com/a/1190000015558984)
+
+
+
+### 基本类型
+
+- `AtomicInteger`：整形原子类
+- `AtomicLong`：长整型原子类
+- `AtomicBoolean` ：布尔型原子类
+
+```java
+public class AtomicInteger extends Number implements java.io.Serializable {
+    private static final long serialVersionUID = 6214790243416807050L;
+
+    // 获取指针类Unsafe
+    private static final Unsafe unsafe = Unsafe.getUnsafe();
+
+    //下述变量value在AtomicInteger实例对象内的内存偏移量
+    private static final long valueOffset;
+
+    static {
+        try {
+           //通过unsafe类的objectFieldOffset()方法，获取value变量在对象内存中的偏移
+           //通过该偏移量valueOffset，unsafe类的内部方法可以获取到变量value对其进行取值或赋值操作
+            valueOffset = unsafe.objectFieldOffset
+                (AtomicInteger.class.getDeclaredField("value"));
+        } catch (Exception ex) { throw new Error(ex); }
+    }
+   //当前AtomicInteger封装的int变量value
+    private volatile int value;
+
+    public AtomicInteger(int initialValue) {
+        value = initialValue;
+    }
+    public AtomicInteger() {
+    }
+   //获取当前最新值，
+    public final int get() {
+        return value;
+    }
+    //设置当前值，具备volatile效果，方法用final修饰是为了更进一步的保证线程安全。
+    public final void set(int newValue) {
+        value = newValue;
+    }
+    //最终会设置成newValue，使用该方法后可能导致其他线程在之后的一小段时间内可以获取到旧值，有点类似于延迟加载
+    public final void lazySet(int newValue) {
+        unsafe.putOrderedInt(this, valueOffset, newValue);
+    }
+   //设置新值并获取旧值，底层调用的是CAS操作即unsafe.compareAndSwapInt()方法
+    public final int getAndSet(int newValue) {
+        return unsafe.getAndSetInt(this, valueOffset, newValue);
+    }
+   //如果当前值为expect，则设置为update(当前值指的是value变量)
+    public final boolean compareAndSet(int expect, int update) {
+        return unsafe.compareAndSwapInt(this, valueOffset, expect, update);
+    }
+    //当前值加1返回旧值，底层CAS操作
+    public final int getAndIncrement() {
+        return unsafe.getAndAddInt(this, valueOffset, 1);
+    }
+    //当前值减1，返回旧值，底层CAS操作
+    public final int getAndDecrement() {
+        return unsafe.getAndAddInt(this, valueOffset, -1);
+    }
+   //当前值增加delta，返回旧值，底层CAS操作
+    public final int getAndAdd(int delta) {
+        return unsafe.getAndAddInt(this, valueOffset, delta);
+    }
+    //当前值加1，返回新值，底层CAS操作
+    public final int incrementAndGet() {
+        return unsafe.getAndAddInt(this, valueOffset, 1) + 1;
+    }
+    //当前值减1，返回新值，底层CAS操作
+    public final int decrementAndGet() {
+        return unsafe.getAndAddInt(this, valueOffset, -1) - 1;
+    }
+   //当前值增加delta，返回新值，底层CAS操作
+    public final int addAndGet(int delta) {
+        return unsafe.getAndAddInt(this, valueOffset, delta) + delta;
+    }
+   //省略一些不常用的方法....
+}
+```
+
+
+
+### 数组类型
+
+原子更新数组指的是通过原子的方式**更新数组里的某个元素**
+
+
+
+- AtomicIntegerArray：整形数组原子类
+- AtomicLongArray：长整形数组原子类
+- AtomicReferenceArray ：引用类型数组原子类
+
+```java
+public class AtomicIntegerArray implements java.io.Serializable {
+    //获取unsafe类的实例对象
+    private static final Unsafe unsafe = Unsafe.getUnsafe();
+    //获取数组的第一个元素内存起始地址
+    private static final int base = unsafe.arrayBaseOffset(int[].class);
+
+    //数组元素的偏移量
+    private static final int shift;
+    //内部数组
+    private final int[] array;
+
+    static {
+        //获取数组中一个元素占据的内存空间(arrayIndexScale方法可以获取每个数组元素占用的内存空间)
+        int scale = unsafe.arrayIndexScale(int[].class);
+        //判断是否为2的次幂，一般为2的次幂否则抛异常
+        if ((scale & (scale - 1)) != 0)
+            throw new Error("data type scale not a power of two");
+        //
+        shift = 31 - Integer.numberOfLeadingZeros(scale);
+    }
+
+    private long checkedByteOffset(int i) {
+        if (i < 0 || i >= array.length)
+            throw new IndexOutOfBoundsException("index " + i);
+
+        return byteOffset(i);
+    }
+    //计算数组中每个元素的的内存地址
+    private static long byteOffset(int i) {
+        return ((long) i << shift) + base;
+    }
+    //省略其他代码......
+}
+```
+
+由于这里是Int类型，而Java中一个int类型占用4个字节，也就是scale的值为4，那么如何根据数组下标值计算每个元素的内存地址呢？显然应该是
+
+> 每个数组元素的内存地址 = 起始地址 + 元素下标  *  每个元素所占用的内存空间
+
+上述代码中的`byteOffset`与该方法原理相同
+
+
+
+首先来计算出shift的值
+
+```java
+shift = 31 - Integer.numberOfLeadingZeros(scale);
+```
+
+其中`Integer.numberOfLeadingZeros(scale)`是计算出`scale`的前导零个数(必须是连续的)，`scale=4`，转成二进制为
+00000000 00000000 00000000 00000100
+即前导零数为29，也就是**shift=2**，然后利用`shift`来定位数组中的内存位置，在数组不越界时，计算出前3个数组元素内存地址
+
+```java
+//第一个数组元素，index=0 ， 其中base为起始地址，4代表int类型占用的字节数 
+address = base + 0 * 4 即address= base + 0 << 2
+//第二个数组元素，index=1
+address = base + 1 * 4 即address= base + 1 << 2
+//第三个数组元素，index=2
+address = base + 2 * 4 即address= base + 2 << 2
+//........
+```
+
+显然shift=2，替换去就是
+
+```java
+address= base + i << shift
+```
+
+这就是 `byteOffset(int i)` 方法的计算原理。因此`byteOffset(int)`方法可以根据数组下标计算出每个元素的内存地址。至于其他方法就比较简单了，都是间接调用Unsafe类的CAS原子操作方法，如下简单看其中几个常用方法
+
+```java
+//执行自增操作，返回旧值，i是指数组元素下标
+public final int getAndIncrement(int i) {
+      return getAndAdd(i, 1);
+}
+//指定下标元素执行自增操作，并返回新值
+public final int incrementAndGet(int i) {
+    return getAndAdd(i, 1) + 1;
+}
+
+//指定下标元素执行自减操作，并返回新值
+public final int decrementAndGet(int i) {
+    return getAndAdd(i, -1) - 1;
+}
+//间接调用unsafe.getAndAddInt()方法
+public final int getAndAdd(int i, int delta) {
+    return unsafe.getAndAddInt(array, checkedByteOffset(i), delta);
+}
+
+//Unsafe类中的getAndAddInt方法，执行CAS操作
+public final int getAndAddInt(Object o, long offset, int delta) {
+    int v;
+    do {
+        v = getIntVolatile(o, offset);
+    } while (!compareAndSwapInt(o, offset, v, v + delta));
+    return v;
+}
+```
+
+
+
+### 引用类型
+
+- `AtomicReference`：引用类型
+- `AtomicStampedRerence`：原子性更新引用类型里的字段
+- `AtomicMarkableReference` ：原子性更新带有标记位的引用类型
+
+```java
+public class AtomicReference<V> implements java.io.Serializable {
+    private static final Unsafe unsafe = Unsafe.getUnsafe();
+    private static final long valueOffset;
+
+    static {
+        try {
+            valueOffset = unsafe.objectFieldOffset
+                (AtomicReference.class.getDeclaredField("value"));
+        } catch (Exception ex) { throw new Error(ex); }
+    }
+    //内部变量value，Unsafe类通过valueOffset内存偏移量即可获取该变量
+    private volatile V value;
+
+//CAS方法，间接调用unsafe.compareAndSwapObject(),它是一个
+//实现了CAS操作的native方法
+public final boolean compareAndSet(V expect, V update) {
+        return unsafe.compareAndSwapObject(this, valueOffset, expect, update);
+}
+
+//设置并获取旧值
+public final V getAndSet(V newValue) {
+        return (V)unsafe.getAndSetObject(this, valueOffset, newValue);
+    }
+    //省略其他代码......
+}
+
+//Unsafe类中的getAndSetObject方法，实际调用还是CAS操作
+public final Object getAndSetObject(Object o, long offset, Object newValue) {
+      Object v;
+      do {
+          v = getObjectVolatile(o, offset);
+      } while (!compareAndSwapObject(o, offset, v, newValue));
+      return v;
+  }
+```
+
+从源码看来，`AtomicReference`与`AtomicInteger`的实现原理基本是一样的，最终执行的还是`Unsafe`类，关于`AtomicReference`的其他方法也是一样的，如下
+
+![](E:/notes/java/javaBasic/img/atomic1.png)
+
+红框内的方法是`Java8`新增的，可以基于`Lambda`表达式对传递进来的期望值或要更新的值进行其他操作后再进行`CAS`操作，说白了就是对期望值或要更新的值进行额外修改后再执行`CAS`更新，在所有的`Atomic`原子类中几乎都存在这几个方法。
+
+
+
+### 对象的属性修改类型
+
+如果需要更新对象的某个字段，`Atomic`同样也提供了相应的原子操作类：
+
+- `AtomicIntegerFieldUpdater`:原子性更新整形字段的更新器
+- `AtomicLongFieldUpdater`：原子性更新长整形字段的更新器
+- `AtomicReferenceFieldUpdater` ：原子性更新带有版本号的引用类型。该类将整数值与引用关联起来，可用于解决原子的更新数据和数据的版本号，**可以解决使用 `CAS` 进行原子更新时可能出现的 `ABA` 问题**。
+
+
+
+要想使用原子更新字段需要两步操作：
+
+- 原子更新字段类型类都是抽象类，只能通过静态方法`newUpdater`来创建一个更新器，并且需要设置想要更新的类和属性；
+- 更新类的属性必须使用`public volatile`进行修饰；
+
+
+
+**注意：原子更新器的使用存在比较苛刻的条件**
+
+- 操作的字段不能是`static`类型。
+
+- 操作的字段不能是`final`类型的，因为final根本没法修改。
+
+- 字段必须是`volatile`修饰的，也就是数据本身是读一致的。
+
+- 属性必须对当前的`Updater`所在的区域是可见的。
+
+  > 如果不是当前类内部进行原子更新器操作不能使用private，protected子类操作父类时修饰符必须是protect权限及以上，如果在同一个package下则必须是default权限及以上，也就是说无论何时都应该保证操作类与被操作类间的可见性。
+
+
+
+**内部实现：**
+
+`AtomicIntegerFieldUpdater`的实现原理，实际就是**反射和Unsafe类结合**，`AtomicIntegerFieldUpdater`是个抽象类，实际实现类为`AtomicIntegerFieldUpdaterImpl`
+
+```java
+private static class AtomicIntegerFieldUpdaterImpl<T>
+            extends AtomicIntegerFieldUpdater<T> {
+        private static final Unsafe unsafe = Unsafe.getUnsafe();
+        private final long offset;//内存偏移量
+        private final Class<T> tclass;
+        private final Class<?> cclass;
+
+        AtomicIntegerFieldUpdaterImpl(final Class<T> tclass,
+                                      final String fieldName,
+                                      final Class<?> caller) {
+            final Field field;//要修改的字段
+            final int modifiers;//字段修饰符
+            try {
+                field = AccessController.doPrivileged(
+                    new PrivilegedExceptionAction<Field>() {
+                        public Field run() throws NoSuchFieldException {
+                            return tclass.getDeclaredField(fieldName);//反射获取字段对象
+                        }
+                    });
+                    //获取字段修饰符
+                modifiers = field.getModifiers();
+            //对字段的访问权限进行检查,不在访问范围内抛异常
+                sun.reflect.misc.ReflectUtil.ensureMemberAccess(
+                    caller, tclass, null, modifiers);
+                ClassLoader cl = tclass.getClassLoader();
+                ClassLoader ccl = caller.getClassLoader();
+                if ((ccl != null) && (ccl != cl) &&
+                    ((cl == null) || !isAncestor(cl, ccl))) {
+              sun.reflect.misc.ReflectUtil.checkPackageAccess(tclass);
+                }
+            } catch (PrivilegedActionException pae) {
+                throw new RuntimeException(pae.getException());
+            } catch (Exception ex) {
+                throw new RuntimeException(ex);
+            }
+
+            Class<?> fieldt = field.getType();
+            //判断是否为int类型
+            if (fieldt != int.class)
+                throw new IllegalArgumentException("Must be integer type");
+            //判断是否被volatile修饰
+            if (!Modifier.isVolatile(modifiers))
+                throw new IllegalArgumentException("Must be volatile type");
+
+            this.cclass = (Modifier.isProtected(modifiers) &&
+                           caller != tclass) ? caller : null;
+            this.tclass = tclass;
+            //获取该字段的在对象内存的偏移量，通过内存偏移量可以获取或者修改该字段的值
+            offset = unsafe.objectFieldOffset(field);
+        }
+        }
+```
+
+从`AtomicIntegerFieldUpdaterImpl`的构造器也可以看出更新器为什么会有这么多限制条件了，当然最终其`CAS`操作肯定是通过`unsafe`完成的，简单看一个方法
+
+```java
+public int incrementAndGet(T obj) {
+        int prev, next;
+        do {
+            prev = get(obj);
+            next = prev + 1;
+            //CAS操作
+        } while (!compareAndSet(obj, prev, next));
+        return next;
+}
+
+//最终调用的还是unsafe.compareAndSwapInt()方法
+public boolean compareAndSet(T obj, int expect, int update) {
+            if (obj == null || obj.getClass() != tclass || cclass != null) fullCheck(obj);
+            return unsafe.compareAndSwapInt(obj, offset, expect, update);
+        }
+```
+
+
+
+`AtomicIntegerFieldUpdater`**使用示例**：
+
+> 假设现在有这样的一个场景： 一百个线程同时对一个int对象进行修改，要求只能有一个线程可以修改。
+
+
+
+错误实现：
+
+```java
+// 假设现在有这样的一个场景： 一百个线程同时对一个int对象进行修改，要求只能有一个线程可以修改。
+private static int a = 100;
+private static  volatile boolean ischanged = false;
+public static void main(String[] args){
+    for(int i=0; i<100;i++){
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                if(!ischanged){
+                    ischanged = true;
+                    a = 120;
+                }
+            }
+        });
+        t.start();
+    }
+}
+// 1. 判断!ischanged 2.ischanged=true  该组合操作就不能保证原子性
+```
+
+正确实现：
+
+```java
+public class Test{
+    //不能是 static,final;只能是 volatile
+    public volatile int a = 100;
+}
+
+public static void main(String[] args){
+    
+    private static AtomicIntegerFieldUpdater<Test> update = AtomicIntegerFieldUpdater.newUpdater(Test.class, "a");
+    private static Test test = new Test();
+    
+    for(int i=0; i<100;i++){
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                if(update.compareAndSet(test, 100, 120)){
+                    System.out.print("已修改");
+                }
+            }
+        });
+        t.start();
+    }
+}
+```
+
+
+
+### Atomic中解决ABA问题
+
+- 在`CAS`中存在的`ABA`问题，`Atomic`类中是如何解决的呢？
+
+#### AtomicStampedReference
+
+- `AtomicStampedReference`原子类是一个带有时间戳的对象引用，在每次修改后，`AtomicStampedReference`不仅会设置新值而且还会记录更改的时间。当`AtomicStampedReference`设置对象值时，对象值以及时间戳都必须满足期望值才能写入成功，这也就解决了反复读写时，无法预知值是否已被修改的窘境
+
+```java
+public class ABADemo {
+
+    static AtomicInteger atIn = new AtomicInteger(100);
+
+    //初始化时需要传入一个初始值和初始时间
+    static AtomicStampedReference<Integer> atomicStampedR =
+            new AtomicStampedReference<Integer>(200,0);
+
+
+    static Thread t1 = new Thread(new Runnable() {
+        @Override
+        public void run() {
+            //更新为200
+            atIn.compareAndSet(100, 200);
+            //更新为100
+            atIn.compareAndSet(200, 100);
+        }
+    });
+
+
+    static Thread t2 = new Thread(new Runnable() {
+        @Override
+        public void run() {
+            try {
+                TimeUnit.SECONDS.sleep(1);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            boolean flag=atIn.compareAndSet(100,500);
+            System.out.println("flag:"+flag+",newValue:"+atIn);
+        }
+    });
+
+
+    static Thread t3 = new Thread(new Runnable() {
+        @Override
+        public void run() {
+            int time=atomicStampedR.getStamp();
+            //更新为200
+            atomicStampedR.compareAndSet(100, 200,time,time+1);
+            //更新为100
+            int time2=atomicStampedR.getStamp();
+            atomicStampedR.compareAndSet(200, 100,time2,time2+1);
+        }
+    });
+
+
+    static Thread t4 = new Thread(new Runnable() {
+        @Override
+        public void run() {
+            int time = atomicStampedR.getStamp();
+            System.out.println("sleep 前 t4 time:"+time);
+            try {
+                TimeUnit.SECONDS.sleep(1);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            boolean flag=atomicStampedR.compareAndSet(100,500,time,time+1);
+            System.out.println("flag:"+flag+",newValue:"+atomicStampedR.getReference());
+        }
+    });
+
+    public static  void  main(String[] args) throws InterruptedException {
+        t1.start();
+        t2.start();
+        t1.join();
+        t2.join();
+
+        t3.start();
+        t4.start();
+        /**
+         * 输出结果:
+         flag:true,newValue:500
+         sleep 前 t4 time:0
+         flag:false,newValue:200
+         */
+    }
+}
+```
+
+对比输出结果可知，`AtomicStampedReference`类确实解决了`ABA`的问题，下面我们简单看看其内部实现原理
+
+```java
+public class AtomicStampedReference<V> {
+    //通过Pair内部类存储数据和时间戳
+    private static class Pair<T> {
+        final T reference;
+        final int stamp;
+        private Pair(T reference, int stamp) {
+            this.reference = reference;
+            this.stamp = stamp;
+        }
+        static <T> Pair<T> of(T reference, int stamp) {
+            return new Pair<T>(reference, stamp);
+        }
+    }
+    //存储数值和时间的内部类
+    private volatile Pair<V> pair;
+
+    //构造器，创建时需传入初始值和时间初始值
+    public AtomicStampedReference(V initialRef, int initialStamp) {
+        pair = Pair.of(initialRef, initialStamp);
+    }
+}
+```
+
+#### AtomicMarkableReference
+
+- `AtomicMarkableReference`与`AtomicStampedReference`不同的是，`AtomicMarkableReference`维护的是一个boolean值的标识，也就是说至于true和false两种切换状态，**经过测试，这种方式并不能完全防止ABA问题的发生，只能减少ABA问题发生的概率。**
+
+```java
+public class ABADemo {
+    static AtomicMarkableReference<Integer> atMarkRef =
+              new AtomicMarkableReference<Integer>(100,false);
+
+ static Thread t5 = new Thread(new Runnable() {
+        @Override
+        public void run() {
+            boolean mark=atMarkRef.isMarked();
+            System.out.println("mark:"+mark);
+            //更新为200
+            System.out.println("t5 result:"+atMarkRef.compareAndSet(atMarkRef.getReference(), 200,mark,!mark));
+        }
+    });
+
+    static Thread t6 = new Thread(new Runnable() {
+        @Override
+        public void run() {
+            boolean mark2=atMarkRef.isMarked();
+            System.out.println("mark2:"+mark2);
+            System.out.println("t6 result:"+atMarkRef.compareAndSet(atMarkRef.getReference(), 100,mark2,!mark2));
+        }
+    });
+
+    static Thread t7 = new Thread(new Runnable() {
+        @Override
+        public void run() {
+            boolean mark=atMarkRef.isMarked();
+            System.out.println("sleep 前 t7 mark:"+mark);
+            try {
+                TimeUnit.SECONDS.sleep(1);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            boolean flag=atMarkRef.compareAndSet(100,500,mark,!mark);
+            System.out.println("flag:"+flag+",newValue:"+atMarkRef.getReference());
+        }
+    });
+
+    public static  void  main(String[] args) throws InterruptedException {        
+        t5.start();t5.join();
+        t6.start();t6.join();
+        t7.start();
+
+        /**
+         * 输出结果:
+         mark:false
+         t5 result:true
+         mark2:true
+         t6 result:true
+         sleep 前 t5 mark:false
+         flag:true,newValue:500 ---->成功了.....说明还是发生ABA问题
+         */
+    }
+}
+```
+
+`AtomicMarkableReference`的实现原理与`AtomicStampedReference`类似，这里不再介绍。到此，我们也明白了如果要完全杜绝`ABA`问题的发生，我们应该使用`AtomicStampedReference`原子类更新对象，而对于`AtomicMarkableReference`来说只能减少`ABA`问题的发生概率，并不能杜绝。
+
+
+
+### LongAdder/LongAccumulator
+
+根据Oracle官方文档的介绍，`LongAdder`在高并发的场景下会比它的前辈————`AtomicLong` 具有更好的性能，代价是消耗更多的内存空间 
+
+
+
+疑问：
+
+```java
+为什么要引入LongAdder？ 
+
+如果低并发环境下，LongAdder和AtomicLong性能差不多，那LongAdder是否就可以替代AtomicLong了？
+```
+
+
+
+#### 为什么要引入LongAdder
+
+ `AtomicLong`是利用了底层的`CAS`操作来提供并发性的，比如`addAndGet()`等方法，是通过调用了`Unsafe`类的`getAndAddLong`方法，该方法是个`native`方法，它的逻辑是采用自旋的方式不断更新目标值，直到更新成功。
+
+
+
+在并发量较低的环境下，线程冲突的概率比较小，自旋的次数不会很多。但是，高并发环境下，N多个线程同时进行自旋操作，会出现大量失败并不断自旋的情况，此时`AtomicLong`的**自旋会成为瓶颈**。
+
+这就是**`LongAdder`引入的初衷——解决高并发环境下`AtomicLong`的自旋瓶颈问题。**
+
+
+
+#### LongAdder快在哪里
+
+在`AtomicLong`中有个内部变量**value**保存着实际的`long`值，所有的操作都是针对该变量进行。也就是说，高并发环境下，`value`变量其实是一个热点，也就是N个线程竞争一个热点。
+
+`LongAdder`的基本思路就是**分散热点**，将`value`值分散到一个数组中，不同线程会命中到数组的不同槽中，各个线程只对自己槽中的那个值进行`CAS`操作，这样热点就被分散了，冲突的概率就小很多。如果要获取真正的`long`值，只要将各个槽中的变量值累加返回。
+
+这种做法类似于`ConcurrentHashMaple`中的“分段锁”的思路。
+
+
+
+#### LongAdder能否替代AtomicLong
+
+**LongAdder**提供的API和**AtomicLong**比较接近，两者都能以原子的方式对long型变量进行增减。
+
+但是**AtomicLong**提供的功能其实更丰富，尤其是**addAndGet**、**decrementAndGet**、**compareAndSet**这些方法。
+
+**addAndGet**、**decrementAndGet**除了单纯的做自增自减外，还可以立即获取增减后的值，而**LongAdder**则需要做同步控制才能精确获取增减后的值。如果业务需求需要精确的控制计数，做计数比较，**AtomicLong**也更合适。
+
+另外，从空间方面考虑，**LongAdder**其实是一种“空间换时间”的思想，从这一点来讲**AtomicLong**更适合。
+
+总之，低并发、一般的业务场景下AtomicLong是足够了。如果并发量很多，存在大量写多读少的情况，那LongAdder可能更合适。适合的才是最好的，如果真出现了需要考虑到底用AtomicLong好还是LongAdder的业务场景，那么这样的讨论是没有意义的，因为这种情况下要么进行性能测试，以准确评估在当前业务场景下两者的性能，要么换个思路寻求其它解决方案。
+
+
+
+#### LongAdder原理
+
+[https://segmentfault.com/a/1190000015865714](https://segmentfault.com/a/1190000015865714)
+
+
 
 ## juc-Locks
 
@@ -1689,25 +2415,4 @@ lock: 在java.util.concurrent包内。共有三个实现：
 5. 和Condition类的结合。
 6. 性能更高，对比如下图：
 
-![](img/java-thread2.webp)
-
-# 并发容器
-
-- BlockingQueue
-
-  阻塞队列。单向队列。
-
-  BlockingQueue在队列的基础上添加了多线程协作的功能：
-
-  ![](img/java-thread3.webp)
-
-  除了传统的queue功能（表格左边的两列）之外，还提供了阻塞接口put和take，带超时功能的阻塞接口offer和poll。put会在队列满的时候阻塞，直到有空间时被唤醒；take在队　列空的时候阻塞，直到有东西拿的时候才被唤醒。用于生产者-消费者模型尤其好用，堪称神器。
-
-  常见的阻塞队列有：
-
-  - ArrayListBlockingQueue
-  - LinkedListBlockingQueue
-  - DelayQueue
-  - SynchronousQueue
-
-- ConcurrentHashMap
+<u>![](img/java-thread2.webp)</u>

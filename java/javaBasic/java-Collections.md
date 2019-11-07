@@ -1,3 +1,13 @@
+## 概述
+
+学习维度：
+
+​	1.容量大小与扩容
+​	2.是否允许null值
+​	3.是否允许并发，并发控制逻辑
+
+
+
 [https://segmentfault.com/a/1190000015558984](https://segmentfault.com/a/1190000015558984)
 
 
@@ -986,31 +996,16 @@ public class Hashtable<K,V>
     extends Dictionary<K,V>
     implements Map<K,V>, Cloneable, java.io.Serializable {
 
-    /**
-     * The hash table data.
-     */
     private transient Entry<?,?>[] table;
 
-    /**
-     * The total number of entries in the hash table.
-     */
     private transient int count;
 
-    /**
-     * The table is rehashed when its size exceeds this threshold.  (The
-     * value of this field is (int)(capacity * loadFactor).)
-     *
-     * @serial
-     */
     private int threshold;
 
-    /**
-     * The load factor for the hashtable.
-     *
-     * @serial
-     */
     private float loadFactor;
 
+    private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
+    
     /**
      * The number of times this Hashtable has been structurally modified
      * Structural modifications are those that change the number of entries in
@@ -1053,8 +1048,134 @@ public class Hashtable<K,V>
         this(Math.max(2*t.size(), 11), 0.75f);
         putAll(t);
     }
+    
+    @SuppressWarnings("unchecked")
+    public synchronized V get(Object key) {
+        Entry<?,?> tab[] = table;
+        int hash = key.hashCode();
+        int index = (hash & 0x7FFFFFFF) % tab.length;
+        for (Entry<?,?> e = tab[index] ; e != null ; e = e.next) {
+            if ((e.hash == hash) && e.key.equals(key)) {
+                return (V)e.value;
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Increases the capacity of and internally reorganizes this
+     * hashtable, in order to accommodate and access its entries more
+     * efficiently.  This method is called automatically when the
+     * number of keys in the hashtable exceeds this hashtable's capacity
+     * and load factor.
+     */
+    @SuppressWarnings("unchecked")
+    protected void rehash() {
+        int oldCapacity = table.length;
+        Entry<?,?>[] oldMap = table;
+
+        // overflow-conscious code
+        int newCapacity = (oldCapacity << 1) + 1;
+        if (newCapacity - MAX_ARRAY_SIZE > 0) {
+            if (oldCapacity == MAX_ARRAY_SIZE)
+                // Keep running with MAX_ARRAY_SIZE buckets
+                return;
+            newCapacity = MAX_ARRAY_SIZE;
+        }
+        Entry<?,?>[] newMap = new Entry<?,?>[newCapacity];
+
+        modCount++;
+        threshold = (int)Math.min(newCapacity * loadFactor, MAX_ARRAY_SIZE + 1);
+        table = newMap;
+
+        for (int i = oldCapacity ; i-- > 0 ;) {
+            for (Entry<K,V> old = (Entry<K,V>)oldMap[i] ; old != null ; ) {
+                Entry<K,V> e = old;
+                old = old.next;
+
+                int index = (e.hash & 0x7FFFFFFF) % newCapacity;
+                e.next = (Entry<K,V>)newMap[index];
+                newMap[index] = e;
+            }
+        }
+    }
+
+    private void addEntry(int hash, K key, V value, int index) {
+        modCount++;
+
+        Entry<?,?> tab[] = table;
+        if (count >= threshold) {
+            // Rehash the table if the threshold is exceeded
+            rehash();
+
+            tab = table;
+            hash = key.hashCode();
+            index = (hash & 0x7FFFFFFF) % tab.length;
+        }
+
+        // Creates the new entry.
+        @SuppressWarnings("unchecked")
+        Entry<K,V> e = (Entry<K,V>) tab[index];
+        tab[index] = new Entry<>(hash, key, value, e);
+        count++;
+    }
+
+    public synchronized V put(K key, V value) {
+        // Make sure the value is not null
+        if (value == null) {
+            throw new NullPointerException();
+        }
+
+        // Makes sure the key is not already in the hashtable.
+        Entry<?,?> tab[] = table;
+        int hash = key.hashCode();
+        int index = (hash & 0x7FFFFFFF) % tab.length;
+        @SuppressWarnings("unchecked")
+        Entry<K,V> entry = (Entry<K,V>)tab[index];
+        for(; entry != null ; entry = entry.next) {
+            if ((entry.hash == hash) && entry.key.equals(key)) {
+                V old = entry.value;
+                entry.value = value;
+                return old;
+            }
+        }
+
+        addEntry(hash, key, value, index);
+        return null;
+    }
+
+    /**
+     * Removes the key (and its corresponding value) from this
+     * hashtable. This method does nothing if the key is not in the hashtable.
+     */
+    public synchronized V remove(Object key) {
+        Entry<?,?> tab[] = table;
+        int hash = key.hashCode();
+        int index = (hash & 0x7FFFFFFF) % tab.length;
+        @SuppressWarnings("unchecked")
+        Entry<K,V> e = (Entry<K,V>)tab[index];
+        for(Entry<K,V> prev = null ; e != null ; prev = e, e = e.next) {
+            if ((e.hash == hash) && e.key.equals(key)) {
+                modCount++;
+                if (prev != null) {
+                    prev.next = e.next;
+                } else {
+                    tab[index] = e.next;
+                }
+                count--;
+                V oldValue = e.value;
+                e.value = null;
+                return oldValue;
+            }
+        }
+        return null;
+    }
 }
 ```
+
+
+
+- 默认初始值为11
 
 
 
@@ -1410,6 +1531,62 @@ public void add(int index, E element) {
     elementData[index] = element;
     size++;// 长度加1
 }
+
+public E get(int index) {
+    rangeCheck(index);
+
+    return elementData(index);
+}
+
+public E set(int index, E element) {
+    rangeCheck(index);
+
+    E oldValue = elementData(index);
+    elementData[index] = element;
+    return oldValue;
+}
+
+public E remove(int index) {
+    rangeCheck(index);
+
+    modCount++;
+    E oldValue = elementData(index);
+
+    int numMoved = size - index - 1;
+    if (numMoved > 0)
+        System.arraycopy(elementData, index+1, elementData, index,
+                         numMoved);
+    elementData[--size] = null; // clear to let GC do its work
+
+    return oldValue;
+}
+
+public boolean remove(Object o) {
+    if (o == null) {
+        for (int index = 0; index < size; index++)
+            if (elementData[index] == null) {
+                fastRemove(index);
+                return true;
+            }
+    } else {
+        for (int index = 0; index < size; index++)
+            if (o.equals(elementData[index])) {
+                fastRemove(index);
+                return true;
+            }
+    }
+    return false;
+}
+
+public void clear() {
+    modCount++;
+
+    // clear to let GC do its work
+    for (int i = 0; i < size; i++)
+        elementData[i] = null;
+
+    size = 0;
+}
 ```
 
 
@@ -1503,8 +1680,6 @@ public class LinkedList<E>
 
 
 
-
-
 ### Vector
 
 - Vector是线程安全的ArrayList(synchronized实现)，允许元素为NULL的动态数组
@@ -1585,6 +1760,7 @@ CopyOnWriteArrayList，运用了一种**“写时复制”**的思想。通俗�
 ```java
 public class CopyOnWriteArrayList<E>
     implements List<E>, RandomAccess, Cloneable, java.io.Serializable {
+    
     private static final long serialVersionUID = 8673264195747942595L;
 
     final transient ReentrantLock lock = new ReentrantLock();
@@ -1612,19 +1788,100 @@ public class CopyOnWriteArrayList<E>
         setArray(Arrays.copyOf(toCopyIn, toCopyIn.length, Object[].class));
     }
     
+    public E get(int index) {
+        return get(getArray(), index);
+    }
+    
+    public E set(int index, E element) {
+        final ReentrantLock lock = this.lock;
+        lock.lock();
+        try {
+            Object[] elements = getArray();
+            E oldValue = get(elements, index);
+
+            if (oldValue != element) {
+                int len = elements.length;
+                Object[] newElements = Arrays.copyOf(elements, len);
+                newElements[index] = element;
+                setArray(newElements);
+            } else {
+                // Not quite a no-op; ensures volatile write semantics
+                setArray(elements);
+            }
+            return oldValue;
+        } finally {
+            lock.unlock();
+        }
+    }
+    
     public boolean add(E e) {
         final ReentrantLock lock = this.lock;
         lock.lock();
         try {
             Object[] elements = getArray();     // 旧数组
             int len = elements.length;
-            Object[] newElements = Arrays.copyOf(elements, len + 1);    // 复制并创建新数组
+            Object[] newElements = Arrays.copyOf(elements, len + 1);// 复制并创建新数组
             newElements[len] = e;               // 将元素插入到新数组末尾
             setArray(newElements);              // 内部array引用指向新数组
             return true;
         } finally {
             lock.unlock();
         }
+    }
+    
+    public void add(int index, E element) {
+        final ReentrantLock lock = this.lock;
+        lock.lock();
+        try {
+            Object[] elements = getArray();
+            int len = elements.length;
+            if (index > len || index < 0)
+                throw new IndexOutOfBoundsException("Index: "+index+
+                                                    ", Size: "+len);
+            Object[] newElements;
+            int numMoved = len - index;
+            if (numMoved == 0)
+                newElements = Arrays.copyOf(elements, len + 1);
+            else {
+                newElements = new Object[len + 1];
+                System.arraycopy(elements, 0, newElements, 0, index);
+                System.arraycopy(elements, index, newElements, index + 1,
+                                 numMoved);
+            }
+            newElements[index] = element;
+            setArray(newElements);
+        } finally {
+            lock.unlock();
+        }
+    }
+    
+    public E remove(int index) {
+        final ReentrantLock lock = this.lock;
+        lock.lock();
+        try {
+            Object[] elements = getArray();
+            int len = elements.length;
+            E oldValue = get(elements, index);
+            int numMoved = len - index - 1;
+            if (numMoved == 0)
+                setArray(Arrays.copyOf(elements, len - 1));
+            else {
+                Object[] newElements = new Object[len - 1];
+                System.arraycopy(elements, 0, newElements, 0, index);
+                System.arraycopy(elements, index + 1, newElements, index,
+                                 numMoved);
+                setArray(newElements);
+            }
+            return oldValue;
+        } finally {
+            lock.unlock();
+        }
+    }
+    
+    public boolean remove(Object o) {
+        Object[] snapshot = getArray();
+        int index = indexOf(o, snapshot, 0, snapshot.length);
+        return (index < 0) ? false : remove(o, snapshot, index);
     }
 }
 ```
@@ -2037,12 +2294,20 @@ public class CopyOnWriteArraySet<E> extends AbstractSet<E>
         }
     }
     // ...
+    
+    public boolean remove(Object o) {
+        return al.remove(o);
+    }
+    
+    public boolean add(E e) {
+        return al.addIfAbsent(e);
+    }
 }
 ```
 
 
 
-`CopyOnWriteArraySet`不允许含有重复元素，所以添加元素（`add`方法）时，内部调用了`CopyOnWriteArrayList`的`addAllAbsent`方法。
+`CopyOnWriteArraySet`不允许含有重复元素，所以添加元素（`add`方法）时，内部调用了`CopyOnWriteArrayList`的`addIfAbsent`方法。
 
 
 
@@ -2490,6 +2755,10 @@ public interface BlockingQueue<E> extends Queue<E> {
 
 
 
+![](img/java-thread3.webp)
+
+
+
 对于每种基本方法，“抛出异常”和“返回特殊值”的方法定义和Queue是完全一样的。
 
 **BlockingQueue只是增加了两类和阻塞相关的方法**：
@@ -2499,6 +2768,18 @@ public interface BlockingQueue<E> extends Queue<E> {
 
 
 ### ArrayBlockingQueue
+
+`ArrayBlockingQueue`是一种**有界阻塞队列**，在初始构造的时候需要指定队列的容量。具有如下特点：
+
+1. 不允许null元素
+2. 队列的容量一旦在构造时指定，后续不能改变；
+3. 插入元素时，在队尾进行；删除元素时，在队首进行；
+4. 队列满时，调用特定方法插入元素会阻塞线程；队列空时，删除元素也会阻塞线程；
+5. 支持公平/非公平策略，默认为非公平策略。
+
+> *这里的公平策略，是指当线程从阻塞到唤醒后，以最初请求的顺序（FIFO）来添加或删除元素；非公平策略指线程被唤醒后，谁先抢占到锁，谁就能往队列中添加/删除顺序，是随机的。*
+
+
 
 
 ```java
@@ -2538,18 +2819,128 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
      * 非满条件队列：当队列满时，线程在该队列等待插入
      */
     private final Condition notFull;
+    
+    
+    public ArrayBlockingQueue(int capacity) {
+        this(capacity, false);
+    }
+    
+    public ArrayBlockingQueue(int capacity, boolean fair) {
+        if (capacity <= 0)
+            throw new IllegalArgumentException();
+        this.items = new Object[capacity];
+        lock = new ReentrantLock(fair);
+        notEmpty = lock.newCondition();
+        notFull =  lock.newCondition();
+    }
+    
+    public ArrayBlockingQueue(int capacity, boolean fair,
+                              Collection<? extends E> c) {
+        //......
+    }
+    
+    public boolean add(E e) {
+        return super.add(e);// -> AbstractQueue.add() -> this.offer()
+    }
+    
+    public boolean offer(E e) {
+        checkNotNull(e);
+        final ReentrantLock lock = this.lock;
+        lock.lock();
+        try {
+            if (count == items.length)
+                return false;
+            else {
+                enqueue(e);
+                return true;
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+    
+    public void put(E e) throws InterruptedException {
+        checkNotNull(e);
+        final ReentrantLock lock = this.lock;
+        lock.lockInterruptibly();
+        try {
+            while (count == items.length)
+                notFull.await();
+            enqueue(e);
+        } finally {
+            lock.unlock();
+        }
+    }
+    
+    public boolean offer(E e, long timeout, TimeUnit unit)
+        throws InterruptedException {
+
+        checkNotNull(e);
+        long nanos = unit.toNanos(timeout);
+        final ReentrantLock lock = this.lock;
+        lock.lockInterruptibly();
+        try {
+            while (count == items.length) {
+                if (nanos <= 0)
+                    return false;
+                nanos = notFull.awaitNanos(nanos);
+            }
+            enqueue(e);
+            return true;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public E poll() {
+        final ReentrantLock lock = this.lock;
+        lock.lock();
+        try {
+            return (count == 0) ? null : dequeue();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public E take() throws InterruptedException {
+        final ReentrantLock lock = this.lock;
+        lock.lockInterruptibly();
+        try {
+            while (count == 0)
+                notEmpty.await();
+            return dequeue();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public E poll(long timeout, TimeUnit unit) throws InterruptedException {
+        long nanos = unit.toNanos(timeout);
+        final ReentrantLock lock = this.lock;
+        lock.lockInterruptibly();
+        try {
+            while (count == 0) {
+                if (nanos <= 0)
+                    return null;
+                nanos = notEmpty.awaitNanos(nanos);
+            }
+            return dequeue();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public E peek() {
+        final ReentrantLock lock = this.lock;
+        lock.lock();
+        try {
+            return itemAt(takeIndex); // null when queue is empty
+        } finally {
+            lock.unlock();
+        }
+    }
 }
 ```
-
-
-ArrayBlockingQueue是一种**有界阻塞队列**，在初始构造的时候需要指定队列的容量。具有如下特点：
-
-1. 队列的容量一旦在构造时指定，后续不能改变；
-2. 插入元素时，在队尾进行；删除元素时，在队首进行；
-3. 队列满时，调用特定方法插入元素会阻塞线程；队列空时，删除元素也会阻塞线程；
-4. 支持公平/非公平策略，默认为非公平策略。
-
-> *这里的公平策略，是指当线程从阻塞到唤醒后，以最初请求的顺序（FIFO）来添加或删除元素；非公平策略指线程被唤醒后，谁先抢占到锁，谁就能往队列中添加/删除顺序，是随机的。*
 
 
 
@@ -2566,8 +2957,6 @@ ArrayBlockingQueue是一种**有界阻塞队列**，在初始构造的时候需�
 
 
 ### LinkedBlockingQueue
-
-
 
 - **近似有界阻塞队列**，为什么说近似？因为LinkedBlockingQueue既可以在初始构造时就指定队列的容量，也可以不指定，如果不指定，那么它的容量大小默认为`Integer.MAX_VALUE`。
 
@@ -2644,6 +3033,77 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
     }
 
     //...
+    public LinkedBlockingQueue() {
+        this(Integer.MAX_VALUE);
+    }
+
+    public LinkedBlockingQueue(int capacity) {
+        if (capacity <= 0) throw new IllegalArgumentException();
+        this.capacity = capacity;
+        last = head = new Node<E>(null);
+    }
+
+    public LinkedBlockingQueue(Collection<? extends E> c) {
+        //......
+    }
+    
+    /**
+     * Inserts the specified element at the tail of this queue, waiting if
+     * necessary for space to become available.
+     */
+    public void put(E e) throws InterruptedException {
+        if (e == null) throw new NullPointerException();
+        // Note: convention in all put/take/etc is to preset local var
+        // holding count negative to indicate failure unless set.
+        int c = -1;
+        Node<E> node = new Node<E>(e);
+        final ReentrantLock putLock = this.putLock;
+        final AtomicInteger count = this.count;
+        putLock.lockInterruptibly();
+        try {
+            /*
+             * Note that count is used in wait guard even though it is
+             * not protected by lock. This works because count can
+             * only decrease at this point (all other puts are shut
+             * out by lock), and we (or some other waiting put) are
+             * signalled if it ever changes from capacity. Similarly
+             * for all other uses of count in other wait guards.
+             */
+            while (count.get() == capacity) {
+                notFull.await();
+            }
+            enqueue(node);
+            c = count.getAndIncrement();
+            if (c + 1 < capacity)
+                notFull.signal();
+        } finally {
+            putLock.unlock();
+        }
+        if (c == 0)
+            signalNotEmpty();
+    }
+    
+    public E take() throws InterruptedException {
+        E x;
+        int c = -1;
+        final AtomicInteger count = this.count;
+        final ReentrantLock takeLock = this.takeLock;
+        takeLock.lockInterruptibly();
+        try {
+            while (count.get() == 0) {
+                notEmpty.await();
+            }
+            x = dequeue();
+            c = count.getAndDecrement();
+            if (c > 1)
+                notEmpty.signal();
+        } finally {
+            takeLock.unlock();
+        }
+        if (c == capacity)
+            signalNotFull();
+        return x;
+    }
 }
 ```
 
@@ -2665,6 +3125,88 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
 
 ### LinkedBlockingDeque
 
+- 双端阻塞队列
+
+```java
+public class LinkedBlockingDeque<E>
+    extends AbstractQueue<E>
+    implements BlockingDeque<E>, java.io.Serializable {
+
+    private static final long serialVersionUID = -387911632671998426L;
+
+    /** Doubly-linked list node class */
+    static final class Node<E> {
+        /**
+         * The item, or null if this node has been removed.
+         */
+        E item;
+
+        /**
+         * One of:
+         * - the real predecessor Node
+         * - this Node, meaning the predecessor is tail
+         * - null, meaning there is no predecessor
+         */
+        Node<E> prev;
+
+        /**
+         * One of:
+         * - the real successor Node
+         * - this Node, meaning the successor is head
+         * - null, meaning there is no successor
+         */
+        Node<E> next;
+
+        Node(E x) {
+            item = x;
+        }
+    }
+
+    /**
+     * Pointer to first node.
+     * Invariant: (first == null && last == null) ||
+     *            (first.prev == null && first.item != null)
+     */
+    transient Node<E> first;
+
+    /**
+     * Pointer to last node.
+     * Invariant: (first == null && last == null) ||
+     *            (last.next == null && last.item != null)
+     */
+    transient Node<E> last;
+
+    /** Number of items in the deque */
+    private transient int count;
+
+    /** Maximum number of items in the deque */
+    private final int capacity;
+
+    /** Main lock guarding all access */
+    final ReentrantLock lock = new ReentrantLock();
+
+    /** Condition for waiting takes */
+    private final Condition notEmpty = lock.newCondition();
+
+    /** Condition for waiting puts */
+    private final Condition notFull = lock.newCondition();
+
+    public LinkedBlockingDeque() {
+        this(Integer.MAX_VALUE);
+    }
+
+    public LinkedBlockingDeque(int capacity) {
+        if (capacity <= 0) throw new IllegalArgumentException();
+        this.capacity = capacity;
+    }
+
+    public LinkedBlockingDeque(Collection<? extends E> c) {
+		//......
+    }
+    
+}
+```
+
 
 
 
@@ -2673,11 +3215,7 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
 
 ### PriorityBlockingQueue
 
-
-
-基于堆的优先级阻塞队列，底层基于**堆**实现
-
-
+基于堆的优先级阻塞队列，底层基于**堆**实现。
 
 PriorityBlockingQueue是一种**无界阻塞队列**，即该阻塞队列中的元素可自动排序。默认情况下，元素采取自然升序排列在构造的时候可以指定队列的初始容量。具有如下特点：
 
@@ -2743,11 +3281,7 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
 
 
 
-
-
 ### DelayQueue
-
-
 
 底层基于已有的`PriorityBlockingQueue`实现的**无界阻塞队列**；
 
@@ -2795,18 +3329,12 @@ public interface Delayed extends Comparable<Delayed> {
 
 ### SynchronousQueue
 
-
-
-底层基于**栈**和**队列**实现
-
-
-
-特点简要概括如下：
+ 实现了`BlockingQueue`接口的阻塞队列，底层基于**栈**和**队列**实现。特点简要概括如下：
 
 1. 入队线程和出队线程**必须一一匹配**，否则任意先到达的线程会阻塞。比如ThreadA进行入队操作，在有其它线程执行出队操作之前，ThreadA会一直等待，反之亦然；
 2. `SynchronousQueue`内部不保存任何元素，也就是说它的容量为0，数据直接在配对的生产者和消费者线程之间传递，不会将数据缓冲到队列中。（在内部通过栈或队列结构保存阻塞线程）
 3. `SynchronousQueue`支持公平/非公平策略。其中非公平模式，基于内部数据结构——“栈”来实现，公平模式，基于内部数据结构——“队列”来实现；
-4. SynchronousQueue基于一种名为“[Dual stack and Dual queue](http://www.cs.rochester.edu/research/synchronization/pseudocode/duals.html)”的无锁算法实现。
+4. `SynchronousQueue`基于一种名为“[Dual stack and Dual queue](http://www.cs.rochester.edu/research/synchronization/pseudocode/duals.html)”的无锁算法实现。
 
 
 
@@ -2816,16 +3344,509 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
     
     private static final long serialVersionUID = -3223113410248163686L;
     
+    abstract static class Transferer<E> {
+        /**
+         * Performs a put or take.
+         *
+         * @param e 非null表示 生产者 -> 消费者;
+         *          null表示, 消费者 -> 生产者.
+         * @return 非null表示传递的数据; null表示传递失败（超时或中断）.
+         */
+        abstract E transfer(E e, boolean timed, long nanos);
+    }
+
+    /** The number of CPUs, for spin control */
+    static final int NCPUS = Runtime.getRuntime().availableProcessors();
+
+    static final int maxTimedSpins = (NCPUS < 2) ? 0 : 32;
+
+    static final int maxUntimedSpins = maxTimedSpins * 16;
+
+    static final long spinForTimeoutThreshold = 1000L;
+
+    private transient volatile Transferer<E> transferer;
     
+    /** Dual stack （双栈结构），非公平策略时使用.*/
+    static final class TransferStack<E> extends Transferer<E> {
+        //......
+    }
     
+    /** Dual Queue （双端队列），公平策略时使用.*/
+    static final class TransferQueue<E> extends Transferer<E> {
+        //......
+    }
+    
+    /**
+     * 默认构造器.
+     * 默认使用非公平策略.
+     */
+    public SynchronousQueue() {
+        this(false);
+    }
+
+    /**
+     * 指定策略的构造器.
+     */
+    public SynchronousQueue(boolean fair) {
+        transferer = fair ? new TransferQueue<E>() : new TransferStack<E>();
+    }
+    
+    /**
+    * 所有的put,offer,take,poll等操作,都代理到了 transferer.transfer()方法
+    */
+    
+    public void put(E e) throws InterruptedException {
+        if (e == null) throw new NullPointerException();
+        if (transferer.transfer(e, false, 0) == null) {
+            Thread.interrupted();
+            throw new InterruptedException();
+        }
+    }
+
+    public boolean offer(E e, long timeout, TimeUnit unit)
+        throws InterruptedException {
+        if (e == null) throw new NullPointerException();
+        if (transferer.transfer(e, true, unit.toNanos(timeout)) != null)
+            return true;
+        if (!Thread.interrupted())
+            return false;
+        throw new InterruptedException();
+    }
+
+    public boolean offer(E e) {
+        if (e == null) throw new NullPointerException();
+        return transferer.transfer(e, true, 0) != null;
+    }
+
+    public E take() throws InterruptedException {
+        E e = transferer.transfer(null, false, 0);
+        if (e != null)
+            return e;
+        Thread.interrupted();
+        throw new InterruptedException();
+    }
+
+    public E poll(long timeout, TimeUnit unit) throws InterruptedException {
+        E e = transferer.transfer(null, true, unit.toNanos(timeout));
+        if (e != null || !Thread.interrupted())
+            return e;
+        throw new InterruptedException();
+    }
+
+    public E poll() {
+        return transferer.transfer(null, true, 0);
+    }
+    
+    public void clear() {
+    }
+    
+    public boolean remove(Object o) {
+        return false;
+    }
+    
+    public E peek() {
+        return null;
+    }
+}
+```
+
+ 可以看到，对于公平策略，内部构造了一个**`TransferQueue`**对象，而非公平策略则是构造了**`TransferStack`**对象。这两个类都继承了内部类**`Transferer`**，`SynchronousQueue`中的所有方法，其实都是委托调用了`TransferQueue/TransferStack`的方法： 
+
+
+
+#### 栈结构
+
+ 非公平策略由TransferStack类实现，既然TransferStack是栈，那就有结点。TransferStack内部定义了名为**SNode**的结点： 
+
+```java
+static final class SNode {
+    volatile SNode next;
+    volatile SNode match;       // 与当前结点配对的结点
+    volatile Thread waiter;     // 当前结点对应的线程
+    Object item;                // 实际数据或null
+    int mode;                   // 结点类型
+ 
+    SNode(Object item) {
+        this.item = item;
+    }
+  
+    // Unsafe mechanics
+    private static final sun.misc.Unsafe UNSAFE;
+    private static final long matchOffset;
+    private static final long nextOffset;
+ 
+    static {
+        try {
+            UNSAFE = sun.misc.Unsafe.getUnsafe();
+            Class<?> k = SNode.class;
+            matchOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("match"));
+            nextOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("next"));
+        } catch (Exception e) {
+            throw new Error(e);
+        }
+    }
+
+    // ...
+
+}
+```
+
+上述SNode结点的定义中有个`mode`字段，表示结点的类型。TransferStack一共定义了**三种结点类型**，任何线程对TransferStack的操作都会创建下述三种类型的某种结点：
+
+- ***REQUEST\***：表示未配对的消费者（当线程进行出队操作时，会创建一个mode值为REQUEST的SNode结点 ）
+- ***DATA\***：表示未配对的生产者（当线程进行入队操作时，会创建一个mode值为DATA的SNode结点 ）
+- ***FULFILLING\***：表示配对成功的消费者/生产者
+
+
+
+```java
+static final class TransferStack<E> extends Transferer<E> {
+ 
+    /**
+     * 未配对的消费者
+     */
+    static final int REQUEST = 0;
+    /**
+     * 未配对的生产者
+     */
+    static final int DATA = 1;
+    /**
+     * 配对成功的消费者/生产者
+     */
+    static final int FULFILLING = 2;
+ 
+     volatile SNode head;
+ 
+    // Unsafe mechanics
+    private static final sun.misc.Unsafe UNSAFE;
+    private static final long headOffset;
+ 
+    static {
+        try {
+            UNSAFE = sun.misc.Unsafe.getUnsafe();
+            Class<?> k = TransferStack.class;
+            headOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("head"));
+        } catch (Exception e) {
+            throw new Error(e);
+        }
+    }
+ 
+    // ...
 }
 ```
 
 
 
+#### 核心操作—put/take
+
+
+
+
+
+#### 总结
+
+`TransferQueue`主要用于线程之间的数据交换，由于采用无锁算法，其性能一般比单纯的其它阻塞队列要高。它的最大特点是**不存储实际元素，而是在内部通过栈或队列结构保存阻塞线程。**
+
+
+
 ### LinkedTransferQueue
 
+`LinkedTransferQueue`是在JDK1.7时，J.U.C包新增的一种比较特殊的阻塞队列，它除了具备阻塞队列的常用功能外，还有一个比较特殊的`transfer()`方法。 
 
+在普通阻塞队列中，当队列为空时，消费者线程（调用**take**或**poll**方法的线程）一般会阻塞等待生产者线程往队列中存入元素。而**LinkedTransferQueue**的**transfer**方法则比较特殊：
+
+1. 当有消费者线程阻塞等待时，调用`transfer`方法的生产者线程不会将元素存入队列，而是直接将元素传递给消费者；
+2. 如果调用`transfer`方法的生产者线程发现没有正在等待的消费者线程，则会将元素入队，然后会阻塞等待，直到有一个消费者线程来获取该元素。
+
+
+
+```java
+public interface TransferQueue<E> extends BlockingQueue<E> {
+
+    // 当生产者线程调用tryTransfer方法时，如果没有消费者等待接收元素，则会立即返回false。
+    // 该方法和transfer方法的区别就是tryTransfer方法无论消费者是否接收，
+    // 		方法立即返回，而transfer方法必须等到消费者消费后才返回。
+    boolean tryTransfer(E e);
+
+    void transfer(E e) throws InterruptedException;
+
+    // 加上了限时等待功能，如果没有消费者消费该元素，则等待指定的时间再返回；
+    // 如果超时还没消费元素，则返回false，如果在超时时间内消费了元素，则返回true。
+    boolean tryTransfer(E e, long timeout, TimeUnit unit)
+        throws InterruptedException;
+
+    boolean hasWaitingConsumer();
+
+    int getWaitingConsumerCount();
+}
+```
+
+
+
+`LinkedTransferQueue`的特点简要概括如下：
+
+1. `LinkedTransferQueue`是一种无界阻塞队列，底层基于单链表实现；
+2. `LinkedTransferQueue`中的结点有两种类型：数据结点、请求结点；
+3. `LinkedTransferQueue`基于无锁算法实现。
+
+```java
+public class LinkedTransferQueue<E> extends AbstractQueue<E>
+    implements TransferQueue<E>, java.io.Serializable {
+    
+    private static final long serialVersionUID = -3223113410248163686L;
+
+    /**
+     * 队列结点定义.
+     */
+    static final class Node {
+        final boolean isData;   // true: 数据结点; false: 请求结点
+        volatile Object item;   // 结点值
+        volatile Node next;     // 后驱结点指针
+        volatile Thread waiter; // 等待线程
+
+        // 设置当前结点的后驱结点为val
+        final boolean casNext(Node cmp, Node val) {
+            return UNSAFE.compareAndSwapObject(this, nextOffset, cmp, val);
+        }
+
+        // 设置当前结点的值为val
+        final boolean casItem(Object cmp, Object val) {
+            // assert cmp == null || cmp.getClass() != Node.class;
+            return UNSAFE.compareAndSwapObject(this, itemOffset, cmp, val);
+        }
+
+        Node(Object item, boolean isData) {
+            UNSAFE.putObject(this, itemOffset, item); // relaxed write
+            this.isData = isData;
+        }
+
+        // 设置当前结点的后驱结点为自身
+        final void forgetNext() {
+            UNSAFE.putObject(this, nextOffset, this);
+        }
+
+        /**
+         * 设置当前结点的值为自身.
+         * 设置当前结点的等待线程为null.
+         */
+        final void forgetContents() {
+            UNSAFE.putObject(this, itemOffset, this);
+            UNSAFE.putObject(this, waiterOffset, null);
+        }
+
+        /**
+         * 判断当前结点是否匹配成功.
+         * Node.item == this || (Node.isData == true && Node.item == null)
+         */
+        final boolean isMatched() {
+            Object x = item;
+            return (x == this) || ((x == null) == isData);
+        }
+
+        /**
+         * 判断是否为未匹配的请求结点.
+         * Node.isData == false && Node.item == null
+         */
+        final boolean isUnmatchedRequest() {
+            return !isData && item == null;
+        }
+
+        /**
+         * 当该结点(havaData)是未匹配结点, 且与当前的结点类型不同时, 返回true.
+         */
+        final boolean cannotPrecede(boolean haveData) {
+            boolean d = isData;
+            Object x;
+            return d != haveData && (x = item) != this && (x != null) == d;
+        }
+
+        /**
+         * 尝试匹配数据结点.
+         */
+        final boolean tryMatchData() {
+            // assert isData;   当前结点必须为数据结点
+            Object x = item;
+            if (x != null && x != this && casItem(x, null)) {
+                LockSupport.unpark(waiter);     // 唤醒等待线程
+                return true;
+            }
+            return false;
+        }
+
+        // Unsafe mechanics
+        private static final sun.misc.Unsafe UNSAFE;
+        private static final long itemOffset;
+        private static final long nextOffset;
+        private static final long waiterOffset;
+
+        static {
+            try {
+                UNSAFE = sun.misc.Unsafe.getUnsafe();
+                Class<?> k = Node.class;
+                itemOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("item"));
+                nextOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("next"));
+                waiterOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("waiter"));
+            } catch (Exception e) {
+                throw new Error(e);
+            }
+        }
+    }
+    
+    // 提供了两种构造器，也没有参数设置队列初始容量，所以是一种无界队列：
+    public LinkedTransferQueue() {}
+
+    public LinkedTransferQueue(Collection<? extends E> c) {
+        this();
+        addAll(c);
+    }
+}
+```
+
+
+
+关于Node结点，有以下几点需要特别注意：
+
+1. Node结点有两种类型：数据结点、请求结点，通过字段`isData`区分，只有不同类型的结点才能相互匹配；
+2. Node结点的值保存在`item`字段，匹配前后值会发生变化；
+
+Node结点的状态变化如下表：
+
+| 结点/状态 | 数据结点                         | 请求结点                    |
+| :-------- | :------------------------------- | :-------------------------- |
+| 匹配前    | isData = true; item = 数据结点值 | isData = false; item = null |
+| 匹配后    | isData = true; item = null       | isData = false; item = this |
+
+> 从上表也可以看出，对于一个数据结点，当`item == null`表示匹配成功；对于一个请求结点，当`item == this`表示匹配成功。归纳起来，匹配成功的结点Node就是满足`(Node.item == this) || ((Node.item == null) == Node.isData)`。
+
+------
+
+`LinkedTransferQueue`内部的其余字段定义如下，主要就是通过`Unsafe`类操作字段值，内部定义了很多常量字段，比如自旋，这些都是为了非阻塞算法的锁优化而定义的：
+
+
+
+```JAVA
+public class LinkedTransferQueue<E> extends AbstractQueue<E>
+    implements TransferQueue<E>, java.io.Serializable {
+
+    /**
+     * True如果是多核CPU
+     */
+    private static final boolean MP = Runtime.getRuntime().availableProcessors() > 1;
+
+    /**
+     * 线程自旋次数(仅多核CPU时用到).
+     */
+    private static final int FRONT_SPINS = 1 << 7;
+
+    /**
+     * 线程自旋次数(仅多核CPU时用到).
+     */
+    private static final int CHAINED_SPINS = FRONT_SPINS >>> 1;
+
+    /**
+     * The maximum number of estimated removal failures (sweepVotes)
+     * to tolerate before sweeping through the queue unlinking
+     * cancelled nodes that were not unlinked upon initial
+     * removal. See above for explanation. The value must be at least
+     * two to avoid useless sweeps when removing trailing nodes.
+     */
+    static final int SWEEP_THRESHOLD = 32;
+
+    /**
+     * 队首结点指针.
+     */
+    transient volatile Node head;
+
+    /**
+     * 队尾结点指针.
+     */
+    private transient volatile Node tail;
+
+    /**
+     * The number of apparent failures to unsplice removed nodes
+     */
+    private transient volatile int sweepVotes;
+
+    // CAS设置队尾tail指针为val
+    private boolean casTail(Node cmp, Node val) {
+        return UNSAFE.compareAndSwapObject(this, tailOffset, cmp, val);
+    }
+
+    // CAS设置队首head指针为val
+    private boolean casHead(Node cmp, Node val) {
+        return UNSAFE.compareAndSwapObject(this, headOffset, cmp, val);
+    }
+
+    private boolean casSweepVotes(int cmp, int val) {
+        return UNSAFE.compareAndSwapInt(this, sweepVotesOffset, cmp, val);
+    }
+
+    /*
+     * xfer方法的入参, 不同类型的方法内部调用xfer方法时入参不同.
+     */
+    private static final int NOW = 0;   // for untimed poll, tryTransfer
+    private static final int ASYNC = 1; // for offer, put, add
+    private static final int SYNC = 2; // for transfer, take
+    private static final int TIMED = 3; // for timed poll, tryTransfer
+
+    // Unsafe mechanics
+
+    private static final sun.misc.Unsafe UNSAFE;
+    private static final long headOffset;
+    private static final long tailOffset;
+    private static final long sweepVotesOffset;
+
+    static {
+        try {
+            UNSAFE = sun.misc.Unsafe.getUnsafe();
+            Class<?> k = LinkedTransferQueue.class;
+            headOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("head"));
+            tailOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("tail"));
+            sweepVotesOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("sweepVotes"));
+        } catch (Exception e) {
+            throw new Error(e);
+        }
+    }
+
+    //...
+}
+```
+
+
+
+上述比较重要的就是4个常量值的定义：
+
+```java
+/*
+ * xfer方法的入参, 不同类型的方法内部调用xfer方法时入参不同.
+ */
+private static final int NOW = 0;   // for untimed poll, tryTransfer
+private static final int ASYNC = 1; // for offer, put, add
+private static final int SYNC = 2; // for transfer, take
+private static final int TIMED = 3; // for timed poll, tryTransfer
+```
+
+这四个常量值，作为`xfer`方法的入参，用于标识不同操作类型。其实从常量的命名也可以看出它们对应的操作含义：
+
+**NOW表示即时操作（可能失败），即不会阻塞调用线程：**
+poll（获取并移除队首元素，如果队列为空，直接返回null）；tryTransfer（尝试将元素传递给消费者，如果没有等待的消费者，则立即返回false，也不会将元素入队）
+
+**ASYNC表示异步操作（必然成功）：**
+offer（插入指定元素至队尾，由于是无界队列，所以会立即返回true）；put（插入指定元素至队尾，由于是无界队列，所以会立即返回）；add（插入指定元素至队尾，由于是无界队列，所以会立即返回true）
+
+**SYNC表示同步操作（阻塞调用线程）：**
+transfer（阻塞直到出现一个消费者线程）；take（从队首移除一个元素，如果队列为空，则阻塞线程）
+
+**TIMED表示限时同步操作（限时阻塞调用线程）：**
+poll(long timeout, TimeUnit unit)；tryTransfer(E e, long timeout, TimeUnit unit)
+
+关于`xfer`方法，它是LinkedTransferQueued的核心内部方法，我们后面会详细介绍。
+
+
+
+#### transfer方法
+
+[https://segmentfault.com/a/1190000016460411](https://segmentfault.com/a/1190000016460411)
 
 
 
@@ -2835,13 +3856,9 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
 
 ### ConcurrentLinkedQueue
 
-
-
 底层是基于单链表实现的。
 
 在实现上并没有利用锁或底层同步原语，而是完全基于**自旋+CAS**的方式实现了该队列。（如同AQS，AQS内部的CLH等待队列也是利用了这种方式。）
-
-
 
 
 
@@ -2875,8 +3892,16 @@ public class ConcurrentLinkedQueue<E> extends AbstractQueue<E>
             throw new Error(e);
         }
     }
- 
-    /**
+    //...
+}
+```
+
+
+
+节点定义
+
+```java
+/**
      * 队列结点定义
      */
     private static class Node<E> {
@@ -2916,41 +3941,93 @@ public class ConcurrentLinkedQueue<E> extends AbstractQueue<E>
             }
         }
     }
- 
-     /**
+```
+
+
+
+构造
+
+```java
+/**
+ * 构建一个空队列（head,tail均指向一个占位结点）.
+ */
+public ConcurrentLinkedQueue() {
+    head = tail = new Node<E>(null);
+}
+
+/**
+ * 根据已有集合,构造队列
+ */
+public ConcurrentLinkedQueue(Collection<? extends E> c) {
+    //......
+}
+```
+
+**注意**：通过空构造器建立的`ConcurrentLinkedQueue`对象，其`head`和`tail`指针并非指向`null`，而是指向一个item值为null的`Node`结点——哨兵结点，如下图： 
+
+![](img/concurrentLinkedQueue1.png)
+
+
+
+入队出队
+
+```java
+/**
      * 入队一个元素.
      *
      * @throws NullPointerException 元素不能为null
      */
-    public boolean add(E e) {
-        return offer(e);
-    }
-    
-    /**
+public boolean add(E e) {
+    return offer(e);
+}
+
+/**
      * 在队尾入队元素e, 直到成功
      */
-    public boolean offer(E e) {
-        checkNotNull(e);
-        final Node<E> newNode = new Node<E>(e);
-        for (Node<E> t = tail, p = t; ; ) {// 自旋, 直到插入结点成功
-            Node<E> q = p.next;
-            if (q == null) {// CASE1: 正常情况下, 新结点直接插入到队尾
-                if (p.casNext(null, newNode)) {
-                    // CAS竞争插入成功
-                    if (p != t)// CAS竞争失败的线程会在下一次自旋中进入该逻辑
-                        casTail(t, newNode);// 重新设置队尾指针tail
-                    return true;
-                }
-                // CAS竞争插入失败,则进入下一次自旋
+public boolean offer(E e) {
+    checkNotNull(e);
+    final Node<E> newNode = new Node<E>(e);
+    for (Node<E> t = tail, p = t; ; ) {// 自旋, 直到插入结点成功
+        Node<E> q = p.next;
+        if (q == null) {// CASE1: 正常情况下, 新结点直接插入到队尾
+            if (p.casNext(null, newNode)) {
+                // CAS竞争插入成功
+                if (p != t)// CAS竞争失败的线程会在下一次自旋中进入该逻辑
+                    casTail(t, newNode);// 重新设置队尾指针tail
+                return true;
+            }
+            // CAS竞争插入失败,则进入下一次自旋
 
-            } else if (p == q)// CASE2: 发生了出队操作
-                p = (t != (t = tail)) ? t : head;
+        } else if (p == q)// CASE2: 发生了出队操作
+            p = (t != (t = tail)) ? t : head;
+        else
+            // 将p重新指向队尾结点
+            p = (p != t && t != (t = tail)) ? t : q;
+    }
+}
+
+/**
+ * 在队首出队元素, 直到成功
+ */
+public E poll() {
+    restartFromHead:
+    for (; ; ) {
+        for (Node<E> h = head, p = h, q; ; ) {
+            E item = p.item;
+ 
+            if (item != null && p.casItem(item, null)) {    // CASE2: 队首是非哨兵结点(item!=null)
+                if (p != h) // hop two nodes at a time
+                    updateHead(h, ((q = p.next) != null) ? q : p);
+                return item;
+            } else if ((q = p.next) == null) {      // CASE1: 队首是一个哨兵结点(item==null)
+                updateHead(h, p);
+                return null;
+            } else if (p == q)
+                continue restartFromHead;
             else
-                // 将p重新指向队尾结点
-                p = (p != t && t != (t = tail)) ? t : q;
+                p = q;
         }
     }
-    //...
 }
 ```
 
@@ -2960,7 +4037,7 @@ public class ConcurrentLinkedQueue<E> extends AbstractQueue<E>
 
 在JDK1.7之前，除了`Stack`类外，并没有其它适合并发环境的“栈”数据结构。`ConcurrentLinkedDeque`作为双端队列，可以当作“栈”来使用，并且高效地支持并发环境。
 
-和ConcurrentLinkedQueue一样，采用了无锁算法，底层基于**自旋+CAS**的方式实现。
+和`ConcurrentLinkedQueue`一样，采用了无锁算法，底层基于**自旋+CAS**的方式实现。
 
 双链表结构
 
@@ -2980,6 +4057,7 @@ public class ConcurrentLinkedDeque<E> extends AbstractCollection<E>
      */
     private transient volatile Node<E> tail;
 
+    // 这两个字段初始时都指向一个值为null的空结点，在结点删除时使用
     private static final Node<Object> PREV_TERMINATOR, NEXT_TERMINATOR;
     
     // Unsafe mechanics
@@ -3001,67 +4079,84 @@ public class ConcurrentLinkedDeque<E> extends AbstractCollection<E>
             throw new Error(e);
         }
     }
-    
-    /**
-     * 双链表结点定义
-     */
-    static final class Node<E> {
-        volatile Node<E> prev;  // 前驱指针
-        volatile E item;        // 结点值
-        volatile Node<E> next;  // 后驱指针
-
-        Node() {
-        }
-
-        Node(E item) {
-            UNSAFE.putObject(this, itemOffset, item);
-        }
-
-        boolean casItem(E cmp, E val) {
-            return UNSAFE.compareAndSwapObject(this, itemOffset, cmp, val);
-        }
-
-        void lazySetNext(Node<E> val) {
-            UNSAFE.putOrderedObject(this, nextOffset, val);
-        }
-
-        boolean casNext(Node<E> cmp, Node<E> val) {
-            return UNSAFE.compareAndSwapObject(this, nextOffset, cmp, val);
-        }
-
-        void lazySetPrev(Node<E> val) {
-            UNSAFE.putOrderedObject(this, prevOffset, val);
-        }
-
-        boolean casPrev(Node<E> cmp, Node<E> val) {
-            return UNSAFE.compareAndSwapObject(this, prevOffset, cmp, val);
-        }
-
-        // Unsafe mechanics
-
-        private static final sun.misc.Unsafe UNSAFE;
-        private static final long prevOffset;
-        private static final long itemOffset;
-        private static final long nextOffset;
-
-        static {
-            try {
-                UNSAFE = sun.misc.Unsafe.getUnsafe();
-                Class<?> k = Node.class;
-                prevOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("prev"));
-                itemOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("item"));
-                nextOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("next"));
-            } catch (Exception e) {
-                throw new Error(e);
-            }
-        }
-    }
-    
-    // ...
 }
 ```
 
 
+
+构造
+
+```java
+/**
+ * 空构造器.
+ */
+public ConcurrentLinkedDeque() {
+    head = tail = new Node<E>(null);
+
+}
+/**
+ * 从已有集合，构造队列
+ */
+public ConcurrentLinkedDeque(Collection<? extends E> c) {
+}
+```
+
+注意：同`ConcurrentLinkedQueue`一样，默认构造也是将head和tail指针并非指向null，而是指向一个item值为null的Node结点——哨兵结点。
+
+
+
+入队出队
+
+```java
+public void addFirst(E e) {
+    linkFirst(e);
+}
+
+public void addLast(E e) {
+    linkLast(e);
+}
+
+public boolean offerFirst(E e) {
+    linkFirst(e);
+    return true;
+}
+
+public boolean offerLast(E e) {
+    linkLast(e);
+    return true;
+}
+
+
+public E removeFirst() {
+    return screenNullResult(pollFirst());
+}
+
+public E removeLast() {
+    return screenNullResult(pollLast());
+}
+
+public E pollFirst() {
+    for (Node<E> p = first(); p != null; p = succ(p)) {
+        E item = p.item;
+        if (item != null && p.casItem(item, null)) {
+            unlink(p);
+            return item;
+        }
+    }
+    return null;
+}
+
+public E pollLast() {
+    for (Node<E> p = last(); p != null; p = pred(p)) {
+        E item = p.item;
+        if (item != null && p.casItem(item, null)) {
+            unlink(p);
+            return item;
+        }
+    }
+    return null;
+}
+```
 
 
 
