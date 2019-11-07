@@ -1756,6 +1756,8 @@ public class CompletionServiceTest {
 
 ## Fork/Join框架
 
+[https://segmentfault.com/a/1190000015558984](https://segmentfault.com/a/1190000015558984)
+
 
 
 ### 分治思想
@@ -1985,6 +1987,27 @@ ForkJoinPool提供了3类外部提交任务的方法：**invoke**、**execute**�
 
 
 ```java
+public ForkJoinPool() {
+    this(Math.min(MAX_CAP, Runtime.getRuntime().availableProcessors()),
+         defaultForkJoinWorkerThreadFactory, null, false);
+}
+
+public ForkJoinPool(int parallelism) {
+    this(parallelism, defaultForkJoinWorkerThreadFactory, null, false);
+}
+
+public ForkJoinPool(int parallelism,
+                    ForkJoinWorkerThreadFactory factory,
+                    UncaughtExceptionHandler handler,
+                    boolean asyncMode) {
+    this(checkParallelism(parallelism),
+         checkFactory(factory),
+         handler,
+         asyncMode ? FIFO_QUEUE : LIFO_QUEUE,
+         "ForkJoinPool-" + nextPoolId() + "-worker-");
+    checkPermission();
+}
+
 /**
  * @param parallelism      并行级别, 默认为CPU核心数
  * @param factory          工作线程工厂
@@ -2029,9 +2052,176 @@ public static ForkJoinPool commonPool() {
 mode = asyncMode ? FIFO_QUEUE : LIFO_QUEUE
 ```
 
-> **注意：**这里的同步/异步并不是指F/J框架本身是采用同步模式还是采用异步模式工作，而是指其中的工作线程的工作方式。在F/J框架中，每个工作线程（Worker）都有一个属于自己的任务队列（WorkQueue），这是一个底层采用数组实现的**双向队列**。
-> 同步是指：对于工作线程（Worker）自身队列中的任务，采用**后进先出（LIFO）**的方式执行；异步是指：对于工作线程（Worker）自身队列中的任务，采用**先进先出（FIFO）**的方式执行。
+> **注意：**
+>
+> ​		这里的同步/异步并不是指F/J框架本身是采用同步模式还是采用异步模式工作，而是指其中的工作线程的工作方式。在F/J框架中，每个工作线程（Worker）都有一个属于自己的任务队列（WorkQueue），这是一个底层采用数组实现的**双向队列**。
+>
+> 同步是指：
+>
+> ​	对于工作线程（Worker）自身队列中的任务，采用**后进先出（LIFO）**的方式执行；
+>
+> 异步是指：
+>
+> ​	对于工作线程（Worker）自身队列中的任务，采用**先进先出（FIFO）**的方式执行。
 
 
 
 #### ForkJoinTask
+
+从Fork/Join框架的描述上来看，“任务”必须要满足一定的条件：
+
+1. 支持Fork，即任务自身的分解
+2. 支持Join，即任务结果的合并
+
+因此，J.U.C提供了一个抽象类——**ForkJoinTask**，来作为该类Fork/Join任务的抽象定义：
+
+```java
+public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
+    //......
+}
+```
+
+ForkJoinTask实现了Future接口，是一个异步任务，我们在使用Fork/Join框架时，一般需要使用线程池来调度任务，线程池内部调度的其实都是ForkJoinTask任务（即使提交的是一个Runnable或Callable任务，也会被适配成ForkJoinTask）。 
+
+
+
+除了ForkJoinTask，Fork/Join框架还提供了两个它的抽象实现，我们在自定义ForkJoin任务时，一般继承这两个类：
+
+- **RecursiveAction**：表示没有返回结果的ForkJoin任务
+- **RecursiveTask**：表示具有返回结果的ForkJoin任务
+
+```java
+public abstract class RecursiveAction extends ForkJoinTask<Void> {
+    /**
+     * 该任务的执行,子类覆写该方法
+     */
+    protected abstract void compute();
+ 
+    public final Void getRawResult() { return null; }
+ 
+    protected final void setRawResult(Void mustBeNull) { }
+ 
+    protected final boolean exec() {
+        compute();
+        return true;
+    }
+}
+
+public abstract class RecursiveTask<V> extends ForkJoinTask<V> {
+ 
+    /**
+     * 该任务的执行结果.
+     */
+    V result;
+ 
+    /**
+     * 该任务的执行,子类覆写该方法
+     */
+    protected abstract V compute();
+ 
+    public final V getRawResult() {
+        return result;
+    }
+ 
+    protected final void setRawResult(V value) {
+        result = value;
+    }
+ 
+    protected final boolean exec() {
+        result = compute();
+        return true;
+    }
+
+}
+```
+
+
+
+**注意**：
+
+​	 `ForkJoinTask`除了和`ForkJoinPool` 结合使用外，也可以单独使用，当我们调用`ForkJoinTask`的`fork`方法时，其内部会通过`ForkJoinPool.commonPool()`方法创建线程池，然后将自己作为任务提交给线程池。 
+
+
+
+#### ForkJoinWorkerThread
+
+ `Fork/Join`框架中，每个工作线程（`Worker`）都有一个自己的任务队列（`WorkerQueue`）， 所以需要对一般的`Thread`做些特性化处理，J.U.C提供了**ForkJoinWorkerThread**类作为`ForkJoinPool`中的工作线程： 
+
+```java
+public class ForkJoinWorkerThread extends Thread {
+    
+    final ForkJoinPool pool;                    // 该工作线程归属的线程池
+    final ForkJoinPool.WorkQueue workQueue;     // 对应的任务队列
+ 
+    protected ForkJoinWorkerThread(ForkJoinPool pool) {
+        super("aForkJoinWorkerThread");         // 指定工作线程名称
+        this.pool = pool;
+        this.workQueue = pool.registerWorker(this);
+    }
+  
+    // ...
+}
+```
+
+`ForkJoinWorkerThread` 在构造过程中，会保存**所属线程池**信息和与自己**绑定的任务队列**信息。同时，它会通过`ForkJoinPool`的`registerWorker`方法将自己注册到线程池中。 
+
+
+
+**注意**：
+
+​	线程池中的每个工作线程（ForkJoinWorkerThread）都有一个自己的任务队列（WorkQueue），工作线程优先处理自身队列中的任务（LIFO或FIFO顺序，由线程池构造时的参数 `mode` 决定），自身队列为空时，以FIFO的顺序随机窃取其它队列中的任务。 
+
+
+
+#### WorkQueue
+
+ 任务队列（**WorkQueue**）是`ForkJoinPool`与其它线程池区别最大的地方，在`ForkJoinPool`内部，维护着一个`WorkQueue[]`数组，它会在外部首次提交任务）时进行初始化： 
+
+```java
+volatile WorkQueue[] workQueues; // main registry
+```
+
+>  当通过线程池的外部方法（**submit**、**invoke**、**execute**）提交任务时，如果`WorkQueue[]`没有初始化，则会进行初始化；
+>
+> 然后根据数组大小和线程随机数（`ThreadLocalRandom.probe`）等信息，计算出任务队列所在的数组索引（这个索引一定是**偶数**），如果索引处没有任务队列，则初始化一个，再将任务入队。
+>
+> 也就是说，通过外部方法提交的任务一定是在偶数队列，没有绑定工作线程。 
+
+
+
+**WorkQueue**作为ForkJoinPool的内部类，表示一个**双端队列**。双端队列既可以作为**栈**使用(LIFO)，也可以作为**队列**使用(FIFO)。ForkJoinPool的“工作窃取”正是利用了这个特点，当工作线程从自己的队列中获取任务时，**默认**总是以栈操作（LIFO）的方式从栈顶取任务；当工作线程尝试窃取其它任务队列中的任务时，则是FIFO的方式。 
+
+
+
+>  我们在ForkJoinPool一节中曾讲过，可以指定线程池的同步/异步模式（**mode参数**），其作用就在于此。同步模式就是“栈操作”，异步模式就是“队列操作”，影响的就是工作线程从自己队列中取任务的方式。 
+
+
+
+`ForkJoinPool`中的工作队列可以分为两类：
+
+- 有工作线程（`Worker`）绑定的任务队列：数组下标始终是**奇数**，称为**task queue**，该队列中的任务均由工作线程调用产生（工作线程调用`FutureTask.fork`方法）；
+- 没有工作线程（`Worker`）绑定的任务队列：数组下标始终是**偶数**，称为**submissions queue**，该队列中的任务全部由其它线程提交（也就是非工作线程调用`execute/submit/invoke`或者`FutureTask.fork`方法）。
+
+
+
+### 线程池调度示例
+
+[https://segmentfault.com/a/1190000015558984](https://segmentfault.com/a/1190000015558984)
+
+[https://segmentfault.com/a/1190000016781127](https://segmentfault.com/a/1190000016781127)
+
+
+
+### 任务调度流程
+
+
+
+[https://segmentfault.com/a/1190000015558984](https://segmentfault.com/a/1190000015558984)
+
+[https://segmentfault.com/a/1190000016877931](https://segmentfault.com/a/1190000016877931)
+
+<img src="img/forkJoin1.png"/>
+
+
+
+[https://image-static.segmentfault.com/386/153/386153050-5bdab9e13eafa](https://image-static.segmentfault.com/386/153/386153050-5bdab9e13eafa)

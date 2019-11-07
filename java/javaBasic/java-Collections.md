@@ -1,8 +1,10 @@
-# java集合类
+[https://segmentfault.com/a/1190000015558984](https://segmentfault.com/a/1190000015558984)
+
+
 
 - Java集合大致可以分为Set、List、Queue和Map四种体系
 
-```tex
+```properties
 其中Set代表无序、不可重复的集合；
 
 List代表有序、可重复的集合；
@@ -20,631 +22,20 @@ Queue体系集合，代表一种队列集合实现。
 
 ![](img/java-collection2.webp)
 
-- `Collections`集合工具类提供了对集合排序、遍历等多种算法实现。
-- `Arrays`工具类
-
-
-
-## 1.List
-
-
-
-### ArrayList
-
-- `ArrayList` 是一个**动态数组**，它是**线程不安全**的，允许元素为null。
-- 其底层数据结构依然是**数组**，它实现了`List<E>, RandomAccess, Cloneable, java.io.Serializable`接口，其中`RandomAccess`代表了其拥有**随机快速访问**的能力，`ArrayList`可以以O(1)的时间复杂度去根据下标访问元素。
-- 数组，所以占据一块连续的内存空间，所以可以根据下标快速存取
-- 当元素个数超过容量，便会进行扩容。扩容是其性能消耗比较大的地方（初始化时尽量指定大小）
-
-
-
-```java
-public class ArrayList<E> extends AbstractList<E>
-        implements List<E>, RandomAccess, Cloneable, java.io.Serializable
-{
-    private static final long serialVersionUID = 8683452581122892189L;
-
-	// 默认的数组存储容量
-    private static final int DEFAULT_CAPACITY = 10;
-
-	// 当指定数组的容量为0的时候使用这个变量赋值
-    private static final Object[] EMPTY_ELEMENTDATA = {};
-
-	// 默认的实例化的时候使用此变量赋值
-	// 这样可以知道当第一个元素添加的时候进行扩容至多少
-    private static final Object[] DEFAULTCAPACITY_EMPTY_ELEMENTDATA = {};
-
-	// 真正存放数据的对象数组，并不被序列化 //非private以简化嵌套类访问
-    transient Object[] elementData; // non-private to simplify nested class access
-
-    private int size;
-
-    public ArrayList(int initialCapacity) {
-        if (initialCapacity > 0) {
-            this.elementData = new Object[initialCapacity];
-        } else if (initialCapacity == 0) {
-            this.elementData = EMPTY_ELEMENTDATA;
-        } else {
-            throw new IllegalArgumentException("Illegal Capacity: "+
-                                               initialCapacity);
-        }
-    }
-
-    public ArrayList() {
-        this.elementData = DEFAULTCAPACITY_EMPTY_ELEMENTDATA;
-    }
-
-    public ArrayList(Collection<? extends E> c) {
-        elementData = c.toArray();
-        if ((size = elementData.length) != 0) {
-            // c.toArray might (incorrectly) not return Object[] (see 6260652)
-            if (elementData.getClass() != Object[].class)
-                elementData = Arrays.copyOf(elementData, size, Object[].class);
-        } else {
-            // replace with empty array.
-            this.elementData = EMPTY_ELEMENTDATA;
-        }
-    }
-}
+```properties
+Collections: 集合工具类提供了对集合排序、遍历等多种算法实现。
+Arrays: 工具
 ```
 
 
 
-- 这里我们主要分析一下`add`()与扩容机制
+- juc集合框架
 
+![](img/juc-collections1.png)
 
 
-```java
-//1
-public boolean add(E e) {
-    ensureCapacityInternal(size + 1);  // Increments modCount!!
-    elementData[size++] = e;
-    return true;
-}
 
-//2
-private void ensureCapacityInternal(int minCapacity) {
-    ensureExplicitCapacity(calculateCapacity(elementData, minCapacity));
-}
-
-//3
-private static int calculateCapacity(Object[] elementData, int minCapacity) {
-    //通过这个DEFAULTCAPACITY_EMPTY_ELEMENTDATA判断是否是使用默认构造函数初始化
-    if (elementData == DEFAULTCAPACITY_EMPTY_ELEMENTDATA) {
-        return Math.max(DEFAULT_CAPACITY, minCapacity);
-    }
-    return minCapacity;
-}
-
-//4
-private void ensureExplicitCapacity(int minCapacity) {
-    modCount++;
-
-    // overflow-conscious code
-    if (minCapacity - elementData.length > 0)
-        grow(minCapacity);
-}
-
-//5
-private void grow(int minCapacity) {
-    // overflow-conscious code
-    int oldCapacity = elementData.length;
-    int newCapacity = oldCapacity + (oldCapacity >> 1);//扩容的长度是增加了原来数组数组的一半大小
-    if (newCapacity - minCapacity < 0)
-        newCapacity = minCapacity;//如果还不够 ，那么就用 能容纳的最小的数量。
-    if (newCapacity - MAX_ARRAY_SIZE > 0)
-        //如果新容量比预定义的最大容量（Integer.MAX_VALUE - 8）还大，那么调用hugeCapacity,将新容量设置为 Integer.MAX_VALUE 
-        newCapacity = hugeCapacity(minCapacity);
-    // minCapacity is usually close to size, so this is a win:
-    elementData = Arrays.copyOf(elementData, newCapacity);
-}
-
-//6
-private static int hugeCapacity(int minCapacity) {
-    if (minCapacity < 0) // overflow
-        throw new OutOfMemoryError();
-    return (minCapacity > MAX_ARRAY_SIZE) ?
-        Integer.MAX_VALUE :
-    MAX_ARRAY_SIZE;
-}
-```
-
-
-
-```java
-public void add(int index, E element) {
-    rangeCheckForAdd(index);//判断索引是否越界，若越界就会抛异常
-	
-    //扩容检查
-    ensureCapacityInternal(size + 1);  // Increments modCount!!
-    
-    // 将指定下标空出，具体就是将index及其后的元素都往后挪动一位
-    System.arraycopy(elementData, index, elementData, index + 1,
-                     size - index);
-    
-    // 赋值
-    elementData[index] = element;
-    size++;// 长度加1
-}
-```
-
-
-
-
-
-### LinkedList
-
-- `LinkedList` 是**线程不安全**的，**允许元素为null**的**双向链表**。
-- 其底层数据结构是链表，它实现List<E>, Deque<E>, Cloneable, java.io.Serializable接口，它实现了Deque<E>,所以它也可以作为一个双端队列。和ArrayList比，没有实现RandomAccess所以其以下标，随机访问元素速度较慢。
-
-> 底层在根据下标查询Node的时候，会根据index判断目标Node在前半段还是后半段，然后决定是**顺序还是逆序查询**，**以提升时间效率**。
-
-
-
-```java
-public class LinkedList<E>
-    extends AbstractSequentialList<E>
-    implements List<E>, Deque<E>, Cloneable, java.io.Serializable
-{
-    transient int size = 0;
-
-    /**
-     * Pointer to first node.
-     * Invariant: (first == null && last == null) ||
-     *            (first.prev == null && first.item != null)
-     */
-    transient Node<E> first;
-
-    /**
-     * Pointer to last node.
-     * Invariant: (first == null && last == null) ||
-     *            (last.next == null && last.item != null)
-     */
-    transient Node<E> last;
-
-    /**
-     * Constructs an empty list.
-     */
-    public LinkedList() {
-    }
-
-    /**
-     * Constructs a list containing the elements of the specified
-     * collection, in the order they are returned by the collection's
-     * iterator.
-     *
-     * @param  c the collection whose elements are to be placed into this list
-     * @throws NullPointerException if the specified collection is null
-     */
-    public LinkedList(Collection<? extends E> c) {
-        this();
-        addAll(c);
-    }
-    
-    private static class Node<E> {
-        E item;//元素值
-        Node<E> next;//后置节点
-        Node<E> prev;//前置节点
-
-        Node(Node<E> prev, E element, Node<E> next) {
-            this.item = element;
-            this.next = next;
-            this.prev = prev;
-        }
-    }
-
-
-	/**
-     * Returns the (non-null) Node at the specified element index.
-     *
-     * 通过下标获取某个node 的时候，会根据index处于前半段还是后半段 进行一个折半，以提升查询效率
-     */
-    Node<E> node(int index) {
-        // assert isElementIndex(index);
-
-        if (index < (size >> 1)) {
-            Node<E> x = first;
-            for (int i = 0; i < index; i++)
-                x = x.next;
-            return x;
-        } else {
-            Node<E> x = last;
-            for (int i = size - 1; i > index; i--)
-                x = x.prev;
-            return x;
-        }
-    }
-}
-```
-
-
-
-
-
-### Vector
-
-- Vector是线程安全的(synchronized实现)，允许元素为NULL的动态数组
-- 底层是由**数组**实现，是一个**动态数组**，其容量能自动增长或者减少。Vector 继承 AbstractList 抽象类，实现 List、RandomAccess、Clone、java.io.Serializable 接口。其实现原理与 ArrayList 类似。
-- Vector 实现 RandomAccess 接口，提供快速随机访问功能。
-- Vector 实现 Clone 接口，重写 Object clone() 方法可以克隆对象。
-- Vector 实现 java.io.Serializable 接口，可以进行序列化和反序列化，方便数据在网络进行传输。
-
-
-
-与 ArrayList 一样，Vector 支持容量自动增长，但是增长方式与 ArrayList 略有不同。Vector 通过维护 **capacity** 和 **capacityIncrement** 这两个属性来优化其内存管理，而 capacityIncrement 是容量增长的系数，当 Vector 容量不足时，如果 capacityIncrement 为 0 的话，那么 Vector 容量扩容为原先的 2 倍（newCapacity = 2 * oldCapacity）；如果 capacityIncrement 大于 0，那么扩容后的容量为 oldCapacity + capacityIncrement。扩容的原理其实是对数组进行复制，对需要移动的元素进行移动，相当消耗性能的。
-
-
-
-```java
-public class Vector<E>
-    extends AbstractList<E>
-    implements List<E>, RandomAccess, Cloneable, java.io.Serializable
-{
-    protected Object[] elementData;
-
-    protected int elementCount;
-
-    protected int capacityIncrement;
-
-    private static final long serialVersionUID = -2767605614048989439L;
-
-
-    public Vector(int initialCapacity, int capacityIncrement) {
-        super();
-        if (initialCapacity < 0)
-            throw new IllegalArgumentException("Illegal Capacity: "+
-                                               initialCapacity);
-        this.elementData = new Object[initialCapacity];
-        this.capacityIncrement = capacityIncrement;
-    }
-
-    public Vector(int initialCapacity) {
-        this(initialCapacity, 0);
-    }
-
-    public Vector() {
-        this(10);
-    }
-
-    public Vector(Collection<? extends E> c) {
-        elementData = c.toArray();
-        elementCount = elementData.length;
-        // c.toArray might (incorrectly) not return Object[] (see 6260652)
-        if (elementData.getClass() != Object[].class)
-            elementData = Arrays.copyOf(elementData, elementCount, Object[].class);
-    }
-}
-```
-
-
-
-
-
-## 2.Set
-
-> Set不允许包含相同的元素，如果试图把两个相同元素加入同一个集合中，add方法返回false。  
->
-> Set判断两个对象相同不是使用==运算符，而是根据equals方法。也就是说，只要两个对象用equals方法比较返回true，Set就不会接受这两个对象。  
->
-> HashSet与TreeSet都是基于Set接口的实现类。其中TreeSet是Set的子接口SortedSet的实现类。
-
-
-
-- set接口定义集合的基本操作
-
-```java
-public interface Set<E> extends Collection<E> {
-    
-    int size();
-    
-    boolean isEmpty();
-    
-    boolean contains(Object o);
-    
-    Iterator<E> iterator();
-    
-    Object[] toArray();
-    
-    <T> T[] toArray(T[] a);
-    
-    boolean add(E e);
-    
-    boolean remove(Object o);
-    
-    boolean containsAll(Collection<?> c);
-    
-    boolean addAll(Collection<? extends E> c);
-    
-    boolean retainAll(Collection<?> c);
-    
-    boolean removeAll(Collection<?> c);
-    
-    void clear();
-    
-    boolean equals(Object o);
-    
-    int hashCode();
-    
-    @Override
-    default Spliterator<E> spliterator() {
-        return Spliterators.spliterator(this, Spliterator.DISTINCT);
-    }
-}
-```
-
-
-
-- 
-
-
-
-
-
-### HashSet
-
-- HashSet有以下特点:
-
-> 1.不能保证元素的排列顺序，顺序有可能发生变化  
-> 2.不是同步的  
-> 3.集合元素可以是null,但只能放入一个null  
-> 4.当向HashSet结合中存入一个元素时，HashSet会调用该对象的hashCode()方法来得到该对象的hashCode值，然后根据 hashCode值来决定该对象在HashSet中存储位置。
-
-**HashSet判断两个元素相等的标准是两个对象通过equals方法比较相等，并且两个对象的hashCode()方法返回值相等**
-
-- 注意：  
-  如果要把一个对象放入HashSet中，重写该对象对应类的equals方法，也应该重写其hashCode()方法。  
-  其规则是如果两个对象通过equals方法比较返回true时，其hashCode也应该相同。  
-  另外，对象中用作equals比较标准的属性，都应该用来计算 hashCode的值。
-
-
-
-```java
-public class HashSet<E>
-    extends AbstractSet<E>
-    implements Set<E>, Cloneable, java.io.Serializable
-{
-    static final long serialVersionUID = -5024744406713321676L;
-
-    private transient HashMap<E,Object> map;
-
-    // Dummy value to associate with an Object in the backing Map
-    private static final Object PRESENT = new Object();
-
-    /**
-     * Constructs a new, empty set; the backing <tt>HashMap</tt> instance has
-     * default initial capacity (16) and load factor (0.75).
-     */
-    public HashSet() {
-        map = new HashMap<>();
-    }
-
-    /**
-     * Constructs a new set containing the elements in the specified
-     * collection.  The <tt>HashMap</tt> is created with default load factor
-     * (0.75) and an initial capacity sufficient to contain the elements in
-     * the specified collection.
-     *
-     * @param c the collection whose elements are to be placed into this set
-     * @throws NullPointerException if the specified collection is null
-     */
-    public HashSet(Collection<? extends E> c) {
-        map = new HashMap<>(Math.max((int) (c.size()/.75f) + 1, 16));
-        addAll(c);
-    }
-
-    /**
-     * Constructs a new, empty set; the backing <tt>HashMap</tt> instance has
-     * the specified initial capacity and the specified load factor.
-     *
-     * @param      initialCapacity   the initial capacity of the hash map
-     * @param      loadFactor        the load factor of the hash map
-     * @throws     IllegalArgumentException if the initial capacity is less
-     *             than zero, or if the load factor is nonpositive
-     */
-    public HashSet(int initialCapacity, float loadFactor) {
-        map = new HashMap<>(initialCapacity, loadFactor);
-    }
-
-    /**
-     * Constructs a new, empty set; the backing <tt>HashMap</tt> instance has
-     * the specified initial capacity and default load factor (0.75).
-     *
-     * @param      initialCapacity   the initial capacity of the hash table
-     * @throws     IllegalArgumentException if the initial capacity is less
-     *             than zero
-     */
-    public HashSet(int initialCapacity) {
-        map = new HashMap<>(initialCapacity);
-    }
-
-    /**
-     * Constructs a new, empty linked hash set.  (This package private
-     * constructor is only used by LinkedHashSet.) The backing
-     * HashMap instance is a LinkedHashMap with the specified initial
-     * capacity and the specified load factor.
-     *
-     * @param      initialCapacity   the initial capacity of the hash map
-     * @param      loadFactor        the load factor of the hash map
-     * @param      dummy             ignored (distinguishes this
-     *             constructor from other int, float constructor.)
-     * @throws     IllegalArgumentException if the initial capacity is less
-     *             than zero, or if the load factor is nonpositive
-     */
-    HashSet(int initialCapacity, float loadFactor, boolean dummy) {
-        map = new LinkedHashMap<>(initialCapacity, loadFactor);
-    }
-    
-    // ......其他方法
-}
-```
-
-
-
-### NavigableSet
-
-`NavigableSet` 继承了 `SortedSet`，提供了关于搜索的更多方法
-
-```java
-public interface NavigableSet<E> extends SortedSet<E> {
- 
-    E lower(E e);
-    
-    E floor(E e);
-    
-    E ceiling(E e);
-    
-    E higher(E e);
-    
-    E pollFirst();
-    
-    E pollLast();
-    
-    Iterator<E> iterator();
-    
-    NavigableSet<E> descendingSet();
-    
-    Iterator<E> descendingIterator();
-    
-    NavigableSet<E> subSet(E fromElement, boolean fromInclusive,
-                           E toElement,   boolean toInclusive);
-    
-    NavigableSet<E> headSet(E toElement, boolean inclusive);
-    
-    NavigableSet<E> tailSet(E fromElement, boolean inclusive);
-    
-    SortedSet<E> subSet(E fromElement, E toElement);
-    
-    SortedSet<E> headSet(E toElement);
-    
-    SortedSet<E> tailSet(E fromElement);
-}    
-```
-
-
-
-
-
-### TreeSet
-
-```
-TreeSet类型是J2SE中唯一可实现自动排序的类型
-```
-
-- TreeSet是SortedSet接口的唯一实现类，TreeSet可以确保集合元素处于排序状态。
-- TreeSet支持两种排序方式，自然排序 和定制排序，其中自然排序为默认的排序方式。  
-- 排序规则
-
-> 自然排序：
-
-```
-自然排序使用要排序元素的CompareTo（Object obj）方法来比较元素之间大小关系，然后将元素按照升序排列。
-
-Java提供了一个Comparable接口，该接口里定义了一个compareTo(Object obj)方法，该方法返回一个整数值，实现了该接口的对象就可以比较大小。
-
-obj1.compareTo(obj2)方法如果返回0，则说明被比较的两个对象相等，如果返回一个正数，则表明obj1大于obj2，如果是 负数，则表明obj1小于obj2。
-
-如果我们将两个对象的equals方法总是返回true，则这两个对象的compareTo方法返回应该返回0
-```
-
-> 定制排序：
-
-```
-自然排序是根据集合元素的大小，以升序排列，如果要定制排序，应该使用Comparator接口，实现 int compare(To1,To2)方法
-```
-
-- 比较规则  
-
-  **TreeSet判断两个对象不相等的方式是两个对象通过equals方法返回false，或者通过CompareTo方法比较没有返回0**
-
-
-
-```java
-public class TreeSet<E> extends AbstractSet<E>
-    implements NavigableSet<E>, Cloneable, java.io.Serializable
-{
-    /**
-     * The backing map.
-     */
-    private transient NavigableMap<E,Object> m;
-
-    // Dummy value to associate with an Object in the backing Map
-    private static final Object PRESENT = new Object();
-
-    /**
-     * Constructs a set backed by the specified navigable map.
-     */
-    TreeSet(NavigableMap<E,Object> m) {
-        this.m = m;
-    }
-
-    public TreeSet() {
-        this(new TreeMap<E,Object>());
-    }
-
-    public TreeSet(Comparator<? super E> comparator) {
-        this(new TreeMap<>(comparator));
-    }
-
-    public TreeSet(Collection<? extends E> c) {
-        this();
-        addAll(c);
-    }
-
-    public TreeSet(SortedSet<E> s) {
-        this(s.comparator());
-        addAll(s);
-    }
-}
-```
-
-
-
-
-
-### LinkedHashSet
-
-- `LinkedHashSet`集合同样是根据元素的`hashCode`值来决定元素的存储位置。但是它同时使用链表维护元素的次序。这样使得元素看起 来像是以插入顺序保存的。当遍历该集合时候，`LinkedHashSet`将会以元素的添加顺序访问集合的元素。
-- **LinkedHashSet在迭代访问Set中的全部元素时，性能比HashSet好，但是插入时性能稍微逊色于HashSet**。
-- `LinkedHashSet`继承`HashSet`，其构造函数全部调用`HashSet`的统一个构造函数，使其初始化一个`LinkedHashMap`作为其父类的成员变量
-
-
-
-```java
-public class LinkedHashSet<E>
-    extends HashSet<E>
-    implements Set<E>, Cloneable, java.io.Serializable {
-
-    private static final long serialVersionUID = -2851667679971038690L;
-
-    public LinkedHashSet(int initialCapacity, float loadFactor) {
-        super(initialCapacity, loadFactor, true);
-    }
-
-    public LinkedHashSet(int initialCapacity) {
-        super(initialCapacity, .75f, true);
-    }
-
-    public LinkedHashSet() {
-        super(16, .75f, true);
-    }
-
-    public LinkedHashSet(Collection<? extends E> c) {
-        super(Math.max(2*c.size(), 11), .75f, true);
-        addAll(c);
-    }
-
-    @Override
-    public Spliterator<E> spliterator() {
-        return Spliterators.spliterator(this, Spliterator.DISTINCT | Spliterator.ORDERED);
-    }
-}
-```
-
-
-
-
-
-## 3.Map
+## Map
 
 我们知道，一般的Map都是无序的，也就是只能通过键的hash值进行定位。JDK为了实现有序的Map，提供了一个**SortedMap**接口，SortedMap提供了一些根据键范围进行查找的功能，比如返回整个Map中 key最小/大的键、返回某个范围内的子Map视图等等。
 
@@ -1667,29 +1058,1227 @@ public class Hashtable<K,V>
 
 
 
+### ConcurrentHashMap
 
 
 
 
-## 4.Queue
+
+### ConcurrentSkipListMap
+
+- TreeMap的线程安全版本
 
 
 
-### PriorityQueue
+ConcurrentSkipListMap的类继承图
+
+![](E:/notes/java/javaBasic/img/juc-map1.png)
 
 
 
-### ArrayDeque
+我们知道，一般的Map都是无序的，也就是只能通过键的hash值进行定位。JDK为了实现有序的Map，提供了一个**SortedMap**接口，SortedMap提供了一些根据键范围进行查找的功能，比如返回整个Map中 key最小/大的键、返回某个范围内的子Map视图等等。
+
+为了进一步对有序Map进行增强，JDK又引入了**NavigableMap**接口，该接口进一步扩展了SortedMap的功能，提供了根据指定Key返回最接近项、按升序/降序返回所有键的视图等功能。
+
+同时，也提供了一个基于NavigableMap的实现类——**TreeMap**，TreeMap底层基于红黑树设计，是一种有序的Map。
+
+
+
+#### ConcurrentNavigableMap接口
+
+
+
+为了对高并发环境下的有序Map提供更好的支持，J.U.C新增了一个`ConcurrentNavigableMap`接口
+
+
+
+```java
+public interface ConcurrentNavigableMap<K,V>
+    extends ConcurrentMap<K,V>, NavigableMap<K,V> {
+
+    ConcurrentNavigableMap<K,V> subMap(K fromKey, boolean fromInclusive,
+                                       K toKey,   boolean toInclusive);
+
+    ConcurrentNavigableMap<K,V> headMap(K toKey, boolean inclusive);
+
+    ConcurrentNavigableMap<K,V> tailMap(K fromKey, boolean inclusive);
+
+    ConcurrentNavigableMap<K,V> subMap(K fromKey, K toKey);
+
+    ConcurrentNavigableMap<K,V> headMap(K toKey);
+
+    ConcurrentNavigableMap<K,V> tailMap(K fromKey);
+
+    ConcurrentNavigableMap<K,V> descendingMap();
+
+    public NavigableSet<K> navigableKeySet();
+
+    NavigableSet<K> keySet();
+
+    public NavigableSet<K> descendingKeySet();
+}
+```
+
+
+
+J.U.C提供了基于`ConcurrentNavigableMap`接口的一个实现——`ConcurrentSkipListMap`。`ConcurrentSkipListMap`可以看成是并发版本的`TreeMap`，但是和`TreeMap`不同是，`ConcurrentSkipListMap`并不是基于红黑树实现的，其底层是一种类似**跳表（Skip List）**的结构。
+
+
+
+#### Skip List简介
+
+
+
+**Skip List**（以下简称跳表），是一种类似链表的数据结构，其查询/插入/删除的时间复杂度都是`O(logn)`。
+
+我们知道，通常意义上的链表是不能支持随机访问的（通过索引快速定位），其查找的时间复杂度是`O(n)`，而数组这一可支持随机访问的数据结构，虽然查找很快，但是插入/删除元素却需要移动插入点后的所有元素，时间复杂度为`O(n)`。
+
+为了解决这一问题，引入了树结构，树的增删改查效率比较平均，一棵平衡二叉树（AVL）的增删改查效率一般为`O(logn)`，比如工业上常用红黑树作为AVL的一种实现。
+
+但是，AVL的实现一般都比较复杂，插入/删除元素可能涉及对整个树结构的修改，特别是并发环境下，通常需要全局锁来保证AVL的线程安全，于是又出现了一种类似链表的数据结构——**跳表**。
+
+
+
+我们先来看下传统的单链表：
+
+![](E:/notes/java/javaBasic/img/juc-map2.png)
+
+
+
+上图的单链表中（省去了结点之间的链接），当想查找7、15、46这三个元素时，必须从头指针head开始，遍历整个单链表，其查找复杂度很低，为`O(n)`。
+
+
+
+来看下**Skip List**的数据结构是什么样的：
+
+![](E:/notes/java/javaBasic/img/juc-map3.png)
+
+
+
+上图是Skip List一种可能的结构，它分了2层，假设我们要查找**“15”**这个元素，那么整个步骤如下：
+
+1. 从头指针**head**开始，找到第一个结点的最上层，发现其指向的下个结点值为8，小于15，则直接从1结点跳到8结点。
+2. 8结点最上层指向的下一结点值为18，大于15，则从8结点的下一层开始查找。
+3. 从8结点的最下层一直向后查找，依次经过10、13，最后找到15结点。
+
+
+
+上述整个查找路径如下图标黄部分所示：
+
+![](E:/notes/java/javaBasic/img/juc-map4.png)
+
+
+
+同理，如果要查找**“46”**这个元素，则整个查找路径如下图标黄部分所示：
+
+![](E:/notes/java/javaBasic/img/juc-map6.png)
+
+
+
+上面就是跳跃表的基本思想了，每个结点不仅仅只包含指向下一个结点的指针，可能还包含很多个其它指向后续结点的指针。并且，一个结点本身可以看成是一个链表（自上向下链接）。这样就可以跳过一些不必要的结点，从而加快查找、删除等操作，这其实是一种**“空间换时间”**的算法设计思想。
+
+
+
+**那么一个结点可以包含多少层呢？** 比如，Skip List也可能是下面这种包含3层的结构(在一个3层Skip List中查找元素“46”)：
+
+![](E:/notes/java/javaBasic/img/juc-map7.png)
+
+
+
+层数是根据一种随机算法得到的，为了不让层数过大，还会有一个最大层数**MAX_LEVEL**限制，随机算法生成的层数不得大于该值。后面讲**ConcurrentSkipListMap**时，我们会具体分析。
+
+
+
+**总结**
+
+1. 跳表由很多层组成；
+2. 每一层都是一个有序链表；
+3. 对于每一层的任意结点，不仅有指向下一个结点的指针，也有指向其下一层的指针。
+
+
+
+#### ConcurrentSkipListMap的内部结构
+
+
+
+![](E:/notes/java/javaBasic/img/juc-map8.png)
+
+
+
+
+
+内部一共定义了3种不同类型的结点，元素的增删改查都从最上层的head指针指向的结点开始：
+
+```java
+public class ConcurrentSkipListMap2<K, V> extends AbstractMap<K, V>
+    implements ConcurrentNavigableMap<K, V>, Cloneable, Serializable {
+    /**
+     * 最底层链表的头指针BASE_HEADER
+     */
+    private static final Object BASE_HEADER = new Object();
+
+    /**
+     * 最上层链表的头指针head
+     */
+    private transient volatile HeadIndex<K, V> head;
+
+    /* ---------------- 普通结点Node定义 -------------- */
+    static final class Node<K, V> {
+        final K key;
+        volatile Object value;
+        volatile Node<K, V> next;
+
+        // ...
+    }
+
+    /* ---------------- 索引结点Index定义 -------------- */
+    static class Index<K, V> {
+        final Node<K, V> node;      // node指向最底层链表的Node结点
+        final Index<K, V> down;     // down指向下层Index结点
+        volatile Index<K, V> right; // right指向右边的Index结点
+
+        // ...
+    }
+
+    /* ---------------- 头索引结点HeadIndex -------------- */
+    static final class HeadIndex<K, V> extends Index<K, V> {
+        final int level;    // 层级
+
+        // ...
+    }
+}
+```
+
+
+
+**普通结点：Node**
+
+​	Node结点，也就是**ConcurrentSkipListMap**最底层链表中的结点，保存着实际的键值对，如果单独看底层链，其实就是一个按照Key有序排列的单链表（见示意图中的最下层节点）
+
+
+
+**索引结点：Index**
+
+​	Index结点是除底层链外，其余各层链表中的非头结点（见示意图中的蓝色结点）。
+
+
+
+**头索引结点：HeadIndex**
+
+​	HeadIndex结点是各层链表的头结点，它是Index类的子类，唯一的区别是增加了一个`level`字段，用于表示当前链表的级别，越往上层，level值越大。
+
+
+
+## List
+
+
+
+### ArrayList
+
+- `ArrayList` 是一个**动态数组**，它是**线程不安全**的，允许元素为null。
+- 其底层数据结构依然是**数组**，它实现了`List<E>, RandomAccess, Cloneable, java.io.Serializable`接口，其中`RandomAccess`代表了其拥有**随机快速访问**的能力，`ArrayList`可以以O(1)的时间复杂度去根据下标访问元素。
+- 数组，所以占据一块连续的内存空间，所以可以根据下标快速存取
+- 当元素个数超过容量，便会进行扩容。扩容是其性能消耗比较大的地方（初始化时尽量指定大小）
+
+
+
+```java
+public class ArrayList<E> extends AbstractList<E>
+        implements List<E>, RandomAccess, Cloneable, java.io.Serializable
+{
+    private static final long serialVersionUID = 8683452581122892189L;
+
+	// 默认的数组存储容量
+    private static final int DEFAULT_CAPACITY = 10;
+
+	// 当指定数组的容量为0的时候使用这个变量赋值
+    private static final Object[] EMPTY_ELEMENTDATA = {};
+
+	// 默认的实例化的时候使用此变量赋值
+	// 这样可以知道当第一个元素添加的时候进行扩容至多少
+    private static final Object[] DEFAULTCAPACITY_EMPTY_ELEMENTDATA = {};
+
+	// 真正存放数据的对象数组，并不被序列化 //非private以简化嵌套类访问
+    transient Object[] elementData; // non-private to simplify nested class access
+
+    private int size;
+
+    public ArrayList(int initialCapacity) {
+        if (initialCapacity > 0) {
+            this.elementData = new Object[initialCapacity];
+        } else if (initialCapacity == 0) {
+            this.elementData = EMPTY_ELEMENTDATA;
+        } else {
+            throw new IllegalArgumentException("Illegal Capacity: "+
+                                               initialCapacity);
+        }
+    }
+
+    public ArrayList() {
+        this.elementData = DEFAULTCAPACITY_EMPTY_ELEMENTDATA;
+    }
+
+    public ArrayList(Collection<? extends E> c) {
+        elementData = c.toArray();
+        if ((size = elementData.length) != 0) {
+            // c.toArray might (incorrectly) not return Object[] (see 6260652)
+            if (elementData.getClass() != Object[].class)
+                elementData = Arrays.copyOf(elementData, size, Object[].class);
+        } else {
+            // replace with empty array.
+            this.elementData = EMPTY_ELEMENTDATA;
+        }
+    }
+}
+```
+
+
+
+- 这里我们主要分析一下`add`()与扩容机制
+
+
+
+```java
+//1
+public boolean add(E e) {
+    ensureCapacityInternal(size + 1);  // Increments modCount!!
+    elementData[size++] = e;
+    return true;
+}
+
+//2
+private void ensureCapacityInternal(int minCapacity) {
+    ensureExplicitCapacity(calculateCapacity(elementData, minCapacity));
+}
+
+//3
+private static int calculateCapacity(Object[] elementData, int minCapacity) {
+    //通过这个DEFAULTCAPACITY_EMPTY_ELEMENTDATA判断是否是使用默认构造函数初始化
+    if (elementData == DEFAULTCAPACITY_EMPTY_ELEMENTDATA) {
+        return Math.max(DEFAULT_CAPACITY, minCapacity);
+    }
+    return minCapacity;
+}
+
+//4
+private void ensureExplicitCapacity(int minCapacity) {
+    modCount++;
+
+    // overflow-conscious code
+    if (minCapacity - elementData.length > 0)
+        grow(minCapacity);
+}
+
+//5
+private void grow(int minCapacity) {
+    // overflow-conscious code
+    int oldCapacity = elementData.length;
+    int newCapacity = oldCapacity + (oldCapacity >> 1);//扩容的长度是增加了原来数组数组的一半大小
+    if (newCapacity - minCapacity < 0)
+        newCapacity = minCapacity;//如果还不够 ，那么就用 能容纳的最小的数量。
+    if (newCapacity - MAX_ARRAY_SIZE > 0)
+        //如果新容量比预定义的最大容量（Integer.MAX_VALUE - 8）还大，那么调用hugeCapacity,将新容量设置为 Integer.MAX_VALUE 
+        newCapacity = hugeCapacity(minCapacity);
+    // minCapacity is usually close to size, so this is a win:
+    elementData = Arrays.copyOf(elementData, newCapacity);
+}
+
+//6
+private static int hugeCapacity(int minCapacity) {
+    if (minCapacity < 0) // overflow
+        throw new OutOfMemoryError();
+    return (minCapacity > MAX_ARRAY_SIZE) ?
+        Integer.MAX_VALUE :
+    MAX_ARRAY_SIZE;
+}
+```
+
+
+
+```java
+public void add(int index, E element) {
+    rangeCheckForAdd(index);//判断索引是否越界，若越界就会抛异常
+	
+    //扩容检查
+    ensureCapacityInternal(size + 1);  // Increments modCount!!
+    
+    // 将指定下标空出，具体就是将index及其后的元素都往后挪动一位
+    System.arraycopy(elementData, index, elementData, index + 1,
+                     size - index);
+    
+    // 赋值
+    elementData[index] = element;
+    size++;// 长度加1
+}
+```
+
+
 
 
 
 ### LinkedList
 
+- `LinkedList` 是**线程不安全**的，**允许元素为null**的**双向链表**。
+- 其底层数据结构是链表，它实现List<E>, Deque<E>, Cloneable, java.io.Serializable接口，它实现了Deque<E>,所以它也可以作为一个双端队列。和ArrayList比，没有实现RandomAccess所以其以下标，随机访问元素速度较慢。
+
+> 底层在根据下标查询Node的时候，会根据index判断目标Node在前半段还是后半段，然后决定是**顺序还是逆序查询**，**以提升时间效率**。
 
 
-## 5.Deque
+
+```java
+public class LinkedList<E>
+    extends AbstractSequentialList<E>
+    implements List<E>, Deque<E>, Cloneable, java.io.Serializable
+{
+    transient int size = 0;
+
+    /**
+     * Pointer to first node.
+     * Invariant: (first == null && last == null) ||
+     *            (first.prev == null && first.item != null)
+     */
+    transient Node<E> first;
+
+    /**
+     * Pointer to last node.
+     * Invariant: (first == null && last == null) ||
+     *            (last.next == null && last.item != null)
+     */
+    transient Node<E> last;
+
+    /**
+     * Constructs an empty list.
+     */
+    public LinkedList() {
+    }
+
+    /**
+     * Constructs a list containing the elements of the specified
+     * collection, in the order they are returned by the collection's
+     * iterator.
+     *
+     * @param  c the collection whose elements are to be placed into this list
+     * @throws NullPointerException if the specified collection is null
+     */
+    public LinkedList(Collection<? extends E> c) {
+        this();
+        addAll(c);
+    }
+    
+    private static class Node<E> {
+        E item;//元素值
+        Node<E> next;//后置节点
+        Node<E> prev;//前置节点
+
+        Node(Node<E> prev, E element, Node<E> next) {
+            this.item = element;
+            this.next = next;
+            this.prev = prev;
+        }
+    }
+
+
+	/**
+     * Returns the (non-null) Node at the specified element index.
+     *
+     * 通过下标获取某个node 的时候，会根据index处于前半段还是后半段 进行一个折半，以提升查询效率
+     */
+    Node<E> node(int index) {
+        // assert isElementIndex(index);
+
+        if (index < (size >> 1)) {
+            Node<E> x = first;
+            for (int i = 0; i < index; i++)
+                x = x.next;
+            return x;
+        } else {
+            Node<E> x = last;
+            for (int i = size - 1; i > index; i--)
+                x = x.prev;
+            return x;
+        }
+    }
+}
+```
+
+
+
+
+
+### Vector
+
+- Vector是线程安全的ArrayList(synchronized实现)，允许元素为NULL的动态数组
+- 底层是由**数组**实现，是一个**动态数组**，其容量能自动增长或者减少。Vector 继承 AbstractList 抽象类，实现 List、RandomAccess、Clone、java.io.Serializable 接口。其实现原理与 ArrayList 类似。
+- Vector 实现 RandomAccess 接口，提供快速随机访问功能。
+- Vector 实现 Clone 接口，重写 Object clone() 方法可以克隆对象。
+- Vector 实现 java.io.Serializable 接口，可以进行序列化和反序列化，方便数据在网络进行传输。
+
+
+
+与 ArrayList 一样，Vector 支持容量自动增长，但是增长方式与 ArrayList 略有不同。Vector 通过维护 **capacity** 和 **capacityIncrement** 这两个属性来优化其内存管理，而 capacityIncrement 是容量增长的系数，当 Vector 容量不足时，如果 capacityIncrement 为 0 的话，那么 Vector 容量扩容为原先的 2 倍（newCapacity = 2 * oldCapacity）；如果 capacityIncrement 大于 0，那么扩容后的容量为 oldCapacity + capacityIncrement。扩容的原理其实是对数组进行复制，对需要移动的元素进行移动，相当消耗性能的。
+
+
+
+```java
+public class Vector<E>
+    extends AbstractList<E>
+    implements List<E>, RandomAccess, Cloneable, java.io.Serializable
+{
+    protected Object[] elementData;
+
+    protected int elementCount;
+
+    protected int capacityIncrement;
+
+    private static final long serialVersionUID = -2767605614048989439L;
+
+
+    public Vector(int initialCapacity, int capacityIncrement) {
+        super();
+        if (initialCapacity < 0)
+            throw new IllegalArgumentException("Illegal Capacity: "+
+                                               initialCapacity);
+        this.elementData = new Object[initialCapacity];
+        this.capacityIncrement = capacityIncrement;
+    }
+
+    public Vector(int initialCapacity) {
+        this(initialCapacity, 0);
+    }
+
+    public Vector() {
+        this(10);
+    }
+
+    public Vector(Collection<? extends E> c) {
+        elementData = c.toArray();
+        elementCount = elementData.length;
+        // c.toArray might (incorrectly) not return Object[] (see 6260652)
+        if (elementData.getClass() != Object[].class)
+            elementData = Arrays.copyOf(elementData, elementCount, Object[].class);
+    }
+}
+```
+
+
+
+### CopyOnWriteArrayList
+
+`ArrayList`是一种“列表”数据机构，其底层是通过**数组**来实现元素的**随机访问**。JDK1.5之前，如果想要在并发环境下使用“列表”，一般有以下3种方式：
+
+1. 使用**Vector**类
+2. 使用`Collections.synchronizedList`返回一个同步代理类；
+3. 自己实现**ArrayList**的子类，并进行同步/加锁。
+
+前两种方式都相当于加了一把“全局锁”，访问任何方法都需要首先获取锁。第3种方式，需要自己实现，复杂度较高。
+
+
+
+大多数业务场景都是一种**“读多写少”**的情形，**CopyOnWriteArrayList**就是为适应这种场景而诞生的。
+
+CopyOnWriteArrayList，运用了一种**“写时复制”**的思想。通俗的理解就是当我们需要修改（增/删/改）列表中的元素时，不直接进行修改，而是先将列表Copy，然后在新的副本上进行修改，修改完成之后，再将引用从原列表指向新列表。
+
+这样做的好处是**读/写是不会冲突**的，可以并发进行，读操作还是在原列表，写操作在新列表。仅仅当有多个线程同时进行写操作时，才会进行同步。
+
+
+
+```java
+public class CopyOnWriteArrayList<E>
+    implements List<E>, RandomAccess, Cloneable, java.io.Serializable {
+    private static final long serialVersionUID = 8673264195747942595L;
+
+    final transient ReentrantLock lock = new ReentrantLock();
+
+    private transient volatile Object[] array;
+
+    public CopyOnWriteArrayList() {
+        setArray(new Object[0]);
+    }
+
+    public CopyOnWriteArrayList(Collection<? extends E> c) {
+        Object[] elements;
+        if (c.getClass() == CopyOnWriteArrayList.class)
+            elements = ((CopyOnWriteArrayList<?>)c).getArray();
+        else {
+            elements = c.toArray();
+            // c.toArray might (incorrectly) not return Object[] (see 6260652)
+            if (elements.getClass() != Object[].class)
+                elements = Arrays.copyOf(elements, elements.length, Object[].class);
+        }
+        setArray(elements);
+    }
+
+    public CopyOnWriteArrayList(E[] toCopyIn) {
+        setArray(Arrays.copyOf(toCopyIn, toCopyIn.length, Object[].class));
+    }
+    
+    public boolean add(E e) {
+        final ReentrantLock lock = this.lock;
+        lock.lock();
+        try {
+            Object[] elements = getArray();     // 旧数组
+            int len = elements.length;
+            Object[] newElements = Arrays.copyOf(elements, len + 1);    // 复制并创建新数组
+            newElements[len] = e;               // 将元素插入到新数组末尾
+            setArray(newElements);              // 内部array引用指向新数组
+            return true;
+        } finally {
+            lock.unlock();
+        }
+    }
+}
+```
+
+
+
+**add**方法首先会进行加锁，保证只有一个线程能进行修改；然后会创建一个新数组（大小为`n+1`），并将原数组的值复制到新数组，新元素插入到新数组的最后；最后，将字段`array`指向新数组。
+
+
+
+![](E:/notes/java/javaBasic/img/juc-list1.png)
+
+上图中，ThreadB对Array的修改由于是在新数组上进行的，所以并不会对ThreadA的读操作产生影响。
+
+
+
+## Set
+
+> Set不允许包含相同的元素，如果试图把两个相同元素加入同一个集合中，add方法返回false。  
+>
+> Set判断两个对象相同不是使用==运算符，而是根据equals方法。也就是说，只要两个对象用equals方法比较返回true，Set就不会接受这两个对象。  
+>
+> HashSet与TreeSet都是基于Set接口的实现类。其中TreeSet是Set的子接口SortedSet的实现类。
+
+
+
+- set接口定义集合的基本操作
+
+```java
+public interface Set<E> extends Collection<E> {
+    
+    int size();
+    
+    boolean isEmpty();
+    
+    boolean contains(Object o);
+    
+    Iterator<E> iterator();
+    
+    Object[] toArray();
+    
+    <T> T[] toArray(T[] a);
+    
+    boolean add(E e);
+    
+    boolean remove(Object o);
+    
+    boolean containsAll(Collection<?> c);
+    
+    boolean addAll(Collection<? extends E> c);
+    
+    boolean retainAll(Collection<?> c);
+    
+    boolean removeAll(Collection<?> c);
+    
+    void clear();
+    
+    boolean equals(Object o);
+    
+    int hashCode();
+    
+    @Override
+    default Spliterator<E> spliterator() {
+        return Spliterators.spliterator(this, Spliterator.DISTINCT);
+    }
+}
+```
+
+
+
+### HashSet
+
+- HashSet有以下特点:
+
+> 1.不能保证元素的排列顺序，顺序有可能发生变化  
+> 2.不是同步的  
+> 3.集合元素可以是null,但只能放入一个null  
+> 4.当向HashSet结合中存入一个元素时，HashSet会调用该对象的hashCode()方法来得到该对象的hashCode值，然后根据 hashCode值来决定该对象在HashSet中存储位置。
+
+**HashSet判断两个元素相等的标准是两个对象通过equals方法比较相等，并且两个对象的hashCode()方法返回值相等**
+
+- 注意：
+  如果要把一个对象放入HashSet中，重写该对象对应类的equals方法，也应该重写其hashCode()方法。  
+  其规则是如果两个对象通过equals方法比较返回true时，其hashCode也应该相同。  
+  另外，对象中用作equals比较标准的属性，都应该用来计算 hashCode的值。
+
+
+
+```java
+public class HashSet<E>
+    extends AbstractSet<E>
+    implements Set<E>, Cloneable, java.io.Serializable
+{
+    static final long serialVersionUID = -5024744406713321676L;
+
+    private transient HashMap<E,Object> map;
+
+    // Dummy value to associate with an Object in the backing Map
+    private static final Object PRESENT = new Object();
+
+    /**
+     * Constructs a new, empty set; the backing <tt>HashMap</tt> instance has
+     * default initial capacity (16) and load factor (0.75).
+     */
+    public HashSet() {
+        map = new HashMap<>();
+    }
+
+    /**
+     * Constructs a new set containing the elements in the specified
+     * collection.  The <tt>HashMap</tt> is created with default load factor
+     * (0.75) and an initial capacity sufficient to contain the elements in
+     * the specified collection.
+     *
+     * @param c the collection whose elements are to be placed into this set
+     * @throws NullPointerException if the specified collection is null
+     */
+    public HashSet(Collection<? extends E> c) {
+        map = new HashMap<>(Math.max((int) (c.size()/.75f) + 1, 16));
+        addAll(c);
+    }
+
+    /**
+     * Constructs a new, empty set; the backing <tt>HashMap</tt> instance has
+     * the specified initial capacity and the specified load factor.
+     *
+     * @param      initialCapacity   the initial capacity of the hash map
+     * @param      loadFactor        the load factor of the hash map
+     * @throws     IllegalArgumentException if the initial capacity is less
+     *             than zero, or if the load factor is nonpositive
+     */
+    public HashSet(int initialCapacity, float loadFactor) {
+        map = new HashMap<>(initialCapacity, loadFactor);
+    }
+
+    /**
+     * Constructs a new, empty set; the backing <tt>HashMap</tt> instance has
+     * the specified initial capacity and default load factor (0.75).
+     *
+     * @param      initialCapacity   the initial capacity of the hash table
+     * @throws     IllegalArgumentException if the initial capacity is less
+     *             than zero
+     */
+    public HashSet(int initialCapacity) {
+        map = new HashMap<>(initialCapacity);
+    }
+
+    /**
+     * Constructs a new, empty linked hash set.  (This package private
+     * constructor is only used by LinkedHashSet.) The backing
+     * HashMap instance is a LinkedHashMap with the specified initial
+     * capacity and the specified load factor.
+     *
+     * @param      initialCapacity   the initial capacity of the hash map
+     * @param      loadFactor        the load factor of the hash map
+     * @param      dummy             ignored (distinguishes this
+     *             constructor from other int, float constructor.)
+     * @throws     IllegalArgumentException if the initial capacity is less
+     *             than zero, or if the load factor is nonpositive
+     */
+    HashSet(int initialCapacity, float loadFactor, boolean dummy) {
+        map = new LinkedHashMap<>(initialCapacity, loadFactor);
+    }
+    
+    // ......其他方法
+}
+```
+
+
+
+### NavigableSet
+
+`NavigableSet` 继承了 `SortedSet`，提供了关于搜索的更多方法
+
+```java
+public interface NavigableSet<E> extends SortedSet<E> {
+ 
+    E lower(E e);
+    
+    E floor(E e);
+    
+    E ceiling(E e);
+    
+    E higher(E e);
+    
+    E pollFirst();
+    
+    E pollLast();
+    
+    Iterator<E> iterator();
+    
+    NavigableSet<E> descendingSet();
+    
+    Iterator<E> descendingIterator();
+    
+    NavigableSet<E> subSet(E fromElement, boolean fromInclusive,
+                           E toElement,   boolean toInclusive);
+    
+    NavigableSet<E> headSet(E toElement, boolean inclusive);
+    
+    NavigableSet<E> tailSet(E fromElement, boolean inclusive);
+    
+    SortedSet<E> subSet(E fromElement, E toElement);
+    
+    SortedSet<E> headSet(E toElement);
+    
+    SortedSet<E> tailSet(E fromElement);
+}    
+```
+
+
+
+
+
+### TreeSet
+
+```
+TreeSet类型是J2SE中唯一可实现自动排序的类型
+```
+
+- TreeSet是SortedSet接口的唯一实现类，TreeSet可以确保集合元素处于排序状态。
+- TreeSet支持两种排序方式，自然排序 和定制排序，其中自然排序为默认的排序方式。  
+- 排序规则
+
+> 自然排序：
+
+```
+自然排序使用要排序元素的CompareTo（Object obj）方法来比较元素之间大小关系，然后将元素按照升序排列。
+
+Java提供了一个Comparable接口，该接口里定义了一个compareTo(Object obj)方法，该方法返回一个整数值，实现了该接口的对象就可以比较大小。
+
+obj1.compareTo(obj2)方法如果返回0，则说明被比较的两个对象相等，如果返回一个正数，则表明obj1大于obj2，如果是 负数，则表明obj1小于obj2。
+
+如果我们将两个对象的equals方法总是返回true，则这两个对象的compareTo方法返回应该返回0
+```
+
+> 定制排序：
+
+```
+自然排序是根据集合元素的大小，以升序排列，如果要定制排序，应该使用Comparator接口，实现 int compare(To1,To2)方法
+```
+
+- 比较规则  
+
+  **TreeSet判断两个对象不相等的方式是两个对象通过equals方法返回false，或者通过CompareTo方法比较没有返回0**
+
+
+
+```java
+public class TreeSet<E> extends AbstractSet<E>
+    implements NavigableSet<E>, Cloneable, java.io.Serializable
+{
+    /**
+     * The backing map.
+     */
+    private transient NavigableMap<E,Object> m;
+
+    // Dummy value to associate with an Object in the backing Map
+    private static final Object PRESENT = new Object();
+
+    /**
+     * Constructs a set backed by the specified navigable map.
+     */
+    TreeSet(NavigableMap<E,Object> m) {
+        this.m = m;
+    }
+
+    public TreeSet() {
+        this(new TreeMap<E,Object>());
+    }
+
+    public TreeSet(Comparator<? super E> comparator) {
+        this(new TreeMap<>(comparator));
+    }
+
+    public TreeSet(Collection<? extends E> c) {
+        this();
+        addAll(c);
+    }
+
+    public TreeSet(SortedSet<E> s) {
+        this(s.comparator());
+        addAll(s);
+    }
+}
+```
+
+
+
+
+
+### LinkedHashSet
+
+- `LinkedHashSet`集合同样是根据元素的`hashCode`值来决定元素的存储位置。但是它同时使用链表维护元素的次序。这样使得元素看起 来像是以插入顺序保存的。当遍历该集合时候，`LinkedHashSet`将会以元素的添加顺序访问集合的元素。
+- **LinkedHashSet在迭代访问Set中的全部元素时，性能比HashSet好，但是插入时性能稍微逊色于HashSet**。
+- `LinkedHashSet`继承`HashSet`，其构造函数全部调用`HashSet`的统一个构造函数，使其初始化一个`LinkedHashMap`作为其父类的成员变量
+
+
+
+```java
+public class LinkedHashSet<E>
+    extends HashSet<E>
+    implements Set<E>, Cloneable, java.io.Serializable {
+
+    private static final long serialVersionUID = -2851667679971038690L;
+
+    public LinkedHashSet(int initialCapacity, float loadFactor) {
+        super(initialCapacity, loadFactor, true);
+    }
+
+    public LinkedHashSet(int initialCapacity) {
+        super(initialCapacity, .75f, true);
+    }
+
+    public LinkedHashSet() {
+        super(16, .75f, true);
+    }
+
+    public LinkedHashSet(Collection<? extends E> c) {
+        super(Math.max(2*c.size(), 11), .75f, true);
+        addAll(c);
+    }
+
+    @Override
+    public Spliterator<E> spliterator() {
+        return Spliterators.spliterator(this, Spliterator.DISTINCT | Spliterator.ORDERED);
+    }
+}
+```
+
+
+
+### ConcurrentSkipListSet
+
+- TreeSet的线程安全版本
+
+`ConcurrentSkipListSet`实现了`NavigableSet`接口，`ConcurrentSkipListMap`实现了`NavigableMap`接口，以提供和排序相关的功能，维持元素的有序性，所以**ConcurrentSkipListSet**就是一种为并发环境设计的有序`SET`工具类。
+
+
+
+**ConcurrentSkipListSet**的实现非常简单，其内部引用了一个`ConcurrentSkipListMap`对象，所有API方法均委托`ConcurrentSkipListMap`对象完成
+
+![](E:/notes/java/javaBasic/img/juc-set1.png)
+
+
+
+```java
+public class ConcurrentSkipListSet<E> extends AbstractSet<E>
+    implements NavigableSet<E>, Cloneable, java.io.Serializable {
+
+    private final ConcurrentNavigableMap<E, Object> m;
+
+    public ConcurrentSkipListSet() {
+        m = new ConcurrentSkipListMap<E, Object>();
+    }
+
+    public ConcurrentSkipListSet(Comparator<? super E> comparator) {
+        m = new ConcurrentSkipListMap<E, Object>(comparator);
+    }
+
+    public ConcurrentSkipListSet(Collection<? extends E> c) {
+        m = new ConcurrentSkipListMap<E, Object>();
+        addAll(c);
+    }
+
+    public ConcurrentSkipListSet(SortedSet<E> s) {
+        m = new ConcurrentSkipListMap<E, Object>(s.comparator());
+        addAll(s);
+    }
+
+    ConcurrentSkipListSet(ConcurrentNavigableMap<E, Object> m) {
+        this.m = m;
+    }
+    
+    // ...
+}
+```
+
+
+
+从上述代码可以看出，**ConcurrentSkipListSet**在构造时创建了一个ConcurrentSkipListMap对象，并由字段m引用，所以其实ConcurrentSkipListSet就是一种**跳表类型**的数据结构，其平均增删改查的时间复杂度均为`O(logn)`。
+
+
+
+### CopyOnWriteArraySet
+
+
+
+`CopyOnWriteArraySet`，是另一类适合并发环境的SET工具类，也是基于“**写时复制**”的思想。事实上，`CopyOnWriteArraySet`内部引用了一个`CopyOnWriteArrayList`对象，以“组合”方式，委托`CopyOnWriteArrayList`对象实现了所有API功能。
+
+
+
+```java
+public class CopyOnWriteArraySet<E> extends AbstractSet<E>
+    implements java.io.Serializable {
+
+    private final CopyOnWriteArrayList<E> al;
+
+    public CopyOnWriteArraySet() {
+        al = new CopyOnWriteArrayList<E>();
+    }
+
+    public CopyOnWriteArraySet(Collection<? extends E> c) {
+        if (c.getClass() == CopyOnWriteArraySet.class) {
+            CopyOnWriteArraySet<E> cc = (CopyOnWriteArraySet<E>) c;
+            al = new CopyOnWriteArrayList<E>(cc.al);
+        } else {
+            al = new CopyOnWriteArrayList<E>();
+            al.addAllAbsent(c);
+        }
+    }
+    // ...
+}
+```
+
+
+
+`CopyOnWriteArraySet`不允许含有重复元素，所以添加元素（`add`方法）时，内部调用了`CopyOnWriteArrayList`的`addAllAbsent`方法。
+
+
+
+## Queue
+
+- 队列时一种先进先出的数据结构，队尾入队，队头出队。
+- 队列分类有 阻塞队列，延迟队列，优先队列，双端队列，有界队列，无界队列，同步队列
+
+```java
+/* @see java.util.Collection
+ * @see LinkedList
+ * @see PriorityQueue
+ * @see java.util.concurrent.LinkedBlockingQueue
+ * @see java.util.concurrent.BlockingQueue
+ * @see java.util.concurrent.ArrayBlockingQueue
+ * @see java.util.concurrent.LinkedBlockingQueue
+ * @see java.util.concurrent.PriorityBlockingQueue
+ * @since 1.5
+ * @author Doug Lea
+ * @param <E> the type of elements held in this collection
+ */
+public interface Queue<E> extends Collection<E> {
+
+    //将指定的元素插入到此队列中
+    boolean add(E e);
+
+    //将指定的元素插入到此队列中
+    boolean offer(E e);
+
+    //检索并删除此队列的头。队列为空则抛出异常
+    E remove();
+
+    //检索并删除此队列的头，如果此队列为空，则返回{@code null}。
+    E poll();
+
+    //检索但不删除此队列的头，如果此队列为空，抛出异常。
+    E element();
+    
+    //检索但不删除此队列的头，如果此队列为空，则返回{@code null}。
+    E peek();
+}
+```
+
+
+
+| 操作类型 | 抛出异常  | 返回特殊值 |
+| :------- | :-------- | :--------- |
+| 插入     | add(e)    | offer(e)   |
+| 删除     | remove()  | poll()     |
+| 读取     | element() | peek()     |
+
+
+
+### PriorityQueue
+
+```java
+public abstract class AbstractQueue<E> extends AbstractCollection<E> implements Queue<E> {
+
+    protected AbstractQueue() {
+    }
+
+    public boolean add(E e) {
+        if (offer(e))
+            return true;
+        else
+            throw new IllegalStateException("Queue full");
+    }
+
+    public E remove() {
+        E x = poll();
+        if (x != null)
+            return x;
+        else
+            throw new NoSuchElementException();
+    }
+
+    public E element() {
+        E x = peek();
+        if (x != null)
+            return x;
+        else
+            throw new NoSuchElementException();
+    }
+
+    public void clear() {
+        while (poll() != null)
+            ;
+    }
+
+    public boolean addAll(Collection<? extends E> c) {
+        if (c == null)
+            throw new NullPointerException();
+        if (c == this)
+            throw new IllegalArgumentException();
+        boolean modified = false;
+        for (E e : c)
+            if (add(e))
+                modified = true;
+        return modified;
+    }
+
+}
+```
+
+
+
+```java
+public class PriorityQueue<E> extends AbstractQueue<E>
+    implements java.io.Serializable {
+
+    private static final long serialVersionUID = -7720805057305804111L;
+
+    private static final int DEFAULT_INITIAL_CAPACITY = 11;
+
+    transient Object[] queue; // non-private to simplify nested class access
+
+    private int size = 0;
+
+    private final Comparator<? super E> comparator;
+
+    transient int modCount = 0; // non-private to simplify nested class access
+    
+    private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
+    
+    public PriorityQueue(int initialCapacity,
+                         Comparator<? super E> comparator) {
+        // Note: This restriction of at least one is not actually needed,
+        // but continues for 1.5 compatibility
+        if (initialCapacity < 1)
+            throw new IllegalArgumentException();
+        this.queue = new Object[initialCapacity];
+        this.comparator = comparator;
+    }
+    //多个构造
+    // ......
+    private void grow(int minCapacity) {
+        int oldCapacity = queue.length;
+        // Double size if small; else grow by 50%
+        int newCapacity = oldCapacity + ((oldCapacity < 64) ?
+                                         (oldCapacity + 2) :
+                                         (oldCapacity >> 1));
+        // overflow-conscious code
+        if (newCapacity - MAX_ARRAY_SIZE > 0)
+            newCapacity = hugeCapacity(minCapacity);
+        queue = Arrays.copyOf(queue, newCapacity);
+    }
+
+    private static int hugeCapacity(int minCapacity) {
+        if (minCapacity < 0) // overflow
+            throw new OutOfMemoryError();
+        return (minCapacity > MAX_ARRAY_SIZE) ?
+            Integer.MAX_VALUE :
+            MAX_ARRAY_SIZE;
+    }
+}
+```
+
+
+
+## Deque
 
 双端队列，队首和队尾都可以进行“出队”和“入队”操作。
+
+
+
+```java
+public interface Deque<E> extends Queue<E> {
+
+    void addFirst(E e);
+
+    void addLast(E e);
+
+    boolean offerFirst(E e);
+
+    boolean offerLast(E e);
+
+    E removeFirst();
+
+    E removeLast();
+
+    E pollFirst();
+
+    E pollLast();
+
+    E getFirst();
+
+    E getLast();
+
+    E peekFirst();
+
+    E peekLast();
+
+    boolean removeFirstOccurrence(Object o);
+
+    boolean removeLastOccurrence(Object o);
+
+    // *** Queue methods ***
+
+    boolean add(E e);
+
+    boolean offer(E e);
+
+    E remove();
+
+    E poll();
+
+    E element();
+
+    E peek();
+
+
+    // *** Stack methods ***
+
+    void push(E e);
+
+    E pop();
+
+
+    // *** Collection methods ***
+    
+    boolean remove(Object o);
+
+    boolean contains(Object o);
+
+    public int size();
+
+    Iterator<E> iterator();
+
+    Iterator<E> descendingIterator();
+
+}
+```
+
+
+
+
 
 | 操作类型 | 抛出异常      | 返回特殊值    |
 | :------- | :------------ | :------------ |
@@ -1712,7 +2301,7 @@ public class Hashtable<K,V>
 
 
 
-## 6.Stack
+### Stack
 
 - 先进先出的数据结构
 
@@ -1767,6 +2356,715 @@ public class Stack<E> extends Vector<E> {
 
 
 
+### ArrayDeque
+
+```java
+/**
+ * Resizable-array implementation of the {@link Deque} interface.  Array
+ * deques have no capacity restrictions; they grow as necessary to support
+ * usage.  They are not thread-safe; in the absence of external
+ * synchronization, they do not support concurrent access by multiple threads.
+ * Null elements are prohibited.  This class is likely to be faster than
+ * {@link Stack} when used as a stack, and faster than {@link LinkedList}
+ * when used as a queue.
+ */
+public class ArrayDeque<E> extends AbstractCollection<E>
+                           implements Deque<E>, Cloneable, Serializable
+{
+    /**
+     * The array in which the elements of the deque are stored.
+     * The capacity of the deque is the length of this array, which is
+     * always a power of two. The array is never allowed to become
+     * full, except transiently within an addX method where it is
+     * resized (see doubleCapacity) immediately upon becoming full,
+     * thus avoiding head and tail wrapping around to equal each
+     * other.  We also guarantee that all array cells not holding
+     * deque elements are always null.
+     */
+    transient Object[] elements; // non-private to simplify nested class access
+
+    /**
+     * The index of the element at the head of the deque (which is the
+     * element that would be removed by remove() or pop()); or an
+     * arbitrary number equal to tail if the deque is empty.
+     */
+    transient int head;
+
+    /**
+     * The index at which the next element would be added to the tail
+     * of the deque (via addLast(E), add(E), or push(E)).
+     */
+    transient int tail;
+
+    /**
+     * The minimum capacity that we'll use for a newly created deque.
+     * Must be a power of 2.
+     */
+    private static final int MIN_INITIAL_CAPACITY = 8;
+    
+    private void doubleCapacity() {
+        assert head == tail;
+        int p = head;
+        int n = elements.length;
+        int r = n - p; // number of elements to the right of p
+        int newCapacity = n << 1;
+        if (newCapacity < 0)
+            throw new IllegalStateException("Sorry, deque too big");
+        Object[] a = new Object[newCapacity];
+        System.arraycopy(elements, p, a, 0, r);
+        System.arraycopy(elements, 0, a, r, p);
+        elements = a;
+        head = 0;
+        tail = n;
+    }
+}
+```
+
+
+
+### LinkedList
+
+- 详情见上
+
+```java
+public class LinkedList<E>
+    extends AbstractSequentialList<E>
+    implements List<E>, Deque<E>, Cloneable, java.io.Serializable
+{
+    //......
+}
+```
+
+
+
+## BlockingQueue
+
+- 线程安全的队列
+
+| 队列特性 | 有界队列           | 近似无界队列                             | 无界队列            | 特殊队列                          |
+| :------- | :----------------- | :--------------------------------------- | :------------------ | :-------------------------------- |
+| 有锁算法 | ArrayBlockingQueue | LinkedBlockingQueue、LinkedBlockingDeque | /                   | PriorityBlockingQueue、DelayQueue |
+| 无锁算法 | /                  | /                                        | LinkedTransferQueue | SynchronousQueue                  |
+
+
+
+“阻塞队列”通常利用了“锁”来实现，也就是会阻塞调用线程，其使用场景一般是在**“生产者-消费者”**模式中，用于线程之间的数据交换或系统解耦。
+
+
+
+```java
+public interface BlockingQueue<E> extends Queue<E> {
+    
+    /**
+     * 插入元素e至队尾, 如果队列已满, 则阻塞调用线程直到队列有空闲空间.
+     */
+    void put(E e) throws InterruptedException;
+
+    /**
+     * 插入元素e至队列, 如果队列已满, 则限时阻塞调用线程，直到队列有空闲空间或超时.
+     */
+    boolean offer(E e, long timeout, TimeUnit unit)
+        throws InterruptedException;
+
+    /**
+     * 从队首删除元素，如果队列为空, 则阻塞调用线程直到队列中有元素.
+     */
+    E take() throws InterruptedException;
+
+    /**
+     * 从队首删除元素，如果队列为空, 则限时阻塞调用线程，直到队列中有元素或超时.
+     */
+    E poll(long timeout, TimeUnit unit) throws InterruptedException;
+    
+    //......
+}
+```
+
+
+
+| 操作类型 | 抛出异常  | 返回特殊值 | 阻塞线程 | 超时                 |
+| :------- | :-------- | :--------- | :------- | :------------------- |
+| 插入     | add(e)    | offer(e)   | put(e)   | offer(e, time, unit) |
+| 删除     | remove()  | poll()     | take()   | poll(time, unit)     |
+| 读取     | element() | peek()     | /        | /                    |
+
+
+
+对于每种基本方法，“抛出异常”和“返回特殊值”的方法定义和Queue是完全一样的。
+
+**BlockingQueue只是增加了两类和阻塞相关的方法**：
+
+`put(e)`、`take()`；`offer(e, time, unit)`、`poll(time, unit)`。
+
+
+
+### ArrayBlockingQueue
+
+
+```java
+public class ArrayBlockingQueue<E> extends AbstractQueue<E>
+        implements BlockingQueue<E>, java.io.Serializable {
+	/**
+     * 内部数组
+     */
+    final Object[] items;
+
+    /**
+     * 下一个待删除位置的索引: take, poll, peek, remove方法使用
+     */
+    int takeIndex;
+
+    /**
+     * 下一个待插入位置的索引: put, offer, add方法使用
+     */
+    int putIndex;
+
+    /**
+     * 队列中的元素个数
+     */
+    int count;
+
+    /**
+     * 全局锁
+     */
+    final ReentrantLock lock;
+
+    /**
+     * 非空条件队列：当队列空时，线程在该队列等待获取
+     */
+    private final Condition notEmpty;
+
+    /**
+     * 非满条件队列：当队列满时，线程在该队列等待插入
+     */
+    private final Condition notFull;
+}
+```
+
+
+ArrayBlockingQueue是一种**有界阻塞队列**，在初始构造的时候需要指定队列的容量。具有如下特点：
+
+1. 队列的容量一旦在构造时指定，后续不能改变；
+2. 插入元素时，在队尾进行；删除元素时，在队首进行；
+3. 队列满时，调用特定方法插入元素会阻塞线程；队列空时，删除元素也会阻塞线程；
+4. 支持公平/非公平策略，默认为非公平策略。
+
+> *这里的公平策略，是指当线程从阻塞到唤醒后，以最初请求的顺序（FIFO）来添加或删除元素；非公平策略指线程被唤醒后，谁先抢占到锁，谁就能往队列中添加/删除顺序，是随机的。*
+
+
+
+总结：
+
+1. ArrayBlockingQueue的内部数组其实是一种环形结构。
+2. ArrayBlockingQueue利用了ReentrantLock来保证线程的安全性，针对队列的修改都需要加全局锁。在一般的应用场景下已经足够。对于超高并发的环境，由于生产者-消息者共用一把锁，可能出现性能瓶颈。
+3. ArrayBlockingQueue是有界的，且在初始时指定队列大小
+
+
+
+![](E:/notes/java/javaBasic/img/juc-BlockingQueue1.png)
+
+
+
+### LinkedBlockingQueue
+
+
+
+- **近似有界阻塞队列**，为什么说近似？因为LinkedBlockingQueue既可以在初始构造时就指定队列的容量，也可以不指定，如果不指定，那么它的容量大小默认为`Integer.MAX_VALUE`。
+
+- 底层基于**单链表**实现的。
+- 不能指定公平/非公平策略（默认都是非公平）
+- 它维护了两把锁——`takeLock`和`putLock`。
+
+> takeLock用于控制出队的并发，putLock用于入队的并发。
+>
+> 这也就意味着，同一时刻，只能有一个线程能执行入队/出队操作，其余入队/出队线程会被阻塞；
+>
+> 但是，入队和出队之间可以并发执行，即同一时刻，可以同时有一个线程进行入队，另一个线程进行出队，这样就可以提升吞吐量。
+
+
+
+```java
+public class LinkedBlockingQueue<E> extends AbstractQueue<E>
+    implements BlockingQueue<E>, java.io.Serializable {
+
+    /**
+     * 队列容量.
+     * 如果不指定, 则为Integer.MAX_VALUE
+     */
+    private final int capacity;
+
+    /**
+     * 队列中的元素个数(使用AtomicInteger以保证入队/出队并发修改元素时的数据一致性。)
+     */
+    private final AtomicInteger count = new AtomicInteger();
+
+    /**
+     * 队首指针.
+     * head.item == null
+     */
+    transient Node<E> head;
+
+    /**
+     * 队尾指针.
+     * last.next == null
+     */
+    private transient Node<E> last;
+
+    /**
+     * 出队锁
+     */
+    private final ReentrantLock takeLock = new ReentrantLock();
+
+    /**
+     * 队列空时，出队线程在该条件队列等待
+     */
+    private final Condition notEmpty = takeLock.newCondition();
+
+    /**
+     * 入队锁
+     */
+    private final ReentrantLock putLock = new ReentrantLock();
+
+    /**
+     * 队列满时，入队线程在该条件队列等待
+     */
+    private final Condition notFull = putLock.newCondition();
+
+    /**
+     * 链表结点定义
+     */
+    static class Node<E> {
+        E item;
+
+        Node<E> next;   // 后驱指针
+
+        Node(E x) {
+            item = x;
+        }
+    }
+
+    //...
+}
+```
+
+
+
+构造完成后，LinkedBlockingQueue的初始结构如下：
+
+![](E:/notes/java/javaBasic/img/juc-BlockingQueue2.png)
+
+插入部分元素后的LinkedBlockingQueue结构：
+
+![](E:/notes/java/javaBasic/img/juc-BlockingQueue3.png)
+
+
+
+
+
+
+
+### LinkedBlockingDeque
+
+
+
+
+
+
+
+### PriorityBlockingQueue
+
+
+
+基于堆的优先级阻塞队列，底层基于**堆**实现
+
+
+
+PriorityBlockingQueue是一种**无界阻塞队列**，即该阻塞队列中的元素可自动排序。默认情况下，元素采取自然升序排列在构造的时候可以指定队列的初始容量。具有如下特点：
+
+1. PriorityBlockingQueue与之前介绍的阻塞队列最大的不同之处就是：它是一种**优先级队列**，也就是说元素并不是以FIFO的方式出/入队，而是以按照权重大小的顺序出队；
+2. PriorityBlockingQueue是真正的无界队列（仅受内存大小限制），它不像ArrayBlockingQueue那样构造时必须指定最大容量，也不像LinkedBlockingQueue默认最大容量为`Integer.MAX_VALUE`；
+3. 由于PriorityBlockingQueue是按照元素的权重进入排序，所以队列中的元素必须是可以比较的，也就是说元素必须实现`Comparable`接口；
+4. 由于PriorityBlockingQueue无界队列，所以插入元素永远不会阻塞线程；
+5. PriorityBlockingQueue底层是一种**基于数组实现的堆结构**。
+
+
+
+> **注意**：*堆分为“大顶堆”和“小顶堆”，PriorityBlockingQueue会依据元素的比较方式选择构建大顶堆或小顶堆。比如：如果元素是Integer这种引用类型，那么默认就是“小顶堆”，也就是每次出队都会是当前队列最小的元素。*
+
+
+
+```java
+public class PriorityBlockingQueue<E> extends AbstractQueue<E>
+        implements BlockingQueue<E>, java.io.Serializable {
+ 
+    /**
+     * 默认容量.
+     */
+    private static final int DEFAULT_INITIAL_CAPACITY = 11;
+ 
+    /**
+     * 最大容量.
+     */
+    private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
+ 
+    /**
+     * 内部堆数组, 保存实际数据, 可以看成一颗二叉树:
+     * 对于顶点queue[n], queue[2*n+1]表示左子结点, queue[2*(n+1)]表示右子结点.
+     */
+    private transient Object[] queue;
+ 
+    /**
+     * 队列中的元素个数.
+     */
+    private transient int size;
+ 
+    /**
+     * 比较器, 如果为null, 表示以元素自身的自然顺序进行比较（元素必须实现Comparable接口）.
+     */
+    private transient Comparator<? super E> comparator;
+ 
+    /**
+     * 全局锁.
+     */
+    private final ReentrantLock lock;
+ 
+    /**
+     * 当队列为空时，出队线程在该条件队列上等待.
+     * 
+     * PriorityBlockingQueue只有一个条件等待队列,
+     * 	因为构造时不会限制最大容量且会自动扩容，所以插入元素并不会阻塞，
+     * 	仅当队列为空时，才可能阻塞“出队”线程。
+     */
+    private final Condition notEmpty;
+ 
+    // ...
+}
+```
+
+
+
+
+
+### DelayQueue
+
+
+
+底层基于已有的`PriorityBlockingQueue`实现的**无界阻塞队列**；
+
+`DelayQueue`中的所有元素必须实现`Delayed`接口
+
+如果一个类实现了`Delayed`接口，当创建该类的对象并添加到`DelayQueue`中后，**只有当该对象的getDalay方法返回的剩余时间≤0时才会出队**。
+
+由于`DelayQueue`内部委托了`PriorityBlockingQueue`对象来实现所有方法，所以能以堆的结构维护元素顺序，这样剩余时间最小的元素就在堆顶，**每次出队其实就是删除剩余时间≤0的最小元素**。
+
+
+
+```java
+public class DelayQueue<E extends Delayed> extends AbstractQueue<E>
+    implements BlockingQueue<E> {
+
+    private final transient ReentrantLock lock = new ReentrantLock();
+    
+    private final PriorityQueue<E> q = new PriorityQueue<E>();
+    
+    /**
+     * leader线程是首个尝试出队元素（队列不为空）但被阻塞的线程.
+     * 该线程会限时等待（队首元素的剩余有效时间），用于唤醒其它等待线程
+     */
+    private Thread leader = null;
+
+	//出队线程条件队列, 当有多个线程, 会在此条件队列上等待.
+    private final Condition available = lock.newCondition();
+}
+```
+
+
+
+```java
+//实现Comparable接口则是为了能够比较两个对象，以便排序。
+public interface Delayed extends Comparable<Delayed> {
+    long getDelay(TimeUnit unit);
+}
+```
+
+
+
+为了提升性能，DelayQueue并不会让所有出队线程都无限等待，而是用`leader`保存了第一个尝试出队的线程，该线程的等待时间是队首元素的剩余有效期。这样，一旦leader线程被唤醒（此时队首元素也失效了），就可以出队成功，然后唤醒一个其它在`available`条件队列上等待的线程。之后，会重复上一步，新唤醒的线程可能取代成为新的leader线程。这样，就避免了无效的等待，提升了性能。
+
+
+
+### SynchronousQueue
+
+
+
+底层基于**栈**和**队列**实现
+
+
+
+特点简要概括如下：
+
+1. 入队线程和出队线程**必须一一匹配**，否则任意先到达的线程会阻塞。比如ThreadA进行入队操作，在有其它线程执行出队操作之前，ThreadA会一直等待，反之亦然；
+2. `SynchronousQueue`内部不保存任何元素，也就是说它的容量为0，数据直接在配对的生产者和消费者线程之间传递，不会将数据缓冲到队列中。（在内部通过栈或队列结构保存阻塞线程）
+3. `SynchronousQueue`支持公平/非公平策略。其中非公平模式，基于内部数据结构——“栈”来实现，公平模式，基于内部数据结构——“队列”来实现；
+4. SynchronousQueue基于一种名为“[Dual stack and Dual queue](http://www.cs.rochester.edu/research/synchronization/pseudocode/duals.html)”的无锁算法实现。
+
+
+
+```java
+public class SynchronousQueue<E> extends AbstractQueue<E>
+    implements BlockingQueue<E>, java.io.Serializable {
+    
+    private static final long serialVersionUID = -3223113410248163686L;
+    
+    
+    
+}
+```
+
+
+
+### LinkedTransferQueue
+
+
+
+
+
+## 同步队列
+
+
+
+### ConcurrentLinkedQueue
+
+
+
+底层是基于单链表实现的。
+
+在实现上并没有利用锁或底层同步原语，而是完全基于**自旋+CAS**的方式实现了该队列。（如同AQS，AQS内部的CLH等待队列也是利用了这种方式。）
+
+
+
+
+
+```java
+public class ConcurrentLinkedQueue<E> extends AbstractQueue<E>
+    implements Queue<E>, java.io.Serializable {
+ 
+    /**
+     * 队列头指针
+     */
+    private transient volatile Node<E> head;
+ 
+    /**
+     * 队列尾指针.
+     */
+    private transient volatile Node<E> tail;
+ 
+    // Unsafe mechanics
+     
+    private static final sun.misc.Unsafe UNSAFE;
+    private static final long headOffset;
+    private static final long tailOffset;
+     
+    static {
+        try {
+            UNSAFE = sun.misc.Unsafe.getUnsafe();
+            Class<?> k = ConcurrentLinkedQueue.class;
+            headOffset = UNSAFE.objectFieldOffset (k.getDeclaredField("head"));
+            tailOffset = UNSAFE.objectFieldOffset (k.getDeclaredField("tail"));
+        } catch (Exception e) {
+            throw new Error(e);
+        }
+    }
+ 
+    /**
+     * 队列结点定义
+     */
+    private static class Node<E> {
+        volatile E item;        // 元素值
+        volatile Node<E> next;  // 后驱指针
+ 
+        Node(E item) {
+            UNSAFE.putObject(this, itemOffset, item);
+        }
+ 
+        boolean casItem(E cmp, E val) {
+            return UNSAFE.compareAndSwapObject(this, itemOffset, cmp, val);
+        }
+ 
+        void lazySetNext(Node<E> val) {
+            UNSAFE.putOrderedObject(this, nextOffset, val);
+        }
+ 
+        boolean casNext(Node<E> cmp, Node<E> val) {
+            return UNSAFE.compareAndSwapObject(this, nextOffset, cmp, val);
+        }
+ 
+        // Unsafe mechanics
+ 
+        private static final sun.misc.Unsafe UNSAFE;
+        private static final long itemOffset;
+        private static final long nextOffset;
+ 
+        static {
+            try {
+                UNSAFE = sun.misc.Unsafe.getUnsafe();
+                Class<?> k = Node.class;
+                itemOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("item"));
+                nextOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("next"));
+            } catch (Exception e) {
+                throw new Error(e);
+            }
+        }
+    }
+ 
+     /**
+     * 入队一个元素.
+     *
+     * @throws NullPointerException 元素不能为null
+     */
+    public boolean add(E e) {
+        return offer(e);
+    }
+    
+    /**
+     * 在队尾入队元素e, 直到成功
+     */
+    public boolean offer(E e) {
+        checkNotNull(e);
+        final Node<E> newNode = new Node<E>(e);
+        for (Node<E> t = tail, p = t; ; ) {// 自旋, 直到插入结点成功
+            Node<E> q = p.next;
+            if (q == null) {// CASE1: 正常情况下, 新结点直接插入到队尾
+                if (p.casNext(null, newNode)) {
+                    // CAS竞争插入成功
+                    if (p != t)// CAS竞争失败的线程会在下一次自旋中进入该逻辑
+                        casTail(t, newNode);// 重新设置队尾指针tail
+                    return true;
+                }
+                // CAS竞争插入失败,则进入下一次自旋
+
+            } else if (p == q)// CASE2: 发生了出队操作
+                p = (t != (t = tail)) ? t : head;
+            else
+                // 将p重新指向队尾结点
+                p = (p != t && t != (t = tail)) ? t : q;
+        }
+    }
+    //...
+}
+```
+
+
+
+### ConcurrentLinkedDeque
+
+在JDK1.7之前，除了`Stack`类外，并没有其它适合并发环境的“栈”数据结构。`ConcurrentLinkedDeque`作为双端队列，可以当作“栈”来使用，并且高效地支持并发环境。
+
+和ConcurrentLinkedQueue一样，采用了无锁算法，底层基于**自旋+CAS**的方式实现。
+
+双链表结构
+
+
+
+```java
+public class ConcurrentLinkedDeque<E> extends AbstractCollection<E>
+    implements Deque<E>, java.io.Serializable {
+
+    /**
+     * 头指针
+     */
+    private transient volatile Node<E> head;
+
+    /**
+     * 尾指针
+     */
+    private transient volatile Node<E> tail;
+
+    private static final Node<Object> PREV_TERMINATOR, NEXT_TERMINATOR;
+    
+    // Unsafe mechanics
+    private static final sun.misc.Unsafe UNSAFE;
+    private static final long headOffset;
+    private static final long tailOffset;
+
+    static {
+        PREV_TERMINATOR = new Node<Object>();
+        PREV_TERMINATOR.next = PREV_TERMINATOR;
+        NEXT_TERMINATOR = new Node<Object>();
+        NEXT_TERMINATOR.prev = NEXT_TERMINATOR;
+        try {
+            UNSAFE = sun.misc.Unsafe.getUnsafe();
+            Class<?> k = ConcurrentLinkedDeque.class;
+            headOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("head"));
+            tailOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("tail"));
+        } catch (Exception e) {
+            throw new Error(e);
+        }
+    }
+    
+    /**
+     * 双链表结点定义
+     */
+    static final class Node<E> {
+        volatile Node<E> prev;  // 前驱指针
+        volatile E item;        // 结点值
+        volatile Node<E> next;  // 后驱指针
+
+        Node() {
+        }
+
+        Node(E item) {
+            UNSAFE.putObject(this, itemOffset, item);
+        }
+
+        boolean casItem(E cmp, E val) {
+            return UNSAFE.compareAndSwapObject(this, itemOffset, cmp, val);
+        }
+
+        void lazySetNext(Node<E> val) {
+            UNSAFE.putOrderedObject(this, nextOffset, val);
+        }
+
+        boolean casNext(Node<E> cmp, Node<E> val) {
+            return UNSAFE.compareAndSwapObject(this, nextOffset, cmp, val);
+        }
+
+        void lazySetPrev(Node<E> val) {
+            UNSAFE.putOrderedObject(this, prevOffset, val);
+        }
+
+        boolean casPrev(Node<E> cmp, Node<E> val) {
+            return UNSAFE.compareAndSwapObject(this, prevOffset, cmp, val);
+        }
+
+        // Unsafe mechanics
+
+        private static final sun.misc.Unsafe UNSAFE;
+        private static final long prevOffset;
+        private static final long itemOffset;
+        private static final long nextOffset;
+
+        static {
+            try {
+                UNSAFE = sun.misc.Unsafe.getUnsafe();
+                Class<?> k = Node.class;
+                prevOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("prev"));
+                itemOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("item"));
+                nextOffset = UNSAFE.objectFieldOffset(k.getDeclaredField("next"));
+            } catch (Exception e) {
+                throw new Error(e);
+            }
+        }
+    }
+    
+    // ...
+}
+```
+
+
+
+
+
 
 
 # 集合操作工具类
@@ -1779,34 +3077,4 @@ public class Stack<E> extends Vector<E> {
 
 ## Collections
 
-
-
-# java并发同步集合
-
-同步容器类：使用了synchronized
-1.Vector
-2.HashTable
-
-并发容器：
-3.ConcurrentHashMap:分段
-4.CopyOnWriteArrayList：写时复制
-5.CopyOnWriteArraySet：写时复制
-
-Queue:
-6.ConcurrentLinkedQueue：是使用非阻塞的方式实现的基于链接节点的无界的线程安全队列，性能非常好。
-（java.util.concurrent.BlockingQueue 接口代表了线程安全的队列。）
-7.ArrayBlockingQueue：基于数组的有界阻塞队列
-8.LinkedBlockingQueue：基于链表的有界阻塞队列。
-9.PriorityBlockingQueue：支持优先级的无界阻塞队列，即该阻塞队列中的元素可自动排序。默认情况下，元素采取自然升序排列
-10.DelayQueue：一种延时获取元素的无界阻塞队列。
-11.SynchronousQueue：不存储元素的阻塞队列。每个put操作必须等待一个take操作，否则不能继续添加元素。内部其实没有任何一个元素，容量是0
-
-Deque:
-(Deque接口定义了双向队列。双向队列允许在队列头和尾部进行入队出队操作。)
-12.ArrayDeque:基于数组的双向非阻塞队列。
-13.LinkedBlockingDeque:基于链表的双向阻塞队列。
-
-Sorted容器：
-14.ConcurrentSkipListMap：是TreeMap的线程安全版本
-15.ConcurrentSkipListSet：是TreeSet的线程安全版本
 
