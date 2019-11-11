@@ -713,15 +713,17 @@ class Waiter implements Runnable{
 
 ## Condition类
 
-与`synchronized`关键字与`wait`()和`notify`/`notifyAll`()方法相结合相比，`Lock`与`Condition`结合的优点是：可以实现多路通知功能，也就是在一个`Lock`对象中可以创建多个`Condition`实例（即对象监视器），线程对象可以注册在指定的`Condition`中，从而可以有选择性的进行线程通知，在调度线程上更加灵活。
+与`synchronized`关键字与`wait`()和`notify`/`notifyAll`()方法相结合相比，`Lock`与`Condition`结合的优点是：
+
+1.可以实现**多路通知**功能，也就是在一个`Lock`对象中可以创建多个`Condition`实例（即对象监视器），线程对象可以注册在指定的`Condition`中，从而可以有选择性的进行线程通知，在调度线程上更加灵活。
 
 
 
-在使用`notify/notifyAll()`方法进行通知时，被通知的线程是有`JVM`选择的，使用`ReentrantLock`类结合`Condition`实例可以实现“选择性通知”，这个功能非常重要，而且是`Condition`接口默认提供的。
+2.在使用`notify/notifyAll()`方法进行通知时，被通知的线程是有`JVM`选择的，使用`ReentrantLock`类结合`Condition`实例可以实现“**选择性通知**”（ 等待线程按 FIFO 顺序收到信号 ），这个功能非常重要，而且是`Condition`接口默认提供的。
 
 
 
-`synchronized`关键字就相当于整个`Lock`对象中只有一个`Condition`实例，所有的线程都注册在它一个身上。如果执行`notifyAll`()方法的话就会通知所有处于等待状态的线程这样会造成很大的效率问题，而`Condition`实例的`signalAll`()方法 只会唤醒注册在该`Condition`实例中的所有等待线程。
+3.`synchronized`关键字就相当于整个`Lock`对象中只有一个`Condition`实例，所有的线程都注册在它一个身上。如果执行`notifyAll`()方法的话就会通知所有处于等待状态的线程，这样会造成很大的效率问题，而`Condition`实例的`signalAll`()方法 只会唤醒注册在该`Condition`实例中的所有等待线程。
 
 
 
@@ -1024,6 +1026,14 @@ public class ConditionSeqExec {
 
 
 # 线程同步
+
+
+
+## final
+
+- 防止指令重排
+
+
 
 ## volatile
 
@@ -1821,6 +1831,25 @@ public class AtomicInteger extends Number implements java.io.Serializable {
     public final int addAndGet(int delta) {
         return unsafe.getAndAddInt(this, valueOffset, delta) + delta;
     }
+    public final int getAndAccumulate(int x,
+                                      IntBinaryOperator accumulatorFunction) {
+        int prev, next;
+        do {
+            prev = get();
+            next = accumulatorFunction.applyAsInt(prev, x);
+        } while (!compareAndSet(prev, next));
+        return prev;
+    }
+
+    public final int accumulateAndGet(int x,
+                                      IntBinaryOperator accumulatorFunction) {
+        int prev, next;
+        do {
+            prev = get();
+            next = accumulatorFunction.applyAsInt(prev, x);
+        } while (!compareAndSet(prev, next));
+        return next;
+    }
    //省略一些不常用的方法....
 }
 ```
@@ -2340,7 +2369,7 @@ public class ABADemo {
 
 
 
-### LongAdder/LongAccumulator
+### LongAdder/DoubleAdder
 
 根据Oracle官方文档的介绍，`LongAdder`在高并发的场景下会比它的前辈————`AtomicLong` 具有更好的性能，代价是消耗更多的内存空间 
 
@@ -2398,21 +2427,440 @@ public class ABADemo {
 
 
 
+ **AtomicLong**是多个线程针对单个热点值value进行原子操作。而**LongAdder**是每个线程拥有自己的槽，各个线程一般只对自己槽中的那个值进行CAS操作。 
+
+> 比如有三个ThreadA、ThreadB、ThreadC，每个线程对value增加10。
+
+对于**AtomicLong**，最终结果的计算始终是下面这个形式：value=10+10+10=30
+
+
+
+```java
+abstract class Striped64 extends Number {
+    
+    /** Number of CPUS, to place bound on table size */
+    static final int NCPU = Runtime.getRuntime().availableProcessors();
+
+    /**
+     * Table of cells. When non-null, size is a power of 2.
+     */
+    // 槽数组，大小为2的幂次
+    // 竞态条件下，累加个各个线程自己的槽Cell[i]中
+    transient volatile Cell[] cells;
+
+    /**
+     * Base value, used mainly when there is no contention, but also as
+     * a fallback during table initialization races. Updated via CAS.
+     */
+    // 非竞态条件下，直接累加到该变量上
+    /**
+    * 基数，在两种情况下会使用
+    *	1.没有遇到并发竞争时，直接使用base变量累加值
+    *	2.初始化cells[] 数组时，必须保证cells数组只被初始化一次（即：只有一个线程能对cells进行初始化，其他竞争失败的线程会将数值累加到base上），
+    */
+    transient volatile long base;
+
+    /**
+     * Spinlock (locked via CAS) used when resizing and/or creating Cells.
+     */
+    /**
+    * 锁标识：
+    *	cells数组初始化或扩容时，通过CAS操作将此标识设置为-1加锁状态；初始化或扩容完毕后，将此标识设置为0无锁状态
+    */
+    transient volatile int cellsBusy;
+
+    /**
+     * Package-private default constructor
+     */
+    // 只有一个空构造器，初始化时，通过Unsafe获取到类字段的偏移量，以便后续CAS操作
+    Striped64() {
+    }
+    
+    // Unsafe mechanics
+    private static final sun.misc.Unsafe UNSAFE;
+    private static final long BASE;
+    private static final long CELLSBUSY;
+    private static final long PROBE;
+    static {
+        try {
+            UNSAFE = sun.misc.Unsafe.getUnsafe();
+            Class<?> sk = Striped64.class;
+            BASE = UNSAFE.objectFieldOffset
+                (sk.getDeclaredField("base"));
+            CELLSBUSY = UNSAFE.objectFieldOffset
+                (sk.getDeclaredField("cellsBusy"));
+            Class<?> tk = Thread.class;
+            PROBE = UNSAFE.objectFieldOffset
+                (tk.getDeclaredField("threadLocalRandomProbe"));//线程的hash值,通过它计算线程操作的数据在Cell数组的位置
+        } catch (Exception e) {
+            throw new Error(e);
+        }
+    }
+}
+```
+
+
+
+```java
+public class LongAdder extends Striped64 implements Serializable {
+    private static final long serialVersionUID = 7249069246863182397L;
+
+    public LongAdder() {
+    }
+
+    public void add(long x) {
+        Cell[] as; long b, v; int m; Cell a;
+        if ((as = cells) != null || !casBase(b = base, b + x)) {
+            boolean uncontended = true;
+            if (as == null || (m = as.length - 1) < 0 ||
+                (a = as[getProbe() & m]) == null ||
+                !(uncontended = a.cas(v = a.value, v + x)))
+                longAccumulate(x, null, uncontended);
+        }
+    }
+
+    public void increment() {
+        add(1L);
+    }
+
+    public void decrement() {
+        add(-1L);
+    }
+
+    public long sum() {
+        Cell[] as = cells; Cell a;
+        long sum = base;
+        if (as != null) {
+            for (int i = 0; i < as.length; ++i) {
+                if ((a = as[i]) != null)
+                    sum += a.value;
+            }
+        }
+        return sum;
+    }
+
+    public void reset() {
+        Cell[] as = cells; Cell a;
+        base = 0L;
+        if (as != null) {
+            for (int i = 0; i < as.length; ++i) {
+                if ((a = as[i]) != null)
+                    a.value = 0L;
+            }
+        }
+    }
+
+    public long sumThenReset() {
+        Cell[] as = cells; Cell a;
+        long sum = base;
+        base = 0L;
+        if (as != null) {
+            for (int i = 0; i < as.length; ++i) {
+                if ((a = as[i]) != null) {
+                    sum += a.value;
+                    a.value = 0L;
+                }
+            }
+        }
+        return sum;
+    }
+}
+```
+
+
+
+示例：假设现在有一个**LongAdder**对象la，四个线程A、B、C、D同时对la进行累加操作。
+
+```java
+LongAdder la = new LongAdder();
+la.add(10);
+```
+
+
+
+初始时Cell[]为null，base为0。所以ThreadA会调用**casBase**方法（定义在**Striped64**中），因为没有并发，CAS操作成功将base变为10： 
+
+可以看到，如果线程A、B、C、D线性执行，那**casBase**永远不会失败，也就永远不会进入到**base**方法的if块中，所有的值都会累积到**base**中。
+那么，如果任意线程有并发冲突，导致**caseBase**失败呢？
+
+失败就会进入if方法体：
+
+​	这个方法体会先再次判断**Cell[]**槽数组有没初始化过，如果初始化过了，以后所有的CAS操作都只针对槽中的Cell；否则，进入**longAccumulate**方法。 
+
+
+
+![](img/longAdder1.png)
+
+
+
+可以看到，只有从未出现过并发冲突的时候，base基数才会使用到，一旦出现了并发冲突，之后所有的操作都只针对`Cell[]`数组中的单元Cell。
+如果`Cell[]`数组未初始化，会调用父类的`longAccumelate`去初始化`Cell[]`，如果`Cell[]`已经初始化但是冲突发生在`Cell`单元内，则也调用父类的`longAccumelate`，此时可能就需要对`Cell[]`扩容了。 
+
+
+
+**<u>这也是LongAdder设计的精妙之处：尽量减少热点冲突，不到最后万不得已，尽量将CAS操作延迟。</u>**
+
+
+
+```java
+/**
+     * Handles cases of updates involving initialization, resizing,
+     * creating new Cells, and/or contention. See above for
+     * explanation. This method suffers the usual non-modularity
+     * problems of optimistic retry code, relying on rechecked sets of
+     * reads.
+     *
+     * @param x the value
+     * @param fn the update function, or null for add (this convention
+     * avoids the need for an extra field or function in LongAdder).
+     * @param wasUncontended false if CAS failed before call
+     */
+    final void longAccumulate(long x, LongBinaryOperator fn,
+                              boolean wasUncontended) {
+        int h;
+        if ((h = getProbe()) == 0) {//给当前线程生成一个非0的hash值
+            ThreadLocalRandom.current(); // force initialization
+            h = getProbe();
+            wasUncontended = true;
+        }
+        //如果hash取模得到的Cell单元不是null，则为true;这个值可以看作扩容意向
+        boolean collide = false; // True if last slot nonempty
+        for (;;) {
+            Cell[] as; Cell a; int n; long v;
+            //CASE1: cells已经初始化了
+            if ((as = cells) != null && (n = as.length) > 0) {
+                if ((a = as[(n - 1) & h]) == null) {
+                    if (cellsBusy == 0) {       // Try to attach new Cell
+                        Cell r = new Cell(x);   // Optimistically create
+                        if (cellsBusy == 0 && casCellsBusy()) {
+                            boolean created = false;
+                            try {               // Recheck under lock
+                                Cell[] rs; int m, j;
+                                if ((rs = cells) != null &&
+                                    (m = rs.length) > 0 &&
+                                    rs[j = (m - 1) & h] == null) {
+                                    rs[j] = r;
+                                    created = true;
+                                }
+                            } finally {
+                                cellsBusy = 0;
+                            }
+                            if (created)
+                                break;
+                            continue;           // Slot is now non-empty
+                        }
+                    }
+                    collide = false;
+                }
+                else if (!wasUncontended)       // CAS already known to fail
+                    wasUncontended = true;      // Continue after rehash
+                else if (a.cas(v = a.value, ((fn == null) ? v + x :
+                                             fn.applyAsLong(v, x))))
+                    break;
+                else if (n >= NCPU || cells != as)
+                    collide = false;            // At max size or stale
+                else if (!collide)
+                    collide = true;
+                else if (cellsBusy == 0 && casCellsBusy()) {
+                    try {
+                        if (cells == as) {      // Expand table unless stale
+                            Cell[] rs = new Cell[n << 1];
+                            for (int i = 0; i < n; ++i)
+                                rs[i] = as[i];
+                            cells = rs;
+                        }
+                    } finally {
+                        cellsBusy = 0;
+                    }
+                    collide = false;
+                    continue;                   // Retry with expanded table
+                }
+                h = advanceProbe(h);
+            }
+            //CASE2: cells没有枷锁也没有初始化，则尝试对它进行加锁，并初始化cells数组
+            else if (cellsBusy == 0 && cells == as && casCellsBusy()) {
+                boolean init = false;
+                try {                           // Initialize table
+                    if (cells == as) {
+                        Cell[] rs = new Cell[2];
+                        rs[h & 1] = new Cell(x);
+                        cells = rs;
+                        init = true;
+                    }
+                } finally {
+                    cellsBusy = 0;
+                }
+                if (init)
+                    break;
+            }
+            //CASE3: cells正在进行初始化，则尝试直接在base基数上进行累加操作
+            else if (casBase(v = base, ((fn == null) ? v + x :
+                                        fn.applyAsLong(v, x))))
+                break;                          // Fall back on using base
+        }
+    }
+```
+
+
+
+`DoubleAdder`与**LongAdder**的唯一区别就是，其内部会通过一些方法，将原始的double类型，转换为long类型，其余和**LongAdder**完全一样 
+
+
+
+#### 使用示例
+
+```java
+@Test
+public void testLongAdder() throws InterruptedException {
+
+    //volatile int var = 0;
+    LongAdder la = new LongAdder();
+
+    ExecutorService threadPoolExecutor 
+        = new ThreadPoolExecutor(1000, 1000,60, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
+
+    for (int i = 0; i < 10000; i++) {
+        threadPoolExecutor.submit(() -> {
+            var++;
+            la.add(1);
+        });
+    }
+
+    Thread.sleep(3000);
+
+    System.out.println("la = " + la.longValue());
+    System.out.println("var = " + var);
+}
+```
+
+
+
+
+
+### LongAccumulator/DoubleAccumulator
+
+
+
+**LongAccumulator**是**LongAdder**的增强版。**LongAdder**只能针对数值的进行加减运算，而**LongAccumulator**提供了自定义的函数操作。 
+
+
+
+```java
+public class LongAccumulator extends Striped64 implements Serializable {
+    private static final long serialVersionUID = 7249069246863182397L;
+
+    private final LongBinaryOperator function;
+    private final long identity;
+
+    /**
+     * Creates a new instance using the given accumulator function
+     * and identity element.
+     * @param accumulatorFunction a side-effect-free function of two arguments
+     * @param identity identity (initial value) for the accumulator function
+     */
+    public LongAccumulator(LongBinaryOperator accumulatorFunction,
+                           long identity) {
+        this.function = accumulatorFunction;
+        base = this.identity = identity;
+    }
+    
+    /**
+     * Updates with the given value.
+     *
+     * @param x the value
+     */
+    public void accumulate(long x) {
+        Cell[] as; long b, v, r; int m; Cell a;
+        if ((as = cells) != null ||
+            (r = function.applyAsLong(b = base, x)) != b && !casBase(b, r)) {
+            boolean uncontended = true;
+            if (as == null || (m = as.length - 1) < 0 ||
+                (a = as[getProbe() & m]) == null ||
+                !(uncontended =
+                  (r = function.applyAsLong(v = a.value, x)) == v ||
+                  a.cas(v, r)))
+                longAccumulate(x, function, uncontended);
+        }
+    }
+
+    public long get() {
+        Cell[] as = cells; Cell a;
+        long result = base;
+        if (as != null) {
+            for (int i = 0; i < as.length; ++i) {
+                if ((a = as[i]) != null)
+                    result = function.applyAsLong(result, a.value);
+            }
+        }
+        return result;
+    }
+}
+```
+
+```java
+@FunctionalInterface
+public interface LongBinaryOperator {
+
+    /**
+     * Applies this operator to the given operands.
+     *
+     * @param left the first operand
+     * @param right the second operand
+     * @return the operator result
+     */
+    long applyAsLong(long left, long right);
+}
+```
+
+
+
+通过**LongBinaryOperator**，可以自定义对入参的任意操作，并返回结果（**LongBinaryOperator**接收2个long作为参数，并返回1个long）
+
+**LongAccumulator**内部原理和LongAdder几乎完全一样，都是利用了父类**Striped64**的**longAccumulate**方法。
+
+
+
+#### 使用示例
+
+```java
+@Test
+public void testLongAccumulator() throws InterruptedException {
+	//初始值是0，x是lambda计算后的值，y是每次调用accumulate()传入的值
+    LongAccumulator lal = new LongAccumulator((x, y) -> {
+        System.out.println("x = " + x + "; y = " + y);
+        return x + y;
+    }, 0);
+    ExecutorService threadPoolExecutor 
+        = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
+
+    for (int i = 0; i < 5; i++) {
+        int finalI = i;
+        threadPoolExecutor.submit(() -> {
+            lal.accumulate(finalI);
+        });
+    }
+    Thread.sleep(3000);
+    System.out.println("lal = " + lal.get());
+}
+```
+
+
+
 ## juc-Locks
 
-lock: 在java.util.concurrent包内。共有三个实现：
+在`java.util.concurrent`包内。共有三个实现
 
-- ReentrantLock
-- ReentrantReadWriteLock.ReadLock
-- ReentrantReadWriteLock.WriteLock
+- `ReentrantLock`
+- `ReentrantReadWriteLock.ReadLock`
+- `ReentrantReadWriteLock.WriteLock`
 
 与synchronized区别如下：
 
 1. lock更灵活，可以自由定义多把锁的枷锁解锁顺序（synchronized要按照先加的后解顺序）
-2. 提供多种加锁方案，lock 阻塞式, trylock 无阻塞式, lockInterruptily 可打断式， 还有trylock的带超时时间版本。
+2. 提供多种加锁方案，lock 阻塞式, `trylock` 无阻塞式, `lockInterruptily` 可打断式， 还有`trylock`的带超时时间版本。
 3. 本质上和监视器锁（即synchronized是一样的）
 4. 能力越大，责任越大，必须控制好加锁和解锁，否则会导致灾难。
-5. 和Condition类的结合。
+5. 和`Condition`类的结合。
 6. 性能更高，对比如下图：
 
 <u>![](img/java-thread2.webp)</u>

@@ -57,11 +57,21 @@
 
 
 
+# 硬件内存模型
+
+ 先来看看硬件内存简单架构，如下图所示： 
+
+![](img/jmm01.webp)
+
+缓存一致性协议（MESI 协议)；总线锁
+
+
+
 # java内存模型(JMM)
 
 
 
-## 1.概念
+## 概念
 
 - JVM 中试图定义一种 JMM 来屏蔽各种硬件和操作系统的内存访问差异，以实现让 Java 程序在各种平台下都能达到一致的内存访问效果。
 
@@ -83,7 +93,7 @@ JMM定义了**线程和主内存之间的抽象关系**：线程之间的共享�
 
 
 
-## 2.JVM对JMM的实现
+## JVM对JMM的实现
 
 - 在JVM内部，Java内存模型把内存分成了两部分：线程栈区和堆区
 
@@ -157,3 +167,119 @@ JMM定义了**线程和主内存之间的抽象关系**：线程之间的共享�
   
 
 
+
+## Happens-Before 内存模型
+
+Happens-Before 内存模型或许叫做 Happens-Before 原则更为合适，在 《JSR 133 ：Java 内存模型与线程规范》中，Happens-Before 内存模型被定义成 Java 内存模型近似模型，Happens-Before 原则要说明的是关于可见性的一组偏序关系。
+
+为了方便程序员开发，将底层的繁琐细节屏蔽掉，Java 内存模型 定义了 Happens-Before 原则。只要我们理解了 Happens-Before 原则，无需了解 JVM 底层的内存操作，就可以解决在并发编程中遇到的变量可见性问题。JVM 定义的 Happens-Before 原则是一组偏序关系：**对于两个操作 A 和 B，这两个操作可以在不同的线程中执行。如果 A Happens-Before B，那么可以保证，当 A 操作执行完后，A 操作的执行结果对 B 操作是可见的**。
+
+
+
+Happens-Before 原则一共包括 8 条。
+
+### 1、程序顺序规则
+
+这条规则是指在一个线程中，按照程序顺序，前面的操作 Happens-Before 于后续的任意操作。这一条规则还是非常好理解的，看下面这一段代码
+
+```java
+class Test{
+1	int x ;
+2	int y ;
+3	public void run(){
+4		y = 20;
+5		x = 12;
+	}
+}
+```
+
+第四行代码要 Happens-Before 于第五行代码，也就是按照代码的顺序来。
+
+### 2、锁定规则
+
+这条规则是指对一个锁的解锁 Happens-Before 于后续对这个锁的加锁。例如下面的代码，在进入同步块之前，会自动加锁，而在代码块执行完会自动释放锁，加锁以及释放锁都是编译器帮我们实现的
+
+```java
+synchronized (this) {
+	// 此处自动加锁
+	// x 是共享变量, 初始值 =10
+	if (this.x < 12) {
+	   this.x = 12;
+	}
+} // 此处自动解锁
+```
+
+对于锁定规则可以这样理解：假设 x 的初始值是 10，线程 A 执行完代码块后 x 的值会变成 12（执行完自动释放锁），线程 B 进入代码块时，能够看到线程 A 对 x 的写操作，也就是线程 B 能够看到 x==12。
+
+### 3、volatile 变量规则
+
+这条规则是指对一个 volatile 变量的写操作及这个写操作之前的所有操作 Happens-Before 对这个变量的读操作及这个读操作之后的所有操作。
+
+### 4、线程启动规则
+
+这条规则是指主线程 A 启动子线程 B 后，子线程 B 能够看到主线程在启动子线程 B 前的操作。
+
+```java
+public class Demo {
+    private static int count = 0;
+    public static void main(String[] args) throws InterruptedException {
+        Thread t1 = new Thread(() -> {
+            System.out.println(count);
+        });
+        count = 12;
+        t1.start();
+    }
+}
+```
+
+子线程 t1 能够看见主线程对 count 变量的修改，所以在线程中打印出来的是 12 。这也就是线程启动规则
+
+### 5、线程结束规则
+
+这条是关于线程等待的。它是指主线程 A 等待子线程 B 完成（主线程 A 通过调用子线程 B 的 join() 方法实现），当子线程 B 完成后（主线程 A 中 join() 方法返回），主线程能够看到子线程的操作。当然所谓的“看到”，指的是对共享变量的操作。
+
+```java
+public class Demo {
+    private static int count = 0;
+    public static void main(String[] args) throws InterruptedException {
+        Thread t1 = new Thread(() -> {
+            // t1 线程修改了变量
+            count = 12;
+        });
+        t1.start();
+        t1.join();
+        // mian 线程可以看到 t1 线程改修后的变量
+        System.out.println(count);
+    }
+}
+```
+
+### 6、中断规则
+
+一个线程在另一个线程上调用 interrupt ，Happens-Before 被中断线程检测到 interrupt 被调用。
+
+```java
+public class Demo {
+    private static int count = 0;
+    public static void main(String[] args) throws InterruptedException {
+        Thread t1 = new Thread(() -> {
+            // t1 线程可以看到被中断前的数据
+            System.out.println(count);
+        });
+        t1.start();
+        count = 25;
+        // t1 线程被中断
+        t1.interrupt();
+    }
+}
+```
+
+mian 线程中调用了 t1 线程的 interrupt() 方法，mian 对 count 的修改对 t1 线程是可见的。
+
+### 7、终结器规则
+
+一个对象的构造函数执行结束 Happens-Before 它的 finalize()方法的开始。“结束”和“开始”表明在时间上，一个对象的构造函数必须在它的 finalize()方法调用时执行完。根据这条原则，可以确保在对象的 finalize 方法执行时，该对象的所有 field 字段值都是可见的。
+
+### 8、传递性规则
+
+这条规则是指如果 A Happens-Before B，且 B Happens-Before C，那么 A Happens- Before C。

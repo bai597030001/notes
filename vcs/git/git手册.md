@@ -133,6 +133,8 @@ $ git update-index --no-assume-unchanged file
 # 在没有推送到远程之前，如果想合并多次的提交，并且修改提交信息
 
 $ git rebase -i [SHA] # SHA 是上一次提交之前的那次提交的
+
+$ git rebase -i HEAD~4 # 最后一个数字4代表压缩最后四次提交。
 ```
 
 
