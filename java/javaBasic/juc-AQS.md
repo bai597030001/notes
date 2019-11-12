@@ -988,7 +988,9 @@ private void doReleaseShared() {
 
 # 基于AQS实现的锁、同步器、阻塞队列
 
-- ReentrantLock
+
+
+## ReentrantLock
 
 
 
@@ -1454,9 +1456,7 @@ rtLock.readLock().unlock();
 
 
 
-
-
-
+### 注意
 
 关于ReentrantReadWriteLock，最后有两点规律需要注意：
 
@@ -1467,7 +1467,10 @@ rtLock.readLock().unlock();
 
 
 
-- CountDownLaunch
-- Semaphore
-- ArrayBlockingQueue
-- LinkedBlockingQueue
+## CountDownLaunch
+
+## Semaphore
+
+## ArrayBlockingQueue
+
+## LinkedBlockingQueue
