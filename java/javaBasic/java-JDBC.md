@@ -329,7 +329,7 @@ public void test8(){
 关闭Connection，而是把Connection“归还”给池。池就可以再利用这个Connection对象了。
 ```
 
-![](E:/notes/java/javaBasic/JDBC/img/jdbc1.png)
+![](img/jdbc1.png)
 
 ### C3P0
 

@@ -60,7 +60,7 @@ Tomcat是运行java的网络服务器，底层是一个socket的程序，同时T
 
 	在tomcat中的conf目录下的server.xml文件中，在<Host/>节点中添加一个context，具体为：
 	
-	<Context Path="/jstore"Docbase="C:\work\jstore\WebContent" Debug="0" Privileged="True" Reloadable="True"></Context>
+	<Context Path="/jstore" Docbase="C:\work\jstore\WebContent" Debug="0" Privileged="True" Reloadable="True"></Context>
 	
 	这里的 Reloadable= “true” 这个属性是指tomcat在运行状态下会自动检测应用程序的WEB-INF/classes和WEB-INF/lib
 	目录下的class文件，如果监测到有class文件有改动，服务器自动加载新的web应用程序，可以在不重起tomcat的情况下

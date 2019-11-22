@@ -184,6 +184,24 @@ jvm 可配置的参数选项可以参考 Oracle 官方网站给出的相关信�
 
 
 
+# GC分类
+
+Minor GC：回收Eden区
+
+Major GC：回收老年代
+
+
+
+Young Gen GC：回收 Eden + S0 + S1区
+
+Old Gen GC： 只收集Old Gen（老年代）的GC。只有CMS的concurrent collection是这个模式 ，所以也称CMS GC
+
+
+
+Full GC： 针对整个新生代、老生代、元空间（metaspace，java8以上版本取代perm gen）的全局范围的GC
+
+
+
 # GC算法
 
 常见的`GC`算法：复制、标记-清除和标记-压缩
@@ -353,6 +371,8 @@ Parallel Old收集器的工作流程与Parallel Scavenge相同，这里给出Par
 
 
 
+#### 流程
+
 `CMS`收集器工作的整个流程分为以下4个步骤：
 
 - **初始标记（CMS initial mark）**：仅仅只是标记一下GC Roots能直接关联到的对象，速度很快，需要“Stop The World”。
@@ -375,8 +395,106 @@ CMS是一款优秀的收集器，它的主要**优点**在名字上已经体现�
 **缺点**
 
 - **对CPU资源非常敏感** 其实，面向并发设计的程序都对CPU资源比较敏感。在并发阶段，它虽然不会导致用户线程停顿，但会因为占用了一部分线程（或者说CPU资源）而导致应用程序变慢，总吞吐量会降低。**CMS默认启动的回收线程数是（CPU数量+3）/4**，也就是当CPU在4个以上时，并发回收时垃圾收集线程不少于25%的CPU资源，并且随着CPU数量的增加而下降。但是**当CPU不足4个时（比如2个），CMS对用户程序的影响就可能变得很大**，如果本来CPU负载就比较大，还要分出一半的运算能力去执行收集器线程，就可能导致用户程序的执行速度忽然降低了50%，其实也让人无法接受。
+
 - **无法处理浮动垃圾（Floating Garbage）** 可能出现“Concurrent Mode Failure”失败而导致另一次Full GC的产生。**由于CMS并发清理阶段用户线程还在运行着，伴随程序运行自然就还会有新的垃圾不断产生。**这一部分垃圾出现在标记过程之后，CMS无法再当次收集中处理掉它们，只好留待下一次GC时再清理掉。这一部分垃圾就被称为**“浮动垃圾”**。也是由于在垃圾收集阶段用户线程还需要运行，那也就还需要预留有足够的内存空间给用户线程使用，因此CMS收集器不能像其他收集器那样等到老年代几乎完全被填满了再进行收集，需要预留一部分空间提供并发收集时的程序运作使用。
+
 - **标记-清除算法导致的空间碎片** CMS是一款基于“标记-清除”算法实现的收集器，这意味着收集结束时会有大量空间碎片产生。空间碎片过多时，将会给大对象分配带来很大麻烦，往往出现老年代空间剩余，但无法找到足够大连续空间来分配当前对象。
+
+- **Concurrent Mode Failure**
+
+  由于CMS并发清理阶段，用户程序还在运行，也需要内存空间，因此CMS收集器不能像其他老年代收集器那样，等到老年代空间快满了再执行垃圾收集，而是要预留一部分内存给用户程序使用。CMS的做法是老年代空间占用率达到某个阈值时触发垃圾收集，有一个参数来控制触发百分比： -XX:CMSInitiatingOccupancyFraction=80 （这里配置的是80%）。
+
+  如果预留的老年代空间不够应用程序的使用，就会出现Concurrent Mode Failure，此时会触发一次FullGC，采用标记-清除-整理算法，会发生stop-the-world，耗时相当感人（实际工作中遇到的大部分FGC估计都是这种情况）。Concurrent Mode Failure一般会伴随ParNew promotion failed，晋升担保失败。所谓晋升担保，就是为了应对新生代GC后存活对象过多，Survivor区无法容纳的情况，需要老年代有足够的空间容纳这些对象，如果老年代没有足够的空间，就会产生担保失败，导致一次Full GC。
+
+  为了避免Concurrent Mode Failure，可以采取的做法是：
+
+  1. 调大老年代空间；
+  2. 调低CMSInitiatingOccupancyFraction的值，但这样会造成更频繁的CMS GC；
+  3. 代码层面优化，控制对象创建频率。
+
+
+
+#### 晋升担保
+
+ 老年代是否有足够的空间来容纳全部的新生代对象或历史平均晋升到老年代的对象，如果不够的话，就提早进行一次老年代的回收，防止下次进行YGC的时候发生晋升失败。 
+
+
+
+#### jvm相关调优参数
+
+ **-XX：+UseConcMarkSweepGC**
+
+激活 CMS 收集器。默认 HotSpot JVM 使用的是并行收集器。 
+
+
+
+ **-XX：UseParNewGC** 
+
+ 年轻代使用多线程并行执行垃圾回收，新生代使用并发收集器与CMS配合
+
+（ 注意最新的 JVM 版本，当使用 - XX：+UseConcMarkSweepGC 时，-XX：UseParNewGC 会自动开启。因此，如果年轻代的并行 GC 不想开启，可以通过设置 - XX：-UseParNewGC 来关掉。 ）
+
+
+
+**-XX：+CMSConcurrentMTEnabled**
+
+当该标志被启用时，并发的 CMS 阶段将以多线程执行。该标志已经默认开启，如果顺序执行更好，这取决于所使用的硬件，多线程执行可以通过 `- XX：-CMSConcurremntMTEnabled` 禁用。
+
+
+
+**-XX：ConcGCThreads**
+
+标志 `- XX：ConcGCThreads=1/2/3/4/n`（早期 JVM 版本也叫 `-XX:ParallelCMSThreads`）定义并发 CMS 过程运行时的线程数。比如 value=4 意味着 CMS 周期的所有阶段都以 4 个线程来执行。尽管更多的线程会加快并发 CMS 过程，但其也会带来额外的同步开销。因此，对于特定的应用程序，应该通过测试来判断增加 CMS 线程数是否真的能够带来性能的提升。
+
+如果该标志未设置，JVM 会根据并行收集器中的 `- XX：ParallelGCThreads` 参数的值来计算出默认的并行 CMS 线程数。该公式是： `ConcGCThreads = (ParallelGCThreads + 3)/4`。因此，对于 CMS 收集器，来说 `- XX:ParallelGCThreads`标志不仅影响“stop-the-world”垃圾收集阶段，还影响并发阶段。
+
+总之，有不少方法可以配置 CMS 收集器的多线程执行。正是由于这个原因, 建议第一次运行 CMS 收集器时使用其默认设置, 然后如果需要调优再进行测试。只有在生产系统中测量 (或类生产测试系统) 发现应用程序的暂停时间的目标没有达到 , 就可以通过这些标志应该进行 GC 调优。
+
+
+
+ **-XX:CMSInitiatingOccupancyFraction** 
+
+ 该值代表老年代堆空间的使用率。比如，value=75意味着第一次CMS垃圾收集会在老年代被占用75%时被触发。通常CMSInitiatingOccupancyFraction的默认值为68(之前很长时间的经历来决定的)。 
+
+>  因为不同的应用会有不同对象分配模式，JVM 会收集实际的对象分配 (和释放) 的运行时数据，并且分析这些数据，来决定什么时候启动一次 CMS 垃圾收集周期。为了引导这一过程， JVM 会在一开始执行 CMS 周期前作一些线索查找。该线索由 -XX:CMSInitiatingOccupancyFraction=来设置 
+
+
+
+ **XX：+UseCMSInitiatingOccupancyOnly** 
+
+ 命令 JVM 不基于运行时收集的数据来启动 CMS 垃圾收集周期。而是当该标志被开启时，JVM 通过 上述`CMSInitiatingOccupancyFraction` 的值进行每一次 CMS 收集，而不仅仅是第一次。 
+
+
+
+ **-XX:+CMSClassUnloadingEnabled** 
+
+ 相对于并行收集器，CMS 收集器默认不会对永久代进行垃圾回收。如果希望对永久代进行垃圾回收，可用设置标志 `-XX:+CMSClassUnloadingEnabled`。 
+
+
+
+ **-XX:+ExplicitGCInvokesConcurrent and -XX:+ExplicitGCInvokesConcurrentAndUnloadsClasses** 
+
+ 标志 - XX:+ExplicitGCInvokesConcurrent 命令 JVM 无论什么时候调用系统 GC，都执行 CMS GC，而不是 Full GC。第二个标志 - XX:+ExplicitGCInvokesConcurrentAndUnloadsClasses 保证当有系统 GC 调用时，永久代也被包括进 CMS 垃圾回收的范围内。因此，通过使用这些标志，我们可以防止出现意料之外的”stop-the-world” 的系统 GC。 
+
+
+
+ **-XX:+DisableExplicitGC** 
+
+ 该标志将告诉 JVM 完全忽略系统的 GC 调用 System.gc() (不管使用的收集器是什么类型)。 
+
+
+
+ **-XX:+UseCMSCompactAtFullCollection**
+
+ 在CMS收集器顶不住要进行FullGC时<u>开启内存碎片的合并整理</u>过程 。
+
+> 对于CMS收集器，由于其使用标记-清除算法，所以产生的内存碎片会比较多。空间碎片过多时，将会给大对象分配带来很大麻烦，往往会出现老年代还有很大空间剩余，但是无法找到足够大的连续空间来分配当前对象，不得不提前触发一次Full GC。为了解决这个问题，CMS收集器提供了一个-XX:+UseCMSCompactAtFullCollection开关参数（默认就是开启的）， 
+
+
+
+ **-XX:CMSFullGCsBeforeCom-paction**
+
+对于上述参数，当开启内存碎片的合并整理后，由于内存整理的过程是无法并发的，空间碎片问题没有了，但停顿时间不得不变长。此时还有这个参数，用于设置执行多少次不压缩的Full GC后，跟着来一次带压缩的（默认值为0，表示每次进入FullGC时都进行碎片整理）。 
 
 
 
