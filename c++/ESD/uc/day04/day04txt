@@ -1,0 +1,267 @@
+今天内容：
+（1）内存管理
+（2）文件操作
+
+1.内存管理
+1.1使用malloc申请动态内存
+（1）使用malloc申请内存的注意事项
+   使用malloc申请动态内存时，除了分配指定的内存大小之外，还可能多分配12个字节的内存空间，用于存储管理内存的数据，内存空间的大小等信息，malloc底层采用链表形式存储
+   使用malloc申请的内存空间时，不要进行越界访问
+
+  1 // 使用malloc申请动态内存
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 int main (void) {
+  5     int *p1 = (int *)malloc(4);
+  6     int *p2 = (int *)malloc(4);
+  7     int *p3 = (int *)malloc(4);
+  8     int *p4 = (int *)malloc(4);
+  9     int *p5 = (int *)malloc(4);
+ 10     printf ("p1 = %p\n", p1);
+ 11     printf ("p2 = %p\n", p2);
+ 12     printf ("p3 = %p\n", p3);
+ 13     printf ("p4 = %p\n", p4);
+ 14     printf ("p5 = %p\n", p5);
+ 15     printf ("---------------------------\n");
+ 16     *p1 = 1;
+ 17     *(p1 + 1) = 2;
+ 18     *(p1 + 2) = 3;
+ 19     *(p1 + 3) = 4;
+ 20     *(p1 + 4) = 5;
+ 21     //释放p1指向的动态内存
+ 22     free(p1);
+ 23     p1 = NULL;
+ 24     printf ("*p2 = %d\n", *p2);
+ 25     return 0;
+ 26 }
+
+（2）使用malloc申请内存的一般性原则
+     使用malloc申请比较小的内存空间时，一般默认分配33个内存页
+   #include<unistd.h>
+   getpid()  -  获取当前进程的进程号
+   getchar() -  读取一个字符
+   cat / proc / 进程号 / maps  -  表示察看当前进程的内存分配情况，其中heap表示堆区，stack表示栈区
+
+  1 //使用maiioc申请内存的一般大小
+  2 #include<stdio.h>
+  3 #include<stdlib.h>  //getpid
+  4 #include<unistd.h>
+  5 int main (void) {
+  6     //获取当前进程的进程号
+  7     printf ("进程号pid = %d\n", getpid());
+  8     int *p1 = (int *)malloc(4);
+  9     printf ("申请了4个字节的内存空间\n");
+ 10     //从控制台读取一个字符， 类似scanf("%c",c);
+ 11     getchar();
+ 12     return 0;
+ 13 }
+
+ cat /proc/2528/maps
+
+1.2使用free函数进行内存的释放 
+使用malloc申请比较小的内存空间时，系统一般会默认分配33个内存页，如果malloc申请比较大的内存空间时，系统一般会默认分配34个内存页，如果malloc申请的内存大于等于33/34个内存页时，系统会再次分配33个内存页，也就是按照33个内存页的整数倍进行递增
+   使用free 释放内存空间时，free释放多少则减去多少，不会按爪33个内存页的整数倍释放，当free释放所有内存时，系统可能保留33个内存页备用，也就是当free不保证立即释放内存，而是可以保证内存由使用状态变为非使用状态
+
+1.3内存相关的函数
+（1）getpagesize函数
+    - 获取当前系统内存页的大小
+（2）sbrk函数
+   #include <unistd.h>
+   void *sbrk(intptr_t increment);
+函数功能：
+    表示申请参数指定大小的动态内存，成功返回操作之前内存的首地址，失败返回-1， 参数为0时表示获取当前内存的位置
+注意：
+    sbrk申请内存时，一般默认分配1个内存页的大小，而申请的内存超过一个内存页时，会再分配一个内存页，也就是按照1个内存页的整数倍进行处理
+
+（3）brk函数
+    int brk(void *addr);
+函数功能：
+    表示修改内存空间的末尾到参数指定的位置，也就是起始位置和目的地之间的范围都是有效的内存空间
+
+  1 //使用brk函数来操作内存
+  2 #include<stdio.h>
+  3 #include<unistd.h>
+  4 #include<stdlib.h>
+  5 int main () {
+  6     //获取起始地址
+  7     void *p = sbrk(0);
+  8     printf ("p = %p\n",p);
+  9     //申请4个字节的内存空间
+ 10     int res = brk(p + 4);
+ 11     if (-1 == res) {
+ 12         perror("brk"), exit(-1);
+ 13     }
+ 14     printf ("成功申请了4个字节的内存\n");
+ 15     void *cur = sbrk(0);
+ 16     printf ("cur = %p\n", cur);
+ 17     //申请了4个字节
+ 18     brk(p + 8);
+ 19     cur = sbrk(0);
+ 20     printf ("cur = %p\n", cur);
+ 21     //释放了4个字节的内存
+ 22     brk(p + 4);
+ 23     cur = sbrk(0);
+ 24     printf ("cur = %p\n", cur);
+ 25     //释放所有内存
+ 26     brk(p);
+ 27     return 0;
+ 28 }
+
+注意：
+    sbrk 和 brk 函数一般都是搭配使用， sbrk主要用于申请内存， brk主要用于释放内存
+
+练习： 
+    使用sbrk 和 brk函数搭配使用，申请一个int类型大小的空间，存放整数100，再申请一个double类型的空间，存放3.14，再申请一个长度为10的字符串空间，存放数据hello,打印以上内存中的数据，最后释放所有内存
+
+  1 #include<stdio.h>
+  2 #include<unistd.h>
+  3 #include<stdlib.h>
+  4 #include<string.h>
+  5 int main () {
+  6     int *pi = (int *)sbrk(4);
+  7     *pi = 100;
+  8     double *pd = (double *)sbrk(sizeof(double));
+  9     *pd = 3.14;
+ 10     char *pc = (char *)sbrk(10);
+ 11     strcpy(pc, "hello");
+ 12     printf ("*pi = %d, *pd = %lf, pc = %s\n",*pi, *pd, pc);
+ 13     brk(pi);
+ 14     return 0;
+ 15 }
+
+（4）mmap函数
+
+       #include <sys/mman.h>
+
+       void *mmap(void *addr, size_t length, int prot, int flags,int fd, off_t offset);
+                  
+第一个参数：给NULL即可，由内核决定
+二          映射的大小，一般不足一个内存页会自动补齐  
+三          指定映射的操作权限
+            PROT_EXEC  - 可执行
+            PROT_READ  - 可读
+            PROD_WRITE  - 可写
+四          指定映射是否对其他进程可见
+            MAP_SHARED - 共享的
+            MAP_PRIVATE - 似有的
+            MAP_ANONYMOUS - 映射到物理内存
+五          指定文件描述符
+            映射物理内存时给0即可
+六          文件中的偏移量
+            映射物理内存时给0即可
+返回值 ： 成功返回映射的首地址，失败返回MAP_FAILED（-1）
+函数功能 ： 建立虚拟地址到物理内存/文件/设备的映                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            射
+       
+（5）munmap函数
+       int munmap(void *addr, size_t length);
+函数功能：
+     表示按照参数指定的地址和大小去解除映射的关系
+
+  1 //mmap和munmao函数的使用
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 #include<sys/mman.h>
+  6 int main () {
+  7     //1建立新的映射
+  8     void *p = mmap(NULL, 4, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, 0, 0);
+  9     if (MAP_FAILED == p) {
+ 10         perror("mmap"), exit(-1);
+ 11     }
+ 12     printf ("建立映射成功\n");
+ 13     //2使用映射所返回的虚拟地址
+ 14     int *pi = (int *)p;
+ 15     *pi = 100;
+ 16     printf ("*pi = %d\n", *pi);
+ 17     //3解除映射
+ 18     int res = munmap(p, 4);
+ 19     if (-1 == res) {
+ 20         perror ("munmap"), exit(-1);
+ 21     }
+ 22     printf ("解除映射成功\n");
+ 23     return 0;
+ 24 }
+
+小结：
+    STL标准模版库
+     =>C++内存分配 ： new/delete 运算服
+       =>标C函数  ： malloc()/free();
+         =>UC函数：  sbrk/brk;
+           =>映射函数： mmap()/munmap();
+
+2.函数调用：
+  系统调用是操作系统内核对外的一系列接口函数，当外部函数调用系统调用函数时，会通过软中断的方式把地址空间从用户空间切换到内核空间执行具体的功能，也就是操作内核，驱动硬件等操作，当系统调用函数执行完毕后，地址空间会自动从内核空间切换到用户空间 
+
+3.文件操作
+3.1文件的概念
+  在unix/linux系统中，几乎所有的一切都可以看作文件，所以对文件的操作适用于各种输入输出设备等   
+  如：
+    /dev/null   -   表示空设备
+    /dev/tty   -   表示输入输出设备
+    /dev/console  -  表示控制台设备 
+
+    echo hello > /dev/null => 表示丢弃命令执行的结果
+    cat /dev/null > a.txt => 表示清空文件a.txt
+
+3.2文件基本操作
+复习标C内容：
+    fopen()/fclose()/fread()/fwrite()/fseek()
+（1）open函数
+       #include <sys/types.h>
+       #include <sys/stat.h>
+       #include <fcntl.h>
+
+       int open(const char *pathname, int flags);
+       int open(const char *pathname, int flags, mode_t mode);
+第一个参数：文件的路径和文件名
+  二      ：操作标志
+           O_RDONLY-只读
+           O_WRONLY-只写
+           O_RDWR - 可读可写
+
+           O_CREAT - 创建文件
+           O_EXCL - 与O_CREAT搭配使用，表示不存在则创建，存在则创建失败
+           O_TRUNC - 清空文件
+           O_APPEND - 追加
+  三      ：操作模式
+            在创建新文件时指定文件的创建权限， 如 0666
+返回值：   成功返回一个新的文件描述符来标识此文件，失败返回-1
+函数功能： 打开/创建一个文件
+
+（2）close函数
+       #include <unistd.h>
+
+       int close(int fd);
+
+函数功能：
+       表示关闭参数指定的文件
+
+（3）read 函数
+       #include <unistd.h>
+
+       ssize_t read(int fd, void *buf, size_t count);
+
+函数功能：
+       表示尝试从fd指向的文件中读取count个字节的数据，存放到buf指定的缓冲区中，成功返回读取的字节数，失败返回-1
+
+（4）write函数
+
+       #include <unistd.h>
+
+       ssize_t write(int fd, const void *buf, size_t count);
+
+函数功能：
+      表示尝试着将buf指定的缓冲区中count个字节的数据写入到fd指向的文件中，成功返回写入字节数，失败返回-1
+
+
+
+
+
+
+
+
+
+
+
+
+

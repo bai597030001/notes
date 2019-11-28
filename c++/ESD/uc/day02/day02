@@ -1,0 +1,301 @@
+1.静态库和共享库的概念以及使用
+1.1库文件的由来
+按照项目的功能模块/业务模块  将相关的多个 .o 文件打包成一个库文件，使得调用者/使用者  使用时更加方便
+
+1.2分类以及概念
+（1）分类
+库文件主要分为两种：静态库文件和共享库文件
+（2）概念
+静态库文件：
+     功能代码的集合，使用静态库时，直接复制到相应的代码/指令到目标文件中进行处理
+共享库文件:
+     功能代码的集合，使用共享库时，复制代码在共享库中的地址到目标文件进行处理
+（3）比较
+静态库文件：
+优点：效率比较高，可以脱离静态库文件执行
+缺点：目标文件占用空间比较大，不利于修改和维护	
+共享库文件：
+优点：目标文件占用空间比较小，修改和维护比较方便
+缺点：效率比较低，不可以脱离共享库文件
+
+注意：
+    一般来讲，绝大多数情况下都优先使用共享库文件
+
+（4）基本命令
+    cc xxx.c 一般情况下默认选择共享库方式处理， 
+    使用 ldd 命令可以察看共享文件名以及对应的地址
+    cc -static xxx.c 表示采用动态库方式进行处理
+
+1.3静态库文件的生成和使用
+练习：
+     编写三个文件： add.h  add.c  main.c  在add.h中声明一个计算两个整形参数和并且返回的函数，在 add.c 中实现函数的定义，在main.c 中进行调用
+
+（1）静态库文件的生成步骤
+a 编写源文件 xxx.c (add.c)
+b 只编译不链接源文件，生成.o的目标文件
+  cc -c add.c
+c 使用 ar -r/*插入*/ lib库名.a 目标文件
+   ar -r libadd.a add.o
+注意：
+    静态库文件名的命名规范：以lib开头， 以 .a 为后缀，中间的名字任意，叫做库名，库名（如add）和静态库文件名(libadd)不同
+（2）静态库的调用步骤
+a 编写调用静态库的源文件 xxx.c （main.c）
+b 只编译不链接生成 xxx.o 的目标文件
+  cc -c main.c
+c 链接静态库文件，链接方法如下：
+   1）直接链接
+      cc main.o libadd.a
+   2) 采用编译选项进行连接  (掌握)
+      cc main.o -l 库名 -L 静态库文件的路径
+      cc main.o -l add -L .
+   3）采用配置环境变量的方式进行连接
+      export LIBRARY_PATH=$LIBRARY_PATH:.
+      cc main.o -l add
+
+1.4共享库文件的生成和使用
+（1）共享库文件的生成步骤
+a 编写源文件 xxx.c(add.c)
+b 只编译不链接这个源文件生成目标文件 xxx.o
+  cc -c -fpic/*小模式*/ add.c
+c 生成共享库文件
+  cc -shared add.o -o lib库名.so
+（2）共享库文件的调用步骤
+a 编写调用源文件
+b 只编译不链接生成目标文件 xxx.o
+  cc -c main.c
+c 链接方式有三种
+  1）直接链接
+     cc main.o libadd.so
+  2) 使用编译选项进行连接(掌握)
+     cc main.o -l 库名 -L 库文件的路径
+     cc main.o -l add -L .
+  3) 配置环境变量LIBRARY_PATH=$LIBRARY_PATH:.
+     cc main.o -l add
+
+注意：
+    对于共享库文件的使用来说，必须配置环境变量 LD_LIBRARY_PATH,解决程序运行时找不到库文件的问题
+    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:.
+
+练习：
+    采用多文件的方式：max.h max.c main.c ,在max.h中声明一个返回两个int类型参数最大值的函数，在max.c中定义该函数，在main.c中进行调用，分别使用静态库和共享库的方式调用 
+
+1.5动态使用共享库
+采用使用普通文件一样的方式来使用共享库
+（1）dlopen 函数
+
+     #include <dlfcn.h>
+
+     void *dlopen(const char *filename, int flag);
+第一个参数：共享库文件名
+第二个参数：加载方式
+     RTLD_LAZY -延迟加载
+     RTLD_NOW  -立即加载
+返回值：所打开的共享库文件句柄（地址）
+函数功能：主要表示打开以及加载共享库文件
+
+（2） dlerror 函数
+     char* dlerror (void);
+函数功能：
+        主要用于获取最后一次错误的信息，并且通过返回值返回，返回NULL表示没有错误发生
+
+（3）dlsym函数
+
+     void *dlsym(void *handle, const char *symbol);
+第一个参数：dlopen函数的返回值
+第二个参数：一般用于指定函数名
+返回值：返回指定的函数名所对应的内存区
+函数功能：根据句柄和函数名找到对应的内存地址，便于调用
+
+（4）dlclose函数
+函数功能：关闭指定的句柄
+
+注意：
+    编译链接时：-ldl
+
+  1 //动态使用共享库文件
+  2 #include<stdio.h>
+  3 #include<dlfcn.h>
+  4 int main () {
+  5     //1 打开共享库文件
+  6     void *handler = dlopen ("./../shared/libadd.so", RTLD_NOW);
+  7     //2 判断打开是否失败
+  8     char *error = dlerror();
+  9     if (NULL != error) {
+ 10         printf ("打开共享库文件失败\n");
+ 11         return -1;
+ 12     }
+ 13     //3 获取共享库文件中指定函数名的地址
+ 14     int (*padd)(int num1, int num2);
+ 15     padd = dlsym (handler, "add");
+ 16     //4 判断是否获取成功
+ 17     error = dlerror();
+ 18     if (error) {
+ 19         printf ("获取函数地址失败\n");
+ 20         return -1;
+ 21     }
+ 22     //5 使用函数名进行调用
+ 23     printf ("两个书的和是%d\n", padd(20,30));
+ 24     //6 关闭共享库文件
+ 25     dlclose (handler);
+ 26     return 0;
+ 27 }
+
+注意事项：
+         在使用静态库和共享库文件时，一般除了需要提供库文件之外，还应该对应一个头文件，用于对库文件进行说明
+
+2. C语言的错误处理
+
+一般来说，C程序中都是通过函数的返回值来代表错误：
+（1）如果函数的返回值类型是指针类型，使用NULL代表出错
+（2）如果函数的返回值类型是int类型，并且函数的返回值不可能是负数时，使用-1代表出错
+（3）如果函数的返回值类型是int类型，但是函数的返回数据可能是负数时，使用-1代表出错，而函数的结果通过指针类型的型参来带出
+（4）如果函数不可能出错则返回值类型用void即可 
+
+例子：
+编写一下四个函数：
+第一个函数：返回1到10之间的随机数，如果随机数是5则返回错误
+第二个函数：计算两个证书之间的最大值，如果相等，返回错误
+第三个函数：传入一个字符串，如果传入的字符串是error ，则返回错误，否则返回ok
+第四个函数：打印传入的字符串内容
+
+  1 //c语言中的错误处理
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<time.h>
+  5 //返回1到10之间随机数的函数
+  6 int randNum(void) {
+  7     //设置随即种子
+  8     srand(time(0));
+  9     //生成1 到10之间的随机数
+ 10     int num = rand() % 10 + 1;
+ 11     return 5 == num ? -1 : num;
+ 12 }
+ 13 //返回两个证书的最大值，通过返回值来表示成功或者失败，而最大值通过指针类型的
+    参数带出去
+ 14 int max (int ia, int ib, int *pi) {
+ 15 /*  if (ia == ib) {
+ 16         return -1;
+ 17     }
+ 18     *pi = ia > ib ? ia : ib;
+ 19     return 0;*/
+ 20     return ia == ib ? -1 : (*pi = ia > ib ? ia : ib),0;
+ 21 }
+ 22 //字符串处理函数
+ 23 #include<string.h>
+ 24 char *stringDeal (const char *ps) {
+ 25     return !strcmp (ps, "error") ? NULL : "ok";
+ 26 }
+ 27 //打印字符串
+ 28 void print (const char *ps) {
+ 29     printf ("传入的字符串是%s\n", ps);
+ 30 }
+ 31 int main () {
+ 32     printf ("生成的随机数是%d\n", randNum());
+ 33     int res = 0;
+ 34     if (-1 != max (-1,-2,&res)) {
+ 35         printf ("最大值是%d\n", res);
+ 36     }
+ 37     //printf ("返回的内容是%s\n", stringDeal ("hello"));
+ 38     printf ("返回的内容是%s\n", stringDeal ("error"));
+ 39     print ("let me give you some collor see see");
+ 40     return 0;
+ 41 }
+
+3.错误编号和错误信息
+如：
+   fopen() -> 失败返回NULL
+3.1错误编号
+   #include <errno.h>
+   在调用某些函数时，可以通过返回值来判断是否出错，但是不能表示错误的原因，而一旦函数出错会自动设置全局变量errno的值，可以通过errno的值来获取对应的错误编号
+ 
+vi /etc/paswd文件中
+tarena/*用户名*/:x/*密码*/:1000/*用户id*/:1000/*用户组id*/:tarena,,,/*注释信息*/:/home/tarena/*主目录*/:/bin/bash/*shell类型*/
+
+3.2 错误信息
+(1)strerror函数
+   #include <string.h>
+   char *strerror(int errnum);
+函数功能：
+   表示根据参数传递过来的错误编号进行翻译，将错误编号所对应的错误信息返回出来   
+
+(2)perror函数(掌握)
+   #include <stdio.h>
+   void perror(const char *s);
+函数功能：
+   表示自动查找函数调用时引发的最后一个错误信息并且打
+   印出来
+
+(3)printf函数
+   printf("%m\n") => 打印错误信息
+
+作业：
+   编写函数分别打印空心平行四边形和实心平行四边形,再分别使用静态库和共享库的方式进行调用
+如：
+    ****             ****
+     ****             *  *
+      ****             *  *
+       ****             ****
+
+明日预报：
+   (1)环境表和主函数
+   (2)内存管理
+					
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,605 @@
+指针可以和数组的第一个存储区捆绑，这样捆绑后指针可以在很多时候代替数组名称       -----------
+
+可以认为这个时候间接和数组中所有存储区实现捆绑
+
+指针遵守和数组名称同样的计算规则，加上整数n代表增加了n个捆绑存储区的大小，          ******
+
+         printf("%d",*(p_num + num));
+
+指针减去整数n代表减少了n个捆绑存储区的大小
+
+printf ("p_num是%p,p_num - 3是%p\n",p_num,p_num - 3);
+
+同类型的指针之间可以做减法，结果是一个整数，这个整数代表两个地址之间捆绑存储区的个数
+
+printf ("结果是%d\n",p_num1 - p_num);
+
+ 
+  1 #include<stdio.h>
+  2 int main () {
+  3     int arr[5] = {1,2,3,4,5};
+  4     int num = 0;
+  5     int *p_num = arr;
+  6     int *p_num1 = arr + 3;
+  7     printf ("%p\n",&*p_num);
+  8     printf ("%d\n",*p_num + 3);                                 ????????????????/
+  9     printf ("%d\n",*p_num - 2);
+ 10     printf ("%d\n",*p_num1 - *p_num);
+ 11     return 0;
+ 12 }
+
+
+可以使用指针变量作为循环变量依次处理数组中每个存储区
+
+/*
+   指针和数组演示               ?????????????????
+   */
+#include <stdio.h>
+int main() {
+	int arr[] = {1, 2, 3, 4, 5};
+	int num = 0;
+	int *p_num = arr, *p_num1 = arr + 3;
+	for (num = 0;num <= 4;num++) {
+		printf("%d ", arr[num]);
+		//printf("%d ", p_num[num]);   NO             
+		printf("%d ", *(p_num + num));
+	}
+	printf("\n");
+	printf("p_num是%p,p_num - 3是%p\n", p_num, p_num - 3);
+	printf("结果是%d\n", p_num1 - p_num);
+	return 0;
+}
+
+
+
+指针和数组名称的区别
+
+1.指针变量可以被赋值但是数组名称不可以被赋值
+
+2.对指针做sizeof计算得到的是指针本身存储区所站字节个数，对数组名称做sizeof计算结果是数组中所包含的所有字节个数
+
+3.对指针变量取地址得到的是指针本身存储区的地址，和指针里面记录的地址无关
+  对数组名称取地址得到的结果和数组名称本身所代表的地址数据一样
+
+声明指针变量时有两种使用const关键字的方法
+
+方法一：
+       const int *p_num = NULL;
+
+       这种方法把const关键字写在最前面
+       不可以通过这种指针对捆绑存储区做赋值，但是可以对指针本身存储区做赋值
+
+
+  1 #include<stdio.h>
+  2 int main () {
+  3     int num = 0;
+  4     const int *p_num = &num;
+  5     //*p_num = 10;          错误,不可以对捆绑存储区赋值
+  6     p_num = NULL;
+  7     return 0;
+  8 }
+
+方法二：
+        int * const p_num = &num;
+
+        这种方法把const关键字写在指针变量名称前
+        可以通过这种指针对捆绑存储区进行赋值，但是不可以对指针本身的存储区进行赋值
+
+  1 #include<stdio.h>
+  2 int main () { 
+  3     int num = 0;
+  4     const int *p_num = &num;
+  5     int * const p_num1 = &num;
+  6     //*p_num = 10;          错误,不可以对捆绑存储区赋值
+  7     p_num = NULL;
+  8     *p_num1 = 10;
+  9     //p_num1 = NULL;       错误，不可以对指针本身赋值
+ 10     return 0;
+ 11 }
+
+
+const在声明变量时有四种用法： 
+int x = 10;int y ＝ 11. 
+const int a ＝ 0；意思变量a的值是不可改变的。 
+ 
+const int *b ＝ &x；叫指向常量的指针。意思是不能通过指针b来改变变量x的值，（但如果x是可变的，则可以用变量名x来改变变量的实际值）。 
+ 
+int * const c ＝&x；是常量指针。意思是指针c的指向不可以改变（即不能再让指针c指向变量y），但可以通过指针c改变变量x的值。 
+ 
+const int *const d = &x；是指向常量的常量指针。意思是既不能改变指针d的指向，也不能通过指针d改变变量x的值。 
+ 
+C中指针是很重要的，但也是最难的。
+
+
+int* const x=&d； 
+现在它读成“ x是一个指针，这个指针是指向i n t的const指针”。因为现在指针本身是const指针， 
+编译器要求给它一个初始化值，这个值在指针寿命期间不变。然而要改变它所指向的值是可以 
+的，可以写* x = 2； 
+
+
+
+数组作为函数形式参数使用的时候真正的形式参数其实是一个指针
+
+使用指针作为函数的形式参数可以让被调用函数使用其他函数提供的存储区
+
+演示：
+    1.编写函数生成一张彩票（采用指针作为形式参数）         ------------
+
+
+/*
+   指针形式参数演示                 ???????????????????????????
+   */
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+void create(int *p_num, int size) {
+	int num = 0;
+	for (num = 0;num <= size - 1;num++) {
+		*(p_num + num) = rand() % 36 + 1;
+	}
+}
+int main() {
+	int arr[7] = {}, num = 0;
+	srand(time(0));
+	create(arr, 7);
+	for (num = 0;num <= 6;num++) {
+		printf("%d ", arr[num]);
+	}
+	printf("\n");
+	return 0;
+}
+
+
+如果函数有一个指针类型的形式参数，而且函数内部不会修改指针形式参数所捆绑的存储区时要在指针形式参数前加const关键字
+
+
+各种地址数据都可以作为实际参数和指针类型形式参数配合使用，不一定非得是数组名称
+
+ 练习
+     1.编写函数交换主函数中两个变量的内容                   ---------------   
+
+
+/*
+   交换变量内容练习
+   */
+#include <stdio.h>
+void swap(int *p_num, int *p_num1) {
+	int tmp = *p_num;                         
+	*p_num = *p_num1;
+	*p_num1 = tmp;
+}
+int main() {
+	int num = 3, num1 = 7;
+	swap(&num, &num1);
+	printf("num是%d,num1是%d\n", num, num1);
+	return 0;
+}
+
+
+
+
+
+无类型指针通常作为函数的形式参数使用
+
+
+指针类型也可以作为函数的返回值使用，这种情况下可以通过一个返回值事实上把多个数据传递给调用函数	
+
+
+绝对不可以把局部变量的地址赋值给指针类型的返回值存储区（这是由局部变量的生命周期决定的）
+
+
+/*
+   无类型指针作为函数形式参数演示
+   */
+#include <stdio.h>
+void print(const void *p_v, int type) {                            ?????????????????
+	if (type == 1) {
+		printf("%c\n", *(char *)p_v);
+	}
+	else if (type == 2) {
+		printf("%d\n", *(int *)p_v);
+	}
+	else {
+		printf("%g\n", *(float *)p_v);
+	}
+}
+int main() {
+	int num = 4;
+	float fnum = 5.23f;
+	char ch = 't';
+	print(&ch, 1);
+	print(&num, 2);
+	print(&fnum, 3);
+	return 0;
+}
+
+
+
+
+c语言中使用字符串记录文字信息
+
+字符串是由一组连续的字符类存储区构成的
+
+字符串中必须有某个字符类型存储区记录‘\0’字符，这个字符的ASCII码就是数字0
+
+这个字符表示字符串里所有文字信息的结束位置，这个字符前的内容都是有效的文字信息，后面的内容都是无效的
+
+所有字符串都可以使用一个char *类型指针表示，只要这个指针和第一个字符类型存储区捆绑
+
+
+字符串字面值是一种字符串，他们用一对双引号中间的一组字符表示      如“abc”,"^%&"等
+
+编译器在编译字符串字面值的时候自动在后面加上‘\0’字符
+
+编译器还会把字符串字面值替换成第一个字符存储区的地址
+
+  1 /*
+  2    字符串演示
+  3    */
+  4 #include<stdio.h>
+  5 int main () {
+  6     printf ("%p\n","abc");
+  7     return 0;
+  8 }
+
+
+
+  1 /*
+  2    字符串演示
+  3    */
+  4 #include<stdio.h>
+  5 int main () {
+  6     printf ("%p\n","abc");
+  7     printf ("%c\n",*"abc");               ??????????
+  8     return 0;
+  9 }
+
+
+  1 /*
+  2    字符串演示
+  3    */
+  4 #include<stdio.h>
+  5 int main () {
+  6     printf ("%p\n","abc");
+  7     printf ("%c\n",*"abc");
+  8     printf("%hhd\n",*("abc" + 3));              ?????????/
+  9     return 0;
+ 10 }
+~                                                                               
+~                                                                               
+~                     
+
+
+  1 #include<stdio.h>                                ??????????????????????????????????????????????????????
+  2 int main (void) {
+  3     printf ("%p\n","abc");
+  4     printf ("%c\n","abc");
+  5     printf ("%c\n",*"abc");
+  6     printf ("%hhd\n",*"abc");
+  7     printf ("%hhd\n",*("abc" + 4));
+  8     return 0;
+  9 }
+
+
+
+字符串字面值里面的所有存储区在程序运行的时候被放在一个专门的段落里，这个段落内部的所有存储区在程序运行的时候不可以修改
+
+如果程序中包含多个内容一样的字符串字面值则在程序运行的时候计算机只会分配一份
+
+如果两个字符串字面值并列写在一起则编译器会把他们合并成一个字符串字面值
+
+
+  1 /*
+  2    字符串演示
+  3    */
+  4 #include<stdio.h>
+  5 int main () {
+  6     printf ("%p\n","abc");   **
+  7     printf ("%p\n","abc");   ** 
+  8     printf ("%p\n","abc");   **
+  9     printf ("%p\n","abc");   **
+ 10     printf ("%c\n",*"abc");
+ 11     printf("%hhd\n",*("abc" + 3));
+ 12     return 0;
+ 13 }
+~                                                                               
+~                                                                               
+~                              
+
+  1 /*
+  2    字符串演示
+  3    */
+  4 #include<stdio.h>
+  5 int main () {
+  6     printf ("%p\n","abc");
+  7     printf ("%p\n","abc");
+  8     printf ("%p\n","abc");
+  9     printf ("%p\n","ab""c");    ***
+ 10     printf ("%c\n",*"abc");
+ 11     printf("%hhd\n",*("abc" + 3));
+ 12     return 0;
+ 13 }
+
+
+可以使用字符数组表示字符串
+
+如果要使用字符数组表示字符串就必须在程序中保证字符数组包含‘\0’字符
+
+可以使用字符串字面值对字符数组进行初始化
+这个时候字符串字面值最后的‘\0’字符也会被初始化到字符数组中
+
+  1 /*
+  2    字符串演示
+  3    */
+  4 #include<stdio.h>
+  5 int main () {
+  6     char str[] = "xyz";
+  7     //char str[3] = "xyz";     错误，一共3个存储区
+  8     printf ("%p\n","ab""c");
+  9     printf ("%c\n",*"abc"); 
+ 10     printf("%hhd\n",*("abc" + 3));
+ 11     printf ("sizeof(str)是%d\n",sizeof(str));
+ 12     return 0;
+ 13 }
+
+
+使用字符串字面值对字符数组进行完初始化后他们的存储区之间完全无关，仅仅是内容一样
+
+使用字符数组表示的字符串在程序运行的时候可以修改
+
+不可以使用操作符对字符串进行操作，必须使用标准函数
+
+为了使用这些标准函数必须包含string.h文件
+
+  strlen     用来统计一个字符串里有效字符个数
+
+  1 /* 
+  2    字符串标准函数
+  3    */
+  4 #include<stdio.h>
+  5 #include<string.h>
+  6 int main () {
+  7     printf ("有效字符个数是%d\n",strlen("abc"));
+  8     return 0;
+  9 }
+                 45
+strcat    合并               
+
+  1 /*
+  2    字符串标准函数
+  3    */
+  4 #include<stdio.h>
+  5 #include<string.h>
+  6 int main () {
+  7     char str[20] = "abc";
+  8     printf ("合并结果是%s\n",strcat(str,"xyz"));
+  9     printf ("合并结果是%s\n",str);
+ 10     return 0;
+ 11 }
+
+合并结果记录在第一个参数代表的数组里，他的返回值就是第一个参数所代表的数组
+这个函数会修改字符数组的内容
+这个函数有可能使用数组以外的存储区，这有可能导致严重错误
+
+strncat        功能和strcat类似
+
+多了一个整数类型参数，用来表示字符数组中有多少个空的存储区
+
+如果使用得当可以避免超过数组范围
+
+
+strcmp         用来比较两个字符串的大小
+
+把两个字符串中对应位置上的字符配对比较，比较的依据是字符的ASCII码
+返回值表示比较结果，1表示前一个字符串大，-1表示后一个字符串大，0表示一样大
+这个函数不会修改字符串内容
+
+  4 #include<stdio.h>
+  5 #include<string.h>
+  6 int main () {
+  7     printf ("比较结果是%d\n",strcmp("abc","abd"));
+  8     return 0;
+  9 }
+
+strncmp        功能和strcmp类似
+          
+可以只比较前几个字符（个数由一个整数类型参数决定）
+
+
+strcpy          把一个字符串复制到一个字符数组里
+
+第一个参数代表一个字符数组，第二个参数代表一个字符串，把第二个参数的内容复制到第一个参数所代表的数组里，可以用来代表复制后的新字符串
+
+这个函数也可能超过数组范围
+
+strncpy          功能和strcpy类似
+
+比strcpy多了一个整数类型参数用来表示最多可以复制多少个字符数据
+
+
+  4 #include<stdio.h>
+  5 #include<string.h>
+  6 char str[20] = "abc";
+  7 int main () {
+  8     printf ("复制结果是%s\n",strcpy(str,"qewdt"));
+  9     printf ("复制结果是%s\n",str);
+ 10     return 0;
+ 11 }
+
+
+从键盘得到的字符串必须记录在一个数组里
+
+在scanf函数调用语句中用%s做占位符可以把键盘上输入的内容作为字符串记录到数组里
+
+这个时候要用数组名称和%s占位符配合使用
+
+  1 /*
+  2    字符串演示
+  3    */
+  4 #include<stdio.h>
+  5 int main () {
+  6     char str[10] = {};
+  7     printf ("请输入一个字符串");
+  8     scanf ("%s",str);
+  9     printf ("%s\n",str);
+ 10     return 0;
+ 11 }
+
+这种方法只能获得空格前面输入的内容并且有可能超过数组的范围
+
+
+
+fgets函数也可以从键盘得到字符串
+
+这个函数需要三个参数
+1.字符数组名称
+2.字符数组中存储区个数
+3.用stdin表示从键盘得到字符串
+
+  1 /*
+  2    字符串演示
+  3    */
+  4 #include<stdio.h>
+  5 int main () {
+  6     char str[10] = {};
+  7     printf ("请输入一个字符串");
+  8     fgets(str,10,stdin);
+  9     printf ("%s\n",str);             //第十个是\0
+ 10     return 0;
+ 11 }
+
+如果输入内容不能把字符数组充满则会把用户最后输入的\n字符也记录到字符数组里
+
+如果用户输入的数据过多则必须把多余的数据清理掉
+
+应该使用一个分支完成清理工作
+
+
+  1 /*
+  2    字符串演示
+  3    */
+  4 #include<stdio.h>
+  5 #include<string.h>
+  6 int main () {
+  7     char str[10] = {};
+  8     printf ("请输入一个字符串");
+  9     fgets(str,10,stdin);
+ 10     if (strlen(str) == 9 && str[8] != '\n') {
+ 11         scanf("%*[^\n]");
+ 12         scanf("%*c");
+ 13     }
+ 14     printf ("%s\n",str);
+ 15     return 0;
+ 16 }
+
+
+练习：
+    编写mystrlen的函数实现strlen函数的所有功能
+
+/*
+   mystrlen练习
+   */
+#include <stdio.h>
+int mystrlen(const char *src) {
+	int pos = 0;
+	/*while (*(src + pos)) {
+        pos++;
+	}*/
+	while (1) {
+		if (*(src + pos)) {
+			pos++;
+		}
+		else {
+			break;
+		}
+	}
+	return pos;
+}
+int main() {
+	printf("有效字符个数是%d\n", mystrlen("abcxyz"));
+	return 0;
+}
+
+
+
+
+预习：
+    1.字符串
+    2.指针数组和二级指针
+    3.文件操作
+
+
+作业：
+
+    1.编写函数把一个数组的所有内容前后颠倒（假设数组中原有内容是1 2 3 4 5 ，颠倒后的内容是5 4 3 2 1 ）使用指针实现
+
+    2.编写mystrcat函数实现strcat函数的所有功能
+
+
+/*
+   颠倒数组内容作业                                        ????????????????
+   */
+#include <stdio.h>
+int *reverse(int *p_num, int size) {
+	int *p_first = p_num;
+	int *p_last = p_num + size - 1;
+	while (p_first < p_last) {
+		int tmp = *p_first;
+		*p_first = *p_last;
+		*p_last = tmp;
+		p_first++;
+		p_last--;
+	}
+	return p_num;
+}
+int main() {
+	int arr[] = {1, 2, 3, 4, 5}, num = 0;
+    int *p_num = reverse(arr, 5);
+    for (num = 0;num <= 4;num++) {
+		printf("%d ", *(p_num + num));
+		printf("%d ", arr[num]);
+	}
+	printf("\n");
+	return 0;
+}
+
+
+
+
+/*
+   mystrcat作业
+   */
+#include <stdio.h>
+char *mystrcat(char *p_dest, const char *p_src) {
+	char *p_dest1 = p_dest;
+	const char *p_src1 = p_src;
+	//查找'\0'字符所在位置
+	while (*p_dest1) {
+		p_dest1++;
+	}
+    //拷贝所有字符
+	while (*p_src1) {
+        *p_dest1 = *p_src1;
+		p_src1++;
+		p_dest1++;
+	}
+	*p_dest1 = 0;
+	return p_dest;
+}
+int main() {
+	char str[10] = "abc";
+	printf("%s\n", mystrcat(str, "xyz"));
+	printf("%s\n", str);
+	return 0;
+}
+
+
+
+
+
+
+
+
+
+
+

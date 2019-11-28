@@ -1,0 +1,532 @@
+今天内容：
+（1）文件的非读写函数
+（2）目录操作
+（3）进程和多进程的初识
+
+1.文件的非读写函数
+1.1fcntl函数
+（1）F_SETLK - 加锁/解锁
+练习：
+    vi 01lock.c 对文件a.txt中钱10个字节加读锁，占用20秒之后结束进程
+
+总结：
+    加完读锁之后还是可以向文件中写入数据内容的，结果说明锁是独立于文件的，并没有真正锁定对文件的读写操作，也就是该锁只能锁定其它的锁，也就是说可以导致其他进程加锁失败
+
+问题：
+    如何使用文件锁控制文件的读写操作
+
+解决方案：
+    一般来说，可以使用文件锁能否加上来间接的控制文件的读写操作，也就是说可以在读操作之前尝试加读锁，在写操作之前尝试加写锁
+
+释放锁的方式：
+    a.进程结束时，自动释放所有锁
+    b.将锁的类型l_type = F_UNLCK，使用fcntl重新设置
+
+（2）F_SETLKW - 表示加锁，加不上则等待，直到加上为止
+
+  1 //F_SETLKW参数的使用
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 #include<sys/types.h>
+  6 #include<sys/stat.h>
+  7 #include<fcntl.h>
+  8 int main () {
+  9     //1打开文件
+ 10     int fd = open("a.txt",O_RDWR);
+ 11     if (-1 == fd) {
+ 12         perror("open"),exit(-1);
+ 13     }
+ 14     printf ("打开文件成功\n");
+ 15     //2准备一把锁
+ 16     struct flock lock;
+ 17     lock.l_type = F_WRLCK;
+ 18     lock.l_whence = SEEK_SET;
+ 19     lock.l_start = 0;
+ 20     lock.l_len = 10;
+ 21     lock.l_pid = -1;
+ 22     //3进行枷锁，家补上则等待
+ 23     int res = fcntl(fd,F_SETLKW,&lock);
+ 24     if (-1 == res) {
+ 25         perror("fcntl"),exit(-1);
+ 26     }
+ 27     printf ("那边总算把锁打开了,这里枷锁成功\n");
+ 28     //4关闭文件
+ 29     close(fd);
+ 30     return 0;
+ 31 }
+
+（3）F_GETLK函数
+   表示使用第三个参数指定的锁去取代文件上已有的锁，如果可以加上参数锁则不去加锁，而是将参数锁的类型改为F_UNLCK，如果不能加上参数锁，则将文件上已有的锁信息通过参数带出来，l_pid为真正给文件加锁的进程号
+
+ 1 #include<stdio.h>
+  2 #include<stdlib.h>
+  3 #include<unistd.h>
+  4 #include<sys/types.h>
+  5 #include<sys/stat.h>
+  6 #include<fcntl.h>
+  7 int main () {
+  8     //1打开文件
+  9     int fd = open("a.txt",O_RDWR);
+ 10     if (-1 == fd) {
+ 11         perror("open"),exit(-1);
+ 12     }
+ 13     printf ("打开文件成功\n");
+ 14     //2准备一把锁
+ 15     struct flock lock;
+ 16     lock.l_type = F_RDLCK;
+ 17     lock.l_whence = SEEK_SET;
+ 18     lock.l_start = 0;
+ 19     lock.l_len = 10;
+ 20     lock.l_pid = -1;
+ 21     //3测试当前锁能否加上
+ 22     int res = fcntl(fd,F_GETLK,&lock);
+ 23     if (-1 == res) {
+ 24         perror("fcntl"),exit(-1);
+ 25     }
+ 26     printf ("F_RDWR = %d,F_WRLCK = %d,F_UNLCK = %d\n",F_RDLCK,F_WRLCK,F_UNLCK);
+ 27     if (-1 == lock.l_pid) {
+ 28         printf ("可以加当前锁,当前锁的类型时%d\n",lock.l_type);//F_UNLCK
+ 29     }
+ 30     else {
+ 31         printf ("无法加当前锁，当前锁的类型是%d\n,进程号是%d\n",lock.l_type,lock.l_pid);
+ 32     }
+ 33     //4关闭文件
+ 34     close(fd);
+ 35     return 0;
+ 36 }
+
+
+  1 #include<stdio.h>
+  2 #include<stdlib.h>
+  3 #include<unistd.h>
+  4 #include<sys/types.h>
+  5 #include<sys/stat.h>
+  6 #include<fcntl.h>
+  7 int main () {
+  8     printf ("pid = %d\n",getpid());
+  9     int fd = open("a.txt",O_RDWR);
+ 10     if (-1 == fd) {
+ 11         perror("open"),exit(-1);
+ 12     }
+ 13     printf ("打开成功\n");
+ 14     struct flock lock;
+ 15     lock.l_type = F_RDLCK;
+ 16     lock.l_whence = SEEK_SET;
+ 17     lock.l_start = 0;
+ 18     lock.l_len = 10;
+ 19     lock.l_pid = -1;
+ 20     int res = fcntl(fd,F_SETLK,&lock);
+ 21     if (-1 == res) {
+ 22         perror("fcntl"),exit(-1);
+ 23     }
+ 24     printf ("枷锁成功开始操作文件\n");
+ 25     sleep(20);
+ 26     printf ("操作文件结束，进程结束\n");
+ 27     close(fd);
+ 28     return 0;
+ 29 }
+
+1.2 stat/fstat函数
+
+       #include <sys/types.h>
+       #include <sys/stat.h>
+       #include <unistd.h>
+       int stat(const char *path, struct stat *buf);
+       int fstat(int fd, struct stat *buf);
+
+第一个参数：文件路径和文件名/文件描述浮
+第二个参数：结构特指针，用于将获取的信息带出去
+函数功能：  获取文件的详细信息
+
+ struct stat {
+               dev_t     st_dev;     /* ID of device containing file */
+               ino_t     st_ino;     /* inode number */
+               mode_t    st_mode;    /* protection */
+               nlink_t   st_nlink;   /* number of hard links */
+               uid_t     st_uid;     /* user ID of owner */
+               gid_t     st_gid;     /* group ID of owner */
+               dev_t     st_rdev;    /* device ID (if special file) */
+               off_t     st_size;    /* total size, in bytes */
+               blksize_t st_blksize; /* blocksize for file system I/O */
+               blkcnt_t  st_blocks;  /* number of 512B blocks allocated */
+               time_t    st_atime;   /* time of last access */
+               time_t    st_mtime;   /* time of last modification */
+               time_t    st_ctime;   /* time of last status change */
+           };
+
+要求熟悉：
+    
+
+
+  1 #include<stdio.h>
+  2 #include<stdlib.h>
+  3 #include<unistd.h>
+  4 #include<sys/types.h>
+  5 #include<sys/stat.h>
+  6 #include<fcntl.h>
+  7 #include<time.h>
+  8 int main () {
+  9     struct stat st = {0};
+ 10     int res = stat("a.txt",&st);
+ 11     if (-1 == res) {
+ 12         perror("stat"),exit(-1);
+ 13     }
+ 14     //__off_t  __time_t本质都是long int
+ 15     printf ("文件的类型和权限是%o\n",st.st_mode);
+ 16     printf ("文件的大小是%ld\n",st.st_size);
+ 17     printf ("文件的最后一次修改时间是%ld\n",st.st_mtime);
+ 18     printf ("--------------------------------------------\n");
+ 19     printf ("文件的权限是%o\n",st.st_mode&0777);
+ 20     printf ("文件的最后一次修改时间是%s\n",ctime(&st.st_mtime));
+ 21     if (S_ISREG(st.st_mode)) {
+ 22         printf("该文件是一个普通文件\n");
+ 23     }
+ 24     if (S_ISDIR(st.st_mode)) {
+ 25         printf("该文件是一个目录\n");
+ 26     }
+ 27     return 0;
+ 28 }
+
+
+
+扩展：
+      #include <time.h>
+      char *ctime(const time_t *timep);
+=>   主要用于将整数类型的时间转换成字符串类型的时间
+
+      struct tm *localtime(const time_t *timep);
+=>   主要用于将整数类型的时间转换位结构体指针类型
+
+struct tm {
+               int tm_sec;         /* seconds */             秒数
+               int tm_min;         /* minutes */             分钟
+               int tm_hour;        /* hours */               小时
+               int tm_mday;        /* day of the month */    天数
+               int tm_mon;         /* month */               月份  +1
+               int tm_year;        /* year */                年份  +1900
+               int tm_wday;        /* day of the week */     星期  +1
+               int tm_yday;        /* day in the year */     一年中的天数  +1
+               int tm_isdst;       /* daylight saving time */夏令时
+           };
+
+  
+1.3 access函数    
+       #include <unistd.h>
+       int access(const char *pathname, int mode);
+
+第一个参数：文件的路径和文件名
+第二个参数：操作模式
+         R_OK - 可读
+         W_OK - 可写
+         X_OK - 可执行
+         F_OK - 是否存在
+函数功能：
+       测试文件的权限和存在性
+
+  1 //access的使用
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 int main () {
+  6     if (0 == access("a.txt",R_OK)) {
+  7         printf("该文件可读\n");
+  8     }
+  9     if (0 == access("a.txt",W_OK)) {
+ 10         printf ("该文件可写\n");
+ 11     }
+ 12     if (0 == access("a.txt", X_OK)) {
+ 13         printf ("该文件可执行\n");
+ 14     }
+ 15     if (0 == access("a.txt",F_OK)) {
+ 16         printf ("该文件确实存在\n");
+ 17     }
+ 18     return 0;
+ 19 }
+
+1.4 chmod 函数和truncate 函数
+
+       #include <sys/stat.h>
+       int chmod(const char *path, mode_t mode);
+       int fchmod(int fd, mode_t mode);
+第一个参数：文件路径和文件名/文件描述浮
+第二个参数：指定八进制的权限即可，如：0644
+函数功能：修改指定文件的权限
+
+
+       #include <unistd.h>
+       #include <sys/types.h>
+       int truncate(const char *path, off_t length);
+       int ftruncate(int fd, off_t length);
+第一个参数：文件路径文件名/文件描述浮
+第二个参数：文件的指定大小
+函数功能：将指定的文件大小修改为length指定的大小
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+1.5 umask 函数
+
+       #include <sys/types.h>
+       #include <sys/stat.h>
+       mode_t umask(mode_t mask);
+函数功能：
+         表示通过参数设置新的文件创建时的权限屏蔽字，返回旧的权限屏蔽字 
+
+  1 //umask函数的使用
+  2 #include<stdio.h>
+  3 #include<unistd.h>
+  4 #include<sys/types.h>
+  5 #include<sys/stat.h>
+  6 #include<stdlib.h>
+  7 #include<fcntl.h>
+  8 int main () {
+  9     //使用umask函数设置新的权限屏蔽字
+ 10     mode_t old = umask(0055);
+ 11     printf("old = %o\n",old);//0002
+ 12     //1创建心文件,系统默认屏蔽权限 0002，
+ 13     //其中屏蔽的权限002叫权限屏蔽字
+ 14     int fd = open("b.txt",O_CREAT|O_RDWR,0777);
+ 15     if (-1 == fd) {
+ 16         perror("open"),exit(-1);
+ 17     }
+ 18     printf ("打开文件成功\n");
+ 19     //回复系统默认的权限屏蔽字
+ 20     //umask的设置只是针对文件的创建生效***
+ 21     umask(old);
+ 22     //关闭文件
+ 23     close(fd);
+ 24     return 0;
+ 25 }
+
+1.6 mmap 和 munmap 函数
+ =>  主要用于建立/解除 虚拟地址到文件的映射
+
+
+
+//使用mmap函数建立从虚拟地址到文件的映射
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <string.h>
+
+//定义员工信息结构体
+typedef struct
+{
+	int id;//员工编号
+	char name[20];//员工姓名
+	double salary;//员工薪水
+}Emp;
+
+int main(void)
+{
+	//1.创建文件，并且指定文件的大小
+	int fd = open("emp.dat",O_CREAT|O_EXCL|O_RDWR,0666);
+	if(-1 == fd)
+	{
+		perror("open"),exit(-1);
+	}
+	//使用ftruncate函数指定文件的大小
+	ftruncate(fd,3*sizeof(Emp));
+	//2.建立虚拟地址到文件的映射
+	void* p = mmap(NULL,//由内核指定
+			3*sizeof(Emp),//映射的大小
+			PROT_READ|PROT_WRITE,//可读可写
+			MAP_SHARED,//共享的
+			fd,//文件描述符
+			0//文件中的偏移量 
+		);
+	if(MAP_FAILED == p)
+	{
+		perror("mmap"),exit(-1);
+	}
+	//3.采用虚拟地址来写入数据到文件
+	Emp* pe = p;
+	// int arr[5]; arr[0];
+	// int* pe = arr; pe[0]
+	pe[0].id = 1001;
+	strcpy(pe[0].name,"zhangfei");
+	pe[0].salary = 3000;
+
+	pe[1].id = 1002;
+	strcpy(pe[1].name,"guanyu");
+	pe[1].salary = 4000;
+	
+	pe[2].id = 1003;
+	strcpy(pe[2].name,"liubei");
+	pe[2].salary = 5000;
+	//4.关闭文件 并且解除映射
+	munmap(p,3*sizeof(Emp));
+	close(fd);
+	//练习:vi 10mmapB.c 采用映射的方式将文件内容打印出来
+	return 0;
+}
+
+
+
+  1 // 采用映射的方式读取文件中的内容
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 #include<sys/types.h>
+  6 #include<sys/stat.h>
+  7 #include<fcntl.h>
+  8 #include<sys/mman.h>
+  9 #include<string.h>
+ 10 #include<sys/mman.h>
+ 11 typedef struct {
+ 12     int id;
+ 13     char name[20];
+ 14     double salary;
+ 15 } Emp;
+ 16 int main () {
+ 17     //1打开文件
+ 18     int fd = open("emp.dat",O_RDWR);
+ 19     if (-1 == fd) {
+ 20         perror("open"),exit(-1);
+ 21     }
+ 22     //2建立虚拟地址到文件的映射
+ 23     void *p = mmap(NULL,3 * sizeof(Emp),PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
+ 24     if (MAP_FAILED == p) {
+ 25         perror("mmap"),exit(-1);
+ 26     }
+ 27     //3通过虚拟地址打印文件内容
+ 28     Emp *pe = p;
+ 29     int i = 0;
+ 30     for (i = 0;i < 3;i++) {
+ 31         printf ("%d,%s,%lf\n",pe[i].id, pe[i].name, pe[i].salary);
+ 32     }
+ 33     //4解除映射，关闭文件
+ 34     munmap(p,3 * sizeof(Emp));
+ 35     close(fd);
+ 36     return 0;
+ 37 }
+
+其他函数：
+link()  -  创建连接的函数
+unlink() - 删除连接的函数
+rename() - 重命名的函数
+remove() - 删除文件的函数
+
+
+2.目录的基本操作
+2.1 opendir函数
+
+       #include <sys/types.h>
+       #include <dirent.h>
+       DIR *opendir(const char *name);
+函数功能：
+    表示打开参数name指定的目录，返回DIR类型的指针，失败返回NULL；
+
+2.2 readdir 函数
+
+       #include <dirent.h>
+       struct dirent *readdir(DIR *dirp);
+函数功能：
+       表示根据参数指定的位置读取目录中的内容，成功返回一个struct dirent类型的指针，失败返回NULL；
+
+           struct dirent {
+               ino_t          d_ino;       /* inode number */                i节点编号
+               off_t          d_off;       /* offset to the next dirent */   偏移量
+               unsigned short d_reclen;    /* length of this record */       记录的大小
+               unsigned char  d_type;      /* type of file; not supported    文件类型
+                                              by all file system types */   
+               char           d_name[256]; /* filename */                     文件名称
+           };
+
+
+
+要求熟悉：d_type;d_name
+
+  
+
+  1 //目录的基本操作
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<sys/types.h>
+  5 #include<dirent.h>
+  6 int main () {
+  7     //1打开目录
+  8     DIR *dir = opendir("../day06");
+  9     if (NULL == dir) {
+ 10         perror("opendir"),exit(-1);
+ 11     }
+ 12     //2读取目录中的内容进行打印
+ 13     struct dirent *ent = readdir(dir);
+ 14     while (ent != NULL) {
+ 15         //目录；类型是4，普通文件类型是8
+ 16         printf("%d,%s\n",ent->d_type, ent->d_name);
+ 17         //读取下一个
+ 18         ent = readdir(dir);                 ???????????????
+ 19     }
+ 20     return 0;
+ 21 }
+
+2.3其他目录操作函数
+getcwd()  -  获取当前程序所在的工作目录
+mkdir()   -  创建一个目录
+rmdir()   -  删除一个目录
+chdir()   -  切换目录
+...
+
+作业：
+     采用递归的思想打印目录中的内容，要求子目录中的内容也要打印出来
+
+  1 //递归便利目录中的所有内容
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 #include<dirent.h>
+  6 #include<string.h>
+  7 void print(char *path) {
+  8     //1打开目录
+  9     DIR *dir = opendir(path);
+ 10     if (NULL == dir) {
+ 11         return;
+ 12     }
+ 13     //2读取目录中的内容
+ 14     struct dirent *ent;
+ 15     while ((ent = readdir(dir)) != NULL) {
+ 16     //2.1如果是目录，先打印，再递归
+ 17     if (4 == ent->d_type) {
+ 18         printf("[%s]\n",ent->d_name);
+ 19         //跳过. .. 这两个特殊的目录
+ 20         if (!strcmp(ent->d_name,".") || !strcmp(ent->d_name,"..")) {
+ 21             continue;//读取下一个内容
+ 22         }
+ 23         //拼接新的路径
+ 24         char buf[100] = {0};
+ 25         sprintf(buf,"%s/%s",path,ent->d_name);
+ 26         //递归调用
+ 27         print(buf);
+ 28     }
+ 29     //2.2如果是普通文件，直接打印
+ 30     if (8 == ent->d_type) {
+ 31         printf("%s\n",ent->d_name);
+ 32     }
+ 33     }
+ 34 }
+ 35 int main () {
+ 36     print("../day02");
+ 37 }
+                                                                                               1,1          顶端
+
+
+提示：
+    void peint(char *path) {
+     //1打开目录
+     //2读取目录中的内容
+     //3判断是文件还是目录
+     //3.1如果是文件则直接打印
+     //3.2如果是目录先打印在递归，注意避免 . 和 ..
+  }  
+   int  main  () {
+     printf("../../day02");
+   }
+
+
+编写一个函数generator_id(),要求该函数模拟自动生成帐号的功能，帐号默认从100000开始，依次递增

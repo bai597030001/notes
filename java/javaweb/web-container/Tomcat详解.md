@@ -94,11 +94,9 @@ tomcat的组件主要包括:
 
   engine在tomcat中的实现类是：StandardEngine
 
-- host： 代表一个站点，也可以叫虚拟主机 ，一个host对应一个网络域名，一个Host可以配置多个Context，在server.xml文件中的默认配置为, 其中
+- host： 代表一个站点，也可以叫虚拟主机 ，一个host对应一个网络域名，一个Host可以配置多个Context，在server.xml文件中的默认配置为, 其中一个Engine包含多个Host的设计，使得一个服务器实例可以承担多个域名的服务，是很灵活的设计。
 
-  一个Engine包含多个Host的设计，使得一个服务器实例可以承担多个域名的服务，是很灵活的设计。
-
-- host在tomcat中的实现类是：StandardHost
+  host在tomcat中的实现类是：StandardHost
 
 - context：代表一个应用程序，就是日常开发中的web程序，或者一个WEB-INF目录以及下面的web.xml文件，换句话说每一个运行的webapp最终都是以Context的形式存在，每个Context都有一个根路径和请求路径；与Host的区别是Context代表一个应用，如，默认配置下webapps下的每个目录都是一个应用，其中ROOT目录中存放主应用，其他目录存放别的子应用，而整个webapps是一个站点。 
 
@@ -305,7 +303,7 @@ StandardServer类initInternal()方法：
 protected void initInternal() throws LifecycleException {
 
     super.initInternal();
-    ...省略很多，但是主要的在下面...
+    // ...省略很多，但是主要的在下面...
     // Initialize our defined Services
     for (int i = 0; i < services.length; i++) {
         //调用services的init
@@ -524,14 +522,14 @@ StandardEngine的startInternal()调用ContainerBase的startInternal()
 @Override
 protected synchronized void startInternal() throws LifecycleException {
 
-    ......
+    // ......
     // Start our child containers, if any
     Container children[] = findChildren();
     List<Future<Void>> results = new ArrayList<>();
     for (int i = 0; i < children.length; i++) {
         results.add(startStopExecutor.submit(new StartChild(children[i])));
     }
-    ......
+    // ......
 }
 ```
 

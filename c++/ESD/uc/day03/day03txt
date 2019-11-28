@@ -1,0 +1,354 @@
+今天内容：
+1.环境表和主函数原型
+2.内存管理技术
+
+1.环境表和主函数原型
+1.1环境表的概念
+   环境表 - 各种环境变量的集合
+如：PATH = ...:. 
+    CPATH = ...:.  
+    LIBRARY_PATH = ...:.  
+    LD_LIBRARY_PATH ...
+    ...
+
+C语言中表示字符串的形式如下：
+""            常量字符串
+char str[20]  字符数组
+char *ps      字符指针
+
+环境表：采用字符指针数组来存放所有的环境变量，提供全局变量 char **environ 来记录环境表的首地址，最后使用一个NULL表示数组的结束标志
+
+  1 //打印环境表中的内容
+  2 #include<stdio.h>
+  3 int main () {
+  4     //声明存储环境表首地址的全局变量,找替身
+  5     extern char **environ;
+  6     char **p = environ;
+  7     while (*p != NULL) {
+  8         printf ("%s\n", *p);
+  9         //指向下一个元素
+ 10         p++;
+ 11     }
+ 12     //定义一个数组，将环境表中环境变量名为SHELL = 右边的值放到数组中，并且打印
+ 13     }
+ 14     return 0;
+ 15 }   
+
+
+  1 //打印环境表中的内容
+  2 #include<stdio.h>
+  3 #include<string.h>
+  4 int main () {
+  5     //声明存储环境表首地址的全局变量,找替身
+  6     extern char **environ;
+  7     char **p = environ;
+  8     /*while (*p != NULL) {
+  9         printf ("%s\n", *p);
+ 10         //指向下一个元素
+ 11         p++;
+ 12     }*/
+ 13     //定义一个数组，将环境表中环境变量名为SHELL = 右边的值放到数组中，并且打印
+ 14     char value[100] = {0};
+ 15     while (*p != NULL) {
+ 16         if (!strncmp(*p, "SHELL", 5)) {
+ 17             strcpy (value, *p + 6);
+ 18             break;
+ 19         }
+ 20         p++;
+ 21     }
+ 22     printf ("%s\n", value);
+ 23     return 0;
+ 24 }
+
+1.2相关的函数
+（1）  getenv函数
+       #include <stdlib.h>
+       char *getenv(const char *name);
+函数功能：
+       表示根据参数指定的环境变量名查找对应的环境变量值，查找成功通过返回值返回，查找失败返回NULL
+
+  1 //环境变量相关的函数介绍
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 int main () {
+  5     //获取环境变量SHELL所对应的值
+  6     char *ps = getenv("SHELL");
+  7     if (NULL == ps) {
+  8         perror("getenv"), exit(-1);
+  9     } 
+ 10     printf ("SHELL = %s\n", ps);
+ 11     return 0;
+ 12 }
+
+（2）setenv函数
+       #include <stdlib.h>
+       int setenv(const char *name, const char *value, int overwrite);
+第一个参数：环境变量名
+第二个参数：环境变量值
+第三个参数：是否修改，0表示不修改，非0表示修改
+返回值：修改/增加参数指定的环境变量到环境表中
+
+（3）unsetenv函数
+
+      int unsetenv(const char *name);
+函数功能：
+      表示从环境表中删除参数所指定的环境变量，如果不存在则函数调用依然成功，环境变量内容不发生改变
+
+（4）putenv函数
+     int putenv(char *string);
+函数功能：
+表示修改/增加参数指定的环境变量到环境表中，参数string的格式为"name=value"
+
+（5）clearenv函数
+     int clearenv(void);
+函数功能：
+表示清空环境表中所有的环境变量和对应的值，并且变量environ也置为NULL
+
+1.3主函数的原型
+   int main (int argc, char *argv[], char *envp[])
+第一个参数：argc 参数的个数
+第二个参数：argv 字符指针数组，存储每个参数的地址
+第三个参数：envp 字符指针数组，表示环境表的首地址，也就是相当于environ
+
+  1 //main函数原型的使用
+  2 #include<stdio.h>
+  3 int main (int argc, char *argv[], char *envp[]) {
+  4     printf ("参数个数是argc = %d\n", argc);
+  5     int i = 0;
+  6     for (i = 0; i < argc; i++) {
+  7         printf ("argv[%d] = %s\n", i, argv[i]);
+  8     }
+  9     return 0;
+ 10 }
+
+  1 //main函数原型的使用
+  2 #include<stdio.h>
+  3 int main (int argc, char *argv[], char *envp[]) {
+  4     printf ("参数个数是argc = %d\n", argc);
+  5     int i = 0;
+  6     for (i = 0; i < argc; i++) {
+  7         printf ("argv[%d] = %s\n", i, argv[i]);
+  8     }
+  9     //环境表的首地址
+ 10     extern char **environ;
+ 11     printf ("environ = %p\n", environ);
+ 12     printf ("envp = %p\n", envp);
+ 13     return 0;
+ 14 }
+
+作业：
+    编程实现上述的通用文件拷贝程序
+
+
+2.内存管理
+2.1程序和进程的概念
+  程序：表示放在硬盘上的可执行文件
+  进程：表示运行在内存中的程序
+
+2.2进程中的内存区域划分、
+如：
+   int num;        全局变量，默认初始化为0   BSS段
+   int main () {
+      int date;    局部变量，默认初始化为随机数   栈区
+      return 0;
+   }
+
+（1）代码区  -  主要存放代码的区域，也就是函数的地址等
+（2）只读常量区  -  主要存放字符串常量和const修饰的全局变量
+                 -  该区域只允许读，不允许修改
+（3）全局区  -  主要存放已初始化的全局变量和static修饰的局部变量
+（4）BSS段  -  主要存放未初始化的全局变量和static修饰的局部变量
+            -  一般来说，会在main函数执行之前进行清零处理
+（5）堆区  -  主要指malloc/calloc/realloc函数申请的内存区域
+           -  内存手动申请和释放
+（6）栈区  -  主要存放局部变量（包含函数的参数），const修饰的局部变量，以及块变量
+           -  内存自动申请和释放
+
+2.3内存区域的比较
+内存地址从小到大依次排序为：代码区，只读常量区，全局区，BSS段，堆区，栈区，
+其中对于堆区来说，一般分配的地址从小到大，而对于栈区来说，一般分配的地址从大到小，为了避免堆区和栈区产生重叠，而堆区和栈区没有明确的界线
+
+  1 //进程中内存区域的划分
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 int i1 = 10; //全局区
+  5 int i2 = 20;
+  6 int i3;     //BSS段
+  7 const int i4 = 40; //只读常量区
+  8 void fn(int i5) {   //栈区
+  9     int i6  = 60;  //栈区
+ 10     static int i7 = 70; //全局区
+ 11     const int i8 = 80;  //栈区
+ 12     //p1指向堆区，p1本身在栈区
+ 13     int *p1 = (int *)malloc(4);
+ 14     //p2指向堆区，p2本身在栈区
+ 15     int *p2 = (int *)malloc(4);
+ 16     //str指向只读常量区，str本身在栈区
+ 17     char *str = "good";
+ 18     char strs[] = "good";  //栈区
+ 19     printf ("只读常量区&i4 = %p\n", &i4);
+ 20     printf ("只读常量区str = %p\n", str);
+ 21     printf ("----------------------------------\n");
+ 22     printf ("全局段&i1 = %p\n", &i1);
+ 23     printf ("全局段&i2 = %p\n", &i2);
+ 24     printf ("全局段&i7 = %p\n", &i7);
+ 25     printf ("--------------------------------------\n");
+ 26     printf ("BSS段&i3 = %p\n", &i3);
+ 27     printf ("-------------------------------------\n");
+ 28     printf ("堆区p1 = %p\n", p1);
+ 29     printf ("堆区p2 = %p\n", p2);
+ 30     printf ("-----------------------------------------\n");
+ 31     printf ("栈区&i5 = %p\n", &i5);
+ 32     printf ("栈区&i6 = %p\n", &i6);
+ 33     printf ("栈区&i8 = %p\n", &i8);
+ 34     printf ("栈区strs = %p\n", strs);
+ 35 }
+ 36 int main () {
+ 37     printf ("代码区 fn = %p\n", fn);
+ 38     printf ("--------------------------------\n");
+ 39     fn (10);
+ 40     return 0;
+ 41 }
+
+
+  1 //使用不同的方式来存放字符串的比较
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<string.h>
+  5 int main () {
+  6     //ps1指向只读常量区，本身在栈区
+  7     char *ps1 = "abcd";
+  8     //str指向栈区，本身在栈区
+  9     char str[] = "abcd";
+ 10     //ps2指向栈区，本身在栈区
+ 11     char *ps2 = str;
+ 12     printf ("ps1 = %p\n", ps1);
+ 13     printf ("str = %p\n", str);
+ 14     printf ("ps2 = %p\n", ps2);
+ 15     return 0;
+ 16 }
+
+2.4不同形式字符串的比较
+对于指向常量字符串的字符指针来说，可以改变指针的指向，但是不可以改变指针指向的内容
+对于指向常量字符串的字符数组来说，可以改变字符数组中的内容，但是不可以改变数组名的指向
+对于指向堆区内存的指针来说，既可以改变指针的指向，也可以改变指针指向的内容
+ 1 //使用不同的方式来存放字符串的比较
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<string.h>
+  5 int main () {
+  6     //ps1指向只读常量区，本身在栈区
+  7     char *ps1 = "abcd";
+  8     //str指向栈区，本身在栈区
+  9     char str[] = "abcd";
+ 10     //ps2指向栈区，本身在栈区
+ 11     char *ps2 = str;
+ 12     printf ("ps1 = %p\n", ps1);
+ 13     printf ("str = %p\n", str);
+ 14     printf ("ps2 = %p\n", ps2);
+ 15     printf ("--------------------------------\n");
+ 16     printf ("&ps1 = %p\n", &ps1);
+ 17     printf ("&str = %p\n", &str);
+ 18     printf ("&ps2 = %p\n", &ps2);
+ 19     printf ("-------------------------------------\n");
+ 20     ps1 = "1234";
+ 21     //str = "1234";str是数组名，不可改变
+ 22     ps2 = "1234";
+ 23     printf ("ps1 = %p, ps2 = %p\n",ps1, ps2);
+ 24     printf ("---------------------------------------\n");
+ 25     //改变指向位置上对应的数据内容
+ 26     //strcpy(ps1, "cdef");//error,只读常量区
+ 27     strcpy(str, "cdef");
+ 28     //strcpy(ps2, "cdef");//error
+ 29     return 0;
+ 30 }
+
+
+        char *pc = (char *)malloc (10 * sizeof(char));
+ 31     //改变指针指向的内容
+ 32     strcpy(pc, "cdef");
+ 33     //改变指针的指向
+ 34     pc = "4567";
+
+
+2.5虚拟内存管理技术
+unix/linux系统中，一般都采用虚拟内存技术来管理内存，也就是：每个进程都有0~4G的虚拟空间（虚拟的，不是真实的内存），由操作系统负责将虚拟地址和真实的物理内存映射起来，因此，不同进程中的虚拟地址可能相同，但是对应的物理内存不同
+   其中0~3G的地址空间叫做用户空间，3~4G的地址空间叫做内核空间，用户程序一般都运行在用户空间，内存空间只有系统内核才可以访问，用户程序不能直接访问内核空间，但是内核提供了一些系统函数负责从用户空间切换到内核空间
+   内存地址的基本单位就是字节，内存映射的基本单位是内存页；目前主流的操作系统中，一个内存页就是4kb（4096字节）
+   1byte(字节) = 8bit(二进制位)
+   1kb = 1024byte
+   1M = 1024kb
+   1Gb = 1024Mb
+   1Tb = 1024Gb
+
+2.6段错误的由来
+（1）使用野指针和空指针
+（2）使用了没有经过映射的虚拟地址
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

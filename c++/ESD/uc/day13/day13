@@ -1,0 +1,55 @@
+网络通信
+一、网络与网络协议
+1.网络协议模型
+...
+二、本地通信
+服务器：创建套接字(socket, AF_LOCAL/AF_UNIX)
+              准备地址结构(sockaddr_un)并绑定(bind)
+              接收数据(read)
+              发送数据(write)
+              关闭套接字(close)
+客户机：创建套接字(socket, AF_LOCAL/AF_UNIX)
+              准备地址结构(sockaddr_un)并连接(connect)
+              发送数据(write)
+              接收数据(read)
+              关闭套接字(close)
+三、网络通信
+服务器：创建套接字(socket, AF_INET)
+              准备地址结构(sockaddr_in)并绑定(bind)
+              接收数据(read)
+              发送数据(write)
+              关闭套接字(close)
+客户机：创建套接字(socket, AF_INET)
+              准备地址结构(sockaddr_in)并连接(connect)
+              发送数据(write)
+              接收数据(read)
+              关闭套接字(close)
+四、TCP协议的基本特征
+1.TCP提供客户机和服务器的连接
+一个完整的TCP通信过程需要依次经历三个阶段：
+首先，客户机必须建立与服务器的连接，所谓虚电路
+其次，凭借已建立好的连接，通信双发相互交换数据
+最后，客户机与服务器双双终止连接，结束通信过程
+2.TCP保证数据传输的可靠性——超时重传
+3.TCP保证数据传输的有序性——不乱不重
+4.TCP提供流量控制
+5.TCP是一种流式传输协议，面向字节流，记录无边界
+定长记录
+不定长记录+特殊分隔符
+定长的记录长度+不定长记录
+6.TCP是全双工的
+五、TCP连接的建立——三路握手
+六、常用函数
+七、编程模型
+服务器                                     客户机
+创建套接字(socket)                创建套接字(socket)
+准备地址结构(sockaddr_in)   准备地址结构(sockaddr_in)
+绑定地址(bind)
+启动侦听(listen)
+等待连接(accept)                    请求连接(connect)
+接收请求(recv)        <-            发送请求(send)
+发送响应(send)        ->           接收响应(recv)
+关闭套接字(close)                   关闭套接字(close)
+
+
+

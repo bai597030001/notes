@@ -1,0 +1,351 @@
+今天内容：文件的相关操作
+1.文件的相关操作
+1.1文件的读写操作
+（5）lseek函数
+
+       #include <sys/types.h>
+       #include <unistd.h>
+
+       off_t lseek(int fd, off_t offset, int whence);
+
+
+第一个参数：文件描述浮
+第二个参数：偏移量
+第三个参数：从什么地方开始偏移
+           SEEK_SET  -  文件开头
+           SEEK_CUR  -  当前位置
+           SEEK_END  -  文件末尾,文件中最后一个元素的下一个位置
+返回值：成功返回当前位置到文件开头的偏移量，失败返回-1
+函数功能：
+         表示将fd指向的文件中读写位置修改到whence偏移offset个字节的位置上
+
+
+
+练习：
+    编写03writeemp.c文件，定义一个员工变量并且初始化，将该员工信息写入到文件03emp.dat中，员工信息有：员工ID，姓名，薪水；在编写一个03reademp.c文件，将文件emp.dat中的员工信息读取出来，然后打印出来
+
+  1 #include<stdio.h>
+  2 #include<stdlib.h>
+  3 #include<unistd.h>
+  4 #include<sys/types.h>
+  5 #include<sys/stat.h>
+  6 #include<fcntl.h>
+  7 //定义员工的结构体信息
+  8 typedef struct {
+  9     int id;
+ 10     char name[20];
+ 11     double salary;
+ 12 } Emp;
+ 13 int main () {
+ 14     //创建文件
+ 15     int fd = open("emp.dat",O_CREAT|O_EXCL|O_WRONLY,0666);
+ 16     if (-1 == fd) {
+ 17         perror("open"),exit(-1);
+ 18     }
+ 19     printf ("创建文件成功\n");
+ 20     //准备员工信息
+ 21     Emp emp = {1001,"张飞",3000};
+ 22     int res = write(fd,&emp,sizeof(emp));
+ 23     if (-1 == res) {
+ 24         perror("write"),exit(-1);
+ 25     }
+ 26     printf ("写入数据成功\n");
+ 27     //关闭文件
+ 28     close(fd);
+ 29     return 0;
+ 30 }
+
+
+1.2文件描述浮的概念
+    文件描述浮本质上就是一个非负整数，可以代表一个打开的文件，但是文件的信息并不是存放在文件描述浮中，而是存放在文件表中，当使用open函数打开文件时，会将文件的相关信息放到文件表中，但处于安全和效率的因素，文件表不适合直接操作，而是给文件表对应一个编号，使用该编号进行操作，这个编号就是文件描述浮
+    每个进程都有一张描述总表，当有心的描述浮需求时，会取总表中查找为使用的最小值返回，文件描述浮从0开始，其中0 1 2被系统占用，分别代表标准输入，标准输出和标准错误，所以一般都是从3开始
+    调用close函数本质上就是解除描述浮和文件表的对应关系
+
+1.3文件操作比较
+
+例子：
+     分别使用标C函数和UC函数来实现想二进制文件中写入0~100万之间的数
+
+  1 //使用标C函数实现数据的写入
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 int main () {
+  5     //1创建/打开文件
+  6     FILE *fp = fopen("num.dat","wb+");
+  7     if (NULL == fp) {
+  8         perror ("fopen"),exit(-1);
+  9     }
+ 10     printf ("创建文件成功\n");
+ 11     //2写入数据
+ 12     int i = 0;
+ 13     while (i < 1000000) {
+ 14         fwrite(&i,sizeof(int),1,fp);
+ 15         i++;
+ 16     }
+ 17     //3关闭文件
+ 18     fclose(fp);
+ 19     return 0;
+ 20 }
+
+
+  1 //使用UC函数写入数据
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 #include<sys/types.h>
+  6 #include<sys/stat.h>
+  7 #include<fcntl.h>
+  8 int main () {
+  9     //1创建文件
+ 10     int fd = open("num2.dat",O_CREAT|O_WRONLY,0666);
+ 11     if (-1 == fd) {
+ 12         perror("open"),exit(-1);
+ 13     }
+ 14     printf ("创建文件成功\n");
+ 15     //写入数据
+ 16     int i = 0;
+ 17     while (i < 1000000) {
+ 18         write(fd,&i,sizeof(int));
+ 19         i++;
+ 20     }
+ 21     //3关闭文件
+ 22     close(fd);
+ 23     return 0;
+ 24 }
+
+
+总结：
+    标C函数都有输入输出的缓冲区，会积累一定数量之后在执行读写操作，因此效率比较高，而UC函数虽然在内核层也有小型的缓冲区，但是和标C函数相比读写效率比较低
+    使用命令 time 可以察看程序的运行时间
+    可以通过自定义缓冲区来提供UC函数的效率
+
+  1 //使用UC函数写入数据
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 #include<sys/types.h>
+  6 #include<sys/stat.h>
+  7 #include<fcntl.h>
+  8 int main () {
+  9     //1创建文件
+ 10     int fd = open("num2.dat",O_CREAT|O_WRONLY,0666);
+ 11     if (-1 == fd) {
+ 12         perror("open"),exit(-1);
+ 13     }
+ 14     printf ("创建文件成功\n");
+ 15     //写入数据
+ 16     int i = 0;
+ 17     int buf[10000];
+ 18     while (i < 1000000) {
+ 19         //每次都是将数据放到缓冲区中
+ 20         buf[i % 10000] = i;
+ 21         //当缓冲区满了的时候再写入文件中
+ 22         if (9999 == i % 10000) {
+ 23         //write(fd,&i,sizeof(int));
+ 24         write(fd,&i,sizeof(buf));
+ 25         }
+ 26         i++;
+ 27     }
+ 28     //3关闭文件
+ 29     close(fd);
+ 30     return 0;
+ 31 }
+
+
+  1 //使用标C函数实现数据的写入
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<string.h>
+  5 int main () {
+  6     //1创建/打开文件
+  7     FILE *fp = fopen("num.dat","wb+");
+  8     if (NULL == fp) {
+  9         perror ("fopen"),exit(-1);
+ 10     }
+ 11     printf ("创建文件成功\n");
+ 12     //2写入数据
+ 13     int i = 0;
+ 14     while (i < 1000000) {
+ 15         //将整形数据个数转换成字符串写入即可
+ 16         char buf[100] = {0};
+ 17         sprintf(buf,"%d\n",i);
+ 18         fwrite(buf,strlen(buf),1,fp);        ************
+ 19         i++;
+ 20     }
+ 21     //3关闭文件
+ 22     fclose(fp);
+ 23     return 0;
+ 24 }
+
+1.4dup/dup2函数
+
+       #include <unistd.h>
+
+       int dup(int oldfd);
+       int dup2(int oldfd, int newfd);
+函数功能：
+    表示对参数oldfd指定的文件描述浮做拷贝，如果成功通过返回值返回，失败返回-1，对dup2来说，参数newfd为指定的文件描述浮
+
+  1 //dup函数和dup2函数的使用
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 #include<sys/types.h>
+  6 #include<sys/stat.h>
+  7 #include<fcntl.h>
+  8 int main () {
+  9     //1打开/创建一个文件
+ 10     int fd = open("c.txt",O_CREAT|O_RDWR,0666);
+ 11     if (-1 == fd) {
+ 12         perror("open"),exit(-1);
+ 13     }
+ 14     printf ("文件创建成功\n");
+ 15     //2复制文件描述浮
+ 16     //多个文件描述浮对应同一个文件
+ 17     int fd2 = dup(fd);
+ 18     if (-1 == fd2) {
+ 19         perror("dup"),exit(-1);
+ 20     }
+ 21     printf ("复制文件描述浮成功, fd = %d, fd2 = %d\n", fd, fd2);
+ 22     //想两个文件描述浮对应的文件中写入数据
+ 23     write(fd,"A",1);
+ 24     write(fd2,"B",1);
+ 25     printf ("---------------------------------------\n");
+ 26     int fd3 = open("d.txt",O_CREAT|O_RDWR,0666);
+ 27     if (-1 == fd3) {
+ 28         perror("open"),exit(-1);
+ 29     }
+ 30     printf ("打开文件成功,fd3 = %d\n", fd3);
+ 31     //使用dup2进行文件描述浮的复制
+ 32     int fd4 = dup2(fd,fd3);//fd到fd3的复制
+ 33     if (-1 == fd4) {
+ 34         perror("dup2"),exit(-1);
+ 35     }
+ 36     //fd3和fd4值是一样的，都表示新文件描述浮
+ 37     printf ("文件描述浮复制成功,fd3 = %d, fd4 = %d\n", fd3, fd4);
+ 38     //向fd3和fd4中写入数据
+ 39     write(fd3,"C",1);
+ 40     write(fd4,"D",1);
+ 41     //3关闭文件
+ 42     close(fd);
+ 43     close(fd2);
+        close(fd3);
+ 44     return 0;
+ 45 }
+
+1.5 fcntl函数（重要复杂）
+
+（1）整体介绍：
+
+       #include <unistd.h>
+       #include <fcntl.h>
+       int fcntl(int fd, int cmd, ... /* arg */ );
+第一个参数：文件描述浮，表示对哪个文件操作
+  二      ：操作命令，表示进行什么样的操作
+          F_DUPFD - 复制文件描述浮，第三个参数指定心文件描述浮，与dup2不同的是，寻找大于等于arg的最小描述浮，
+                    不会强制占用已经倍使用的文件描述浮
+          F_GETFD / F_SETFD  -  获取/设置文件描述浮标志
+          F_GETFL / F_SETFL - 获取/设置文件状态标志
+
+          F_GETLK / F_SETLK / F_SETLKW  -  判断锁是否存在,加锁，解锁，
+  三      ：可变长参数，是否需要取决于cmd
+            实现文件锁功能时的第三个参数类型为指向一下结构体的指针类型，结构体类型说明如下：
+
+        struct flock {
+               ...
+               short l_type;    /* Type of lock: F_RDLCK, F_WRLCK, F_UNLCK */
+               short l_whence;  /* How to interpret l_start:
+                                   SEEK_SET, SEEK_CUR, SEEK_END */
+               off_t l_start;   /* Starting offset for lock */
+               off_t l_len;     /* Number of bytes to lock */
+               pid_t l_pid;     /* PID of process blocking our lock
+                                   (F_GETLK only) */
+           };
+
+函数功能：
+    a 复制文件描述浮
+    b 获取/设置 文件描述浮标志/文件状态标志 的信息
+    c 文件锁的功能（**）
+
+（2）文件锁的介绍
+如：
+   当多个进程同时读写文件时，可能引发文件内容的混乱，如果所有的进程都是读文件，是可以同时进程；但是如果有一个进程进行写文件操作，那么其他进程就应该等待，也就是说多个进程串行工作，那么其他进程就应该等待，也就是说多个进程串行工作，采用文件锁解决此问题
+   文件锁本质就是读写锁： 一把读锁和一把写锁，其中读锁是一把共享锁，允许其他进程加读锁，但是不允许加写锁；而写锁是一把互斥锁，不允许其他进程加读锁和写锁
+
+（3）使用fcntl函数实现文件锁的功能
+
+a. F_SETLK  -  设置读锁/设置写锁/解锁
+   成功返回0，失败返回-1
+
+  1 //使用fcntl函数给指定的文件内容加锁
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 #include<sys/types.h>
+  6 #include<sys/stat.h>
+  7 #include<fcntl.h>
+  8 int main () {
+  9     //1打开文件
+ 10     int fd = open("e.txt",O_RDWR);
+ 11     if (-1 == fd) {
+ 12         perror("open"),exit(-1);
+ 13     }
+ 14     printf ("打开文件成功\n");
+ 15     //准备一把锁
+ 16     struct flock lock;
+ 17     lock.l_type = F_RDLCK;//读锁
+ 18     lock.l_whence = SEEK_SET;//从头开始
+ 19     lock.l_start = 0;//偏移0个字节
+ 20     lock.l_len = 10;//锁定的字节数
+ 21     lock.l_pid = -1;//默认值
+ 22     //3给指定的文件加锁
+ 23     int res = fcntl(fd,F_SETLK,&lock);
+ 24     if (-1 == res) {
+ 25         perror("fcntl"),exit(-1);
+ 26     }
+ 27     printf ("加锁成功，开始操作文件...\n");
+ 28     //4占用文件
+ 29     sleep(20);
+ 30     printf ("操作文件结束，进程结束\n");
+ 31     //5关闭文件
+ 32     close(fd);
+ 33     return 0;
+ 34 }
+
+
+
+  1 //使用fcntl函数给文件加锁
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 #include<sys/types.h>
+  6 #include<sys/stat.h>
+  7 #include<fcntl.h>
+  8 int main () {
+  9     //1打开文件
+ 10     int fd = open("e.txt",O_RDWR);
+ 11     if (-1 == fd) {
+ 12         perror("open"),exit(-1);
+ 13     }
+ 14     printf ("打开文件成功\n");
+ 15     //2准备一把锁
+ 16     struct flock lock;
+ 17     lock.l_type = F_RDLCK;
+ 18     lock.l_whence = SEEK_SET;
+ 19     lock.l_start = 0;
+ 20     lock.l_len = 10;
+ 21     lock.l_pid = -1;
+ 22     //3给文件枷锁
+ 23     int res = fcntl(fd,F_SETLK,&lock);
+ 24     if (-1 == res) {
+ 25         printf ("枷锁失败\n");
+ 26     }
+ 27     else {
+ 28         printf ("枷锁成功\n");
+ 29     }
+ 30     //4关闭文件
+ 31     close(fd);
+ 32     return 0;
+ 33 }
+
+

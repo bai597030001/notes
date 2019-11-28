@@ -1,0 +1,362 @@
+结构体变量可以作为函数的形式参数使用，但是这样会造成时间和空间的浪费
+采用结构体指针作为形式参数可以避免这种浪费
+采用结构体指针作为形式参数时被调用函数如果修改了结构体内容就会影响到调用函数
+
+练习：
+    1.编写程序从键盘得到一个点的位置，然后在一个函数里把这个点的位置再次打印在屏幕上
+
+  1 #include<stdio.h>
+  2 typedef struct {
+  3     int row, col;
+  4 } pixel;
+  5 void  func (const pixel *p_pt) {
+  6      printf ("(%d,%d)\n", p_pt->row, p_pt->col);
+  7 }
+  8 int main () {
+  9     pixel pt = {};
+ 10     printf ("请输入一个点的位置");
+ 11     scanf ("%d%d", &(pt.row), &(pt.col));
+ 12     func (&pt);                ?????????????
+ 13     return 0;
+ 14 }
+
+结构体可以作为函数的返回值使用，但是这时同样会造成时间和空间的浪费           ？？？/  
+使用结构体指针作为函数的返回值可以避免这种浪费
+不要把局部结构体变量的类型赋值给结构体指针类型的返回值
+
+练习：
+   编写函数根据两个点的位置计算中间点的位置，在主函数中把计算结果打印在屏幕上
+
+/*
+   结构体练习
+   */
+#include <stdio.h>
+typedef struct {
+	int row, col;
+} pixel;
+pixel *midpt(const pixel *p_pt1, const pixel *p_pt2, pixel *p_mid) {
+	p_mid->row = (p_pt1->row + p_pt2->row) / 2;
+	p_mid->col = (p_pt1->col + p_pt2->col) / 2;
+	return p_mid;
+}
+int main() {
+    pixel pt1 = {}, pt2 = {}, mid = {};
+	pixel *p_pt = NULL;
+	printf("请输入第一个点的位置：");
+	scanf("%d%d", &(pt1.row), &(pt1.col));
+	printf("请输入第二个点的位置：");
+	scanf("%d%d", &(pt2.row), &(pt2.col));
+	p_pt = midpt(&pt1, &pt2, &mid);
+	printf("中点位置是(%d, %d)\n", p_pt->row, p_pt->col);
+	printf("中点位置是(%d, %d)\n", mid.row, mid.col);
+	return 0;
+}
+
+
+
+内存中所有存储区的地址一定是他自身大小的整数倍（double类型存储区的地址之需要是4的整数被就可以了）
+这个规则叫数据对齐
+结构体内部每个存储区一般也需要遵守数据对齐的规则
+
+****   ****
+x      xxxx
+
+  1 #include<stdio.h>
+  2 typedef struct {
+  3     char ch;
+  4     int num;
+  5 } stru1;
+  6 int main () {
+  7     printf ("sizeof (sizeof(stru1)是%d\n", sizeof(stru1));
+  8     return 0;
+  9 }
+
+
+数据对齐规则会导致结构体内部各部分之间会存在空隙，结构体的大小可能大于各部分大小之和
+
+一个结构体存储区的大小一定是他内部包含的占地最大的基本类型的存储区大小的整数倍（double类型大小按照4计算）
+这个规则叫做数据补齐
+数据补齐可能造成结构体存储区最后多出一些浪费的字节
+  1 #include<stdio.h>
+  2 typedef struct {
+  3     char ch;
+  4     int num;
+  5 } stru1;
+  6 typedef struct {
+  7     char ch;
+  8     int num;
+  9     char ch1;
+ 10 } stru2;
+ 11 int main () {
+ 12     printf ("sizeof(stru1)是%d\n", sizeof(stru1));
+ 13     printf ("sizeof(stru2)是%d\n", sizeof(stru2));
+ 14     return 0;
+ 15 }
+
+
+枚举类型也是一种创建新数据类型的方法
+枚举类心也需要先声明然后在使用
+声明枚举类型的时候需要使用enum关键字
+枚举类型中可以包含有限个数字，每个数字可以用一个名字表示
+枚举类型中第一个名字代表的数字时0，向后依次类推
+
+  1 #include<stdio.h>
+  2 enum season {
+  3     CHUN,
+  4     XIA,
+  5     QIU,
+  6     DONG
+  7 };
+  8 int main () {
+  9     printf ("QIU是%d\n", QIU);
+ 10     return 0;
+ 11 }
+
+可以在声明枚举类型的时候指定某个名字所代表的数字，后面的每个名字所代表的数字都会随之变化
+
+  1 #include<stdio.h>
+  2 enum season {
+  3     CHUN,
+  4     XIA = 6,
+  5     QIU,
+  6     DONG
+  7 };
+  8 int main () {
+  9     printf ("QIU是%d\n", QIU);
+ 10     return 0;
+ 11 }
+
+
+
+联合也可以用来声明新的数据类型
+声明联合的时候需要使用union关键字
+联合里每部分的开始地址都一样
+联合里的存储区是重叠的，修改了任何一个部分的内容则其他部分会受影响
+联合的大小是其中最大子部分的大小
+
+
+
+动态分配内存指得是在程序运行的时候临时决定分配内存的大小
+需要使用一组标准函数实现对动态内存的管理
+为了使用这些标准函数需要包含stdlib.h头文件
+
+malloc标准函数可以动态分配指定数量的字节
+这个函数需要一个参数表示字节的个数
+这个函数的返回值是分配好的第一个字节的地址
+这个函数有可能失败，如果失败则返回值是NULL
+返回值如果是有效地址就必须长期保存
+返回值的类型是无类型指针，必须首先进行强制类型转换然后才可以使用
+
+当动态分配内存不再使用的时候必须把他还给计算机        *****
+free标准函数用来把动态分配内存还给计算机
+这个函数需要第一个字节的地址作为参数
+一段动态分配内存只能释放一次
+一起分配的内存必须一起释放
+如果使用指针作为参数调用free函数则函数结束以后指针将成为野指针
+
+
+动态分配内存代码框架
+
+  1 #include<stdio.h>
+  2 #include<stdlib.h>
+  3 int main() {
+  4     int *p_num = (int *)malloc(5 * sizeof(int));
+  5     if (p_num) {
+  6         //
+  7         free(p_num);
+  8         p_num = NULL;
+  9     }
+ 10     return 0;
+ 11 }
+
+可以在被调用函数里把动态分配内存的首地址赋值给指针类型的返回值
+利用这种方法可以让调用函数使用被调用函数分配的内存
+这时候动态分配内存由被调用函数分配但是由调用函数释放
+
+
+/*
+   动态分配内存演示
+   */
+#include <stdio.h>
+#include <stdlib.h>
+int main() {
+	int num = 0;
+    int *p_num = (int *)malloc(5 * sizeof(int));
+	if (p_num) {                                 ？？？？？？？？
+		//
+		for (num = 0;num <= 4;num++) {
+			*(p_num + num) = num + 1;
+			//p_num[num] = num + 1;
+		}
+		for (num = 4;num >= 0;num--) {
+			printf("%d ", *(p_num + num));
+		}
+		printf("\n");
+		free(p_num);
+		p_num = NULL;
+	}
+	return 0;
+}
+
+
+
+
+  1 #include<stdio.h>
+  2 #include<stdlib.h>
+  3 int *read(void) {
+  4     int *p_num = (int *)malloc(sizeof(int));
+  5     if (p_num) {
+  6         printf ("请输入一个数字");
+  7         scanf ("%d", p_num);
+  8     }
+  9     return p_num;
+ 10 }
+ 11 int main () {
+ 12     int *p_num = read();
+ 13     if (p_num) {
+ 14         printf ("%d\n", *p_num);
+ 15         free(p_num);
+ 16         p_num = NULL;
+ 17     }
+ 18     return 0;
+ 19 }
+
+练习：
+    1.编写函数计算两个点的中间位置，在主函数中把计算结果打印在屏幕上（使用动态分配内存记录新的位置）
+
+/*
+   动态分配内存练习
+   */
+#include <stdio.h>
+#include <stdlib.h>
+typedef struct {
+	int row, col;
+} pixel;
+/*pixel *midpt(const pixel *p_pt1, const pixel *p_pt2) {
+    pixel *p_pt = (pixel *)malloc(sizeof(pixel));
+	if (p_pt) {
+		p_pt->row = (p_pt1->row + p_pt2->row) / 2;
+		p_pt->col = (p_pt1->col + p_pt2->col) / 2;
+	}
+	return p_pt;
+}*/
+void midpt(const pixel *p_pt1, const pixel *p_pt2, pixel **pp_pt) {
+	*pp_pt = (pixel *)malloc(sizeof(pixel));
+	if (*pp_pt) {
+		(*pp_pt)->row = (p_pt1->row + p_pt2->row) / 2;
+		(*pp_pt)->col = (p_pt1->col + p_pt2->col) / 2;
+	}
+}
+int main() {
+	pixel pt1 = {}, pt2 = {}, *p_pt = NULL;
+	printf("请输入第一个点的位置：");
+	scanf("%d%d", &(pt1.row), &(pt1.col));
+	printf("请输入另外一个点的位置：");
+	scanf("%d%d", &(pt2.row), &(pt2.col));
+	//p_pt = midpt(&pt1, &pt2);
+	midpt(&pt1, &pt2, &p_pt);
+	if (p_pt) {
+		printf("中点位置是(%d, %d)\n", p_pt->row, p_pt->col);
+		free(p_pt);
+		p_pt = NULL;
+	}
+	return 0;
+}
+ 
+
+---------------------
+
+
+
+采用二级指针作为形式参数也可以把被调用函数动态分配的存储区传递给调用函数
+
+/*
+   二级指针形式参数演示
+   */
+#include <stdio.h>
+#include <stdlib.h>
+void read(int **pp_num) {
+    *pp_num = (int *)malloc(sizeof(int));
+	if (*pp_num) {
+		printf("请输入一个数字：");
+		scanf("%d", *pp_num);
+	}
+}
+int main() {
+	int *p_num = NULL;
+	read(&p_num);
+	if (p_num) {
+		printf("%d\n", *p_num);
+		free(p_num);
+		p_num = NULL;
+	}
+	return 0;
+}
+
+练习：
+    1.把中点位置的函数改成使用二级指针形式参数
+
+
+
+预习：
+     1.动态内存分配
+     2.函数指针 
+     3.c语言一些其他的标准函数
+
+作业：
+     1.编写函数生成一张彩票在主函数中打印彩票里的所有数字（彩票数字要求记录在动态分配内存里）
+
+/*
+   彩票作业
+   */
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+/*int *create(int size) {
+    int *p_num = (int *)malloc(size * sizeof(int));
+	int num = 0;
+	if (p_num) {
+		for (num = 0;num <= size - 1;num++) {
+			*(p_num + num) = rand() % 36 + 1;
+		}
+	}
+	return p_num;
+}*/
+void create1(int size, int **pp_num) {
+	int num = 0;
+	*pp_num = (int*)malloc(size * sizeof(int));
+	if (*pp_num) {
+		for (num = 0;num <= size - 1;num++) {
+			*(*pp_num + num) = rand() % 36 + 1;
+		}
+	}
+}
+int main() {
+	srand(time(0));
+	//int *p_num = create(7);
+	int *p_num = NULL;
+	create1(7, &p_num);
+	int num = 0;
+	if (p_num) {
+		for (num = 0;num <= 6;num++) {
+			printf("%d ", *(p_num + num));
+		}
+		printf("\n");
+		free(p_num);
+		p_num = NULL;
+	}
+	return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+

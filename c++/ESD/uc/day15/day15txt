@@ -1,0 +1,134 @@
+五、线程管理函数
+1.创建线程
+...
+2.等待线程(汇合线程)
+买菜       切菜       吃
+       洗菜       炒菜
+pid_t pid = fork ();
+if (pid == 0) {
+    子进程的任务
+    return 0;
+}
+wait (0);
+父进程的任务
+int pthread_join (pthread_t tid, void** retval);
+等待tid参数所标识的线程结束，成功返回0，失败返回错误码。
+3.获取调用线程的ID
+pthread_t pthread_self (void);
+4.判断两个线程ID是否相等
+int pthread_equal (pthread_t tid1, pthread_t tid2);
+如果tid1和tid2相等，返回非零，否则返回零。
+5.终止线程
+1)从线程过程函数中返回。
+2)void pthread_exit (void* retval);
+retval参数就是线程的返回值与线程过程函数return的返回值具
+有相同语义，可以被pthread_join函数获得。
+3)在任意线程的任意函数中调用exit，都会立即终止调用进程，
+而进程一旦终止，其所有的线程都会同时终止。
+6.分离线程
+int  pthread_detach (pthread_t tid);
+使tid参数所标识的线程进入分离状态。处于分离状态的线程终止
+后其相关资源会被系统自动回收，且不可被pthread_join函数
+等待。
+成功返回0，失败返回错误码。
+7.取消线程
+int pthread_cancel (pthread_t tid);
+终止由tid参数所标识的线程。成功返回0，失败返回错误码。
+该函数只是向指定的线程发送取消指令，并不等待该线程终止。
+缺省情况下，线程收到取消指令以后，并不会立即终止，而是
+仍继续运行，直到执行到某个取消点。在取消点处，线程检查其
+自身的被取消标志，并作出相应动作。通常与I/O有关系统调用
+中都会包含取消点。
+
+
+8.设置调用线程的可取消状态
+int pthread_setcancelstate (int state, int* oldstate);
+成功返回0，并通过oldstate参数输出原来的可取消状态，失败
+返回错误码。
+state取值：
+PTHREAD_CANCEL_ENABLE - 可取消(缺省)
+PTHREAD_CANCEL_DISABLE - 不可取消
+9.设置调用线程的取消类型
+int pthread_setcanceltype (int type, int* oldtype);
+成功返回0，并通过oldtype参数输出原来的取消类型，失败
+返回错误码。
+type取值：
+PTHREAD_CANCEL_DEFERRED - 延迟取消(缺省)
+PTHREAD_CANCEL_ASYNCHRONOUS - 异步取消(被取消
+线程无需在取消点检查取消标志，而是在接收到取消指令以后
+立即终止)
+六、线程并发冲突
+理想中原子++：
+线程1                    线程2                    内存
+指令  寄存器          指令  寄存器          g
+读      0                                               0
+加      1                                               0
+写      1                                               1
+                              读      1                 1
+                              加      2                 1
+                              写      2                 2
+现实中非原子++：
+线程1                    线程2                    内存
+指令  寄存器          指令  寄存器          g
+读      0                                               0
+                              读     0                  0
+加      1                                               0
+                              加     1                  0
+写      1                                               1
+                              写     1                  1
+七、互斥量（锁）
+pthread_mutex_t
+初始化：
+pthread_mutex_t mutex =
+    PTHREAD_MUTEX_INITIALIZER;
+锁定：
+int pthread_mutex_lock (pthread_mutex_t* mutex);
+解锁：
+int pthread_mutex_unlock (pthread_mutex_t* mutex);
+八、信号量
+信号量是一个有系统内核维护的计数器，用于控制访问有限共享
+资源的线程数。
+#include <semaphore.h>
+1.创建信号量
+int sem_init (
+    sem_t* sem, // 输出，信号量ID
+    int pshared, // 0 - 线程级信号量
+                          // 非0 - 进程级信号量
+    unsigned int value); // 信号量初值(表示资源总数)
+成功返回0，失败返回-1并设置errno。
+2.等待信号量
+int sem_wait (sem_t* sem);
+对sem参数所标识的信号量减1，不够减会阻塞，直到够减为止。
+3.释放信号量
+int sem_post (sem_t* sem);
+对sem参数所标识的信号量加1，此时如果有线程正在等待sem
+信号量，该线程将被唤醒并从sem_wait函数中返回。
+4.销毁信号量
+int sem_destroy (sem_t* sem);
+释放信号量对象的内核资源。
+九、死锁
+线程1        线程2
+获取A        获取B
+获取B \   / 获取A
+释放B   X   释放A
+释放A /   \ 释放B
+十、条件变量
+等到DMS电信计费系统数据采集项目时再讲。
+
+条件变量与生产者/消费者模型
+生产者：产生数据的线程
+消费者：使用数据的线程
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+条件变量初始化，分配内和资源
+
+int pthread_cond_wait(pthread_cond_t* cond,pthread_mutex_t* mutex);
+使调用线程睡入条件变量cond，同时释放互斥锁mutex
+
+int pthread_cond_signal(pthread_cond_t* cond);
+从条件变量cond中唤醒一个线程，如果该线程能够获得原先的互斥锁，则从pthread_cond_wait函数中返回，否则继续阻塞于等待加锁
+
+int pthread_cond_broadcast(pthread_cond_t* cond);
+从条件变量cond中唤醒所有线程，如果其中某个线程能够获得其中原先的互斥锁，则从pthread_cond_wait函数中返回，其余线程继续阻塞于等待加锁
+
+---------------------------------------------
+简化版本的局域网聊天室

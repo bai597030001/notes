@@ -1,0 +1,385 @@
+计算机为每个文件记录一个整数，这个整数表示下一次读写文件的开始位置到文件头的距离
+
+这个整数叫做文件的位置指针
+
+当从文件中获得n个字节或者向文件中写入n个字节后文件的位置指针也会随之向后移动n个字节
+
+
+ftell函数可以获得当前位置指针的数值
+
+       先创建abc.txt文件
+
+  1 #include<stdio.h>
+  2 int main () {
+  3     char ch = 0;
+  4     FILE *p_file = fopen("abc.txt","rb");
+  5     if (p_file) {
+  6         printf ("位置指针时%ld\n",ftell(p_file));
+  7         fread(&ch,sizeof(char),1,p_file);
+  8         printf ("%c\n",ch);
+  9         printf ("位置指针时%ld\n",ftell(p_file));
+ 10         fread(&ch,sizeof(char),1,p_file);
+ 11         printf ("%c\n",ch);
+ 12         printf ("位置指针时%ld\n",ftell(p_file));
+ 13         fread(&ch,sizeof(char),1,p_file);
+ 14         printf ("%c\n",ch);
+ 15         fclose(p_file);
+ 16         p_file = NULL;
+ 17     }
+ 18     return 0;
+ 19 }
+
+
+rewind函数可以把位置指针的数值调整到文件开头
+
+  1 #include<stdio.h>
+  2 int main () {
+  3     char ch = 0;
+  4     FILE *p_file = fopen("abc.txt","rb");
+  5     if (p_file) {
+  6         rewind(p_file);
+  7         printf ("位置指针时%ld\n",ftell(p_file));
+  8         fread(&ch,sizeof(char),1,p_file);
+  9         printf ("%c\n",ch);
+ 10         rewind(p_file);
+ 11         printf ("位置指针时%ld\n",ftell(p_file));
+ 12         fread(&ch,sizeof(char),1,p_file);
+ 13         printf ("%c\n",ch);
+ 14         rewind(p_file);
+ 15         printf ("位置指针时%ld\n",ftell(p_file));
+ 16         fread(&ch,sizeof(char),1,p_file);
+ 17         printf ("%c\n",ch);
+ 18         fclose(p_file);
+ 19         p_file = NULL;
+ 20     }
+ 21     return 0;
+ 22 }
+
+fseek函数可以把位置指针调整到文件中的任何位置
+
+可以选用三种办法表示目标位置
+这三种办法都需要先指定基准位置然后描述目标位置到基准位置的距离
+SEEK_SET     0     表示把文件头作为基准位置
+SEEK_CUR     1     表示把文件当前位置作为基准位置
+SEEK_END     2     表示把文件尾作为基准位置
+
+如果基准位置在前，目标位置在后则用正数表示他们之间的距离
+如果基准位置在后，目标位置在前则用负数表示他们之间的距离
+
+距离以字节为单位
+
+  1 #include<stdio.h>
+  2 int main () {
+  3     char ch = 0;
+  4     FILE *p_file = fopen("abc.txt","rb");
+  5     if (p_file) {
+  6         //rewind(p_file);
+  7         fseek(p_file,2,SEEK_SET);
+  8         printf ("位置指针时%ld\n",ftell(p_file));
+  9         fread(&ch,sizeof(char),1,p_file);
+ 10         printf ("%c\n",ch);
+ 11         //rewind(p_file);
+ 12         fseek(p_file,2,SEEK_CUR);
+ 13         printf ("位置指针时%ld\n",ftell(p_file));
+ 14         fread(&ch,sizeof(char),1,p_file);
+ 15         printf ("%c\n",ch);
+ 16         //rewind(p_file);
+ 17         fseek(p_file,-4,SEEK_END);
+ 18         printf ("位置指针时%ld\n",ftell(p_file));
+ 19         fread(&ch,sizeof(char),1,p_file);
+ 20         printf ("%c\n",ch);
+ 21         fclose(p_file);
+ 22         p_file = NULL;
+ 23     }
+ 24     return 0;
+ 25 }
+ 
+练习：
+    1.改写根据用户id查找人员信息的程序，无关人员信息不要读到内存中
+
+
+#define也是一个预处理指令
+他用来定义宏
+
+宏可以用来给数字起名字
+
+  1 /*
+  2 宏演示
+  3 */
+  4 #include<stdio.h>
+  5 #define PI 3.14f   
+  6 int main () {
+  7     int radius = 0;
+  8     printf ("请输入半径");
+  9     scanf ("%d",&radius);
+ 10     printf ("周长是%g\n",2 * PI * radius);
+ 11     return 0;
+ 12 }
+
+定义宏的时候应该把宏的名称写在前面，数字写在后面
+宏名称应该全用大写英文字母
+宏名称中间不能有空格
+定义宏的语句中也不应该出现赋值操作符
+
+程序中所有宏名称都被编译器替换成对应的数字
+
+宏名称所代表的数字可以在编译的时候由编译命令中的选项指定，变量无法实现这一点
+  gcc -DPI=3.14f ?.c
+使用-D选项制定宏名称以及所代表的数字
+
+用彩票演示宏作用
+
+  1 /* 
+  2 宏演示
+  3 */
+  4 #include<stdio.h>
+  5 #include<stdlib.h>
+  6 #include<time.h>
+  7 int main () {	
+  8     int arr[SIZE] = {},num = 0;
+  9     srand(time(0));
+ 10     for(num = 0;num <= SIZE - 1;num++) {
+ 11         arr[num] = rand() % 36 + 1;              //???????
+ 12     }
+ 13     for (num = 0;num <= SIZE - 1;num++) {
+ 14         printf ("%d ",arr[num]);
+ 15     }
+ 16     printf ("\n");
+ 17     return 0;
+ 18 }
+
+
+
+如果程序中使用的某些数字在编写的时候无法确定，只有在编译的时候才能确定，这样的数字就应该使用宏来代表
+
+宏还可以用来给一个计算公式起名字
+
+计算公式里存在未知数字
+
+用宏给计算公式起名字的时候必须给宏增加参数，这些参数用来表示宏里面的未知数字
+
+宏的参数不一定代表数字，所以宏的参数没有数据类型
+
+  1 /*
+  2 宏演示
+  3 */
+  4 #include<stdio.h>
+  5 #define PI   3.14f
+  6 #define CIRLE(r)    2 * PI * r
+  7 int main () {
+  8     int radius = 0;
+  9     printf ("请输入半径");
+ 10     scanf ("%d",&radius);
+ 11     printf ("周长是%g\n",CIRLE(radius));
+ 12     return 0;
+ 13 }
+
+编译器会采用两次替换的方式处理带参数的宏
+
+CIRLE（radius）
+
+2 * PI * radius
+
+2 * PI * 
+
+练习：
+    编写宏根据元的半径计算元的面积
+
+  1 #include<stdio.h>
+  2 #define PI 3.14f
+  3 #define AREA(r)  PI * r * r 
+  4 int main () {
+  5     int radius = 0;
+  6     printf ("请输入半径");
+  7     scanf ("%d", &radius);
+  8     printf ("面积时%g\n",AREA(radius));
+  9     return 0;
+ 10 }
+
+
+函数可以有自己的存储区而宏不可以
+
+宏既没有形式参数也没有返回值
+
+  1 #include<stdio.h>                    函数解决
+  2 int abs(int num) {
+  3     if (num >= 0) {
+  4         return num;
+  5     }
+  6     else {
+  7         return 0 - num;
+  8     }
+  9 }
+ 10 int main () {
+ 11     printf ("abs(-6)是%d\n",abs(-6));
+ 12     return 0;
+ 13 }
+
+
+  1 #include<stdio.h>
+  2 #define   ABS(n)   n >= 0 ? n : 0 - n            //
+  3 int abs(int num) {
+  4     if (num >= 0) {
+  5         return num;
+  6     }
+  7     else {
+  8         return 0 - num;
+  9     }
+ 10 }
+ 11 int main () {
+ 12     printf ("abs(-6)是%d\n",abs(-6));
+ 13     printf ("ABS(-6)是%d\n",ABS(-6));               //
+ 14     return 0;
+ 15 }
+
+
+能当作数字使用的宏必须编写成一个表达式
+
+宏可以直接修改参数存储区里的内容（函数不行）
+
+  1 #include<stdio.h>
+  2 #define   ABS(n)   n >= 0 ? n : 0 - n            //
+  3 int abs(int num) {
+  4     if (num >= 0) {
+  5         return num;
+  6     }
+  7     else {
+  8         return 0 - num;
+  9     }
+ 10 }
+ 11 #define   NEG(n)    n = 0 - n          +++++
+ 12 void neg(int num) {                                -----
+ 13     num = 0 - num;                                 -----
+ 14 }
+ 15 int main () {
+ 16     int num = 10;
+ 17     printf ("abs(-6)是%d\n",abs(-6));
+ 18     printf ("ABS(-6)是%d\n",ABS(-6));           //
+ 19     neg(num);                                      ------
+ 20     printf ("num是%d\n",num);                      ------
+ 21     NEG(num);                          ++++++
+ 22     printf ("num是%d\n",num);          ++++++
+ 23     return 0;
+ 24 }
+
+练习： 
+    1.编写宏计算两个整数的差
+
+
+  1 #include<stdio.h>
+  2 #define  SUB(x,y)   ((x) - (y))
+  3 int main () {
+  4     printf ("%d\n",SUB(10,4));
+  5     return 0;
+  6 }
+
+能够当作数字使用的宏必须编写在一对小括号里面，这样可以保证优先计算宏内部的操作符          ------
+        
+应该把宏的所有代表数字的参数写在小括号里，这样可以保证优先计算参数所代表的数字             -----
+
+不要把自增或自减的结果作为宏的参数来使用                                                ------
+
+#和##都是可以在宏里面使用的操作符
+这两个操作符都是针对宏的不代表数字的参数进行操作的
+
+#操作符可以把宏的一个参数转换成字符串字面值
+
+  1 #include<stdio.h>
+  2 #define  STR(n)    #n 
+  3 int main () {
+  4     STR(2 + 3);
+  5     return 0;
+  6 }
+~                            gcc -E 察看         
+
+##操作符可以把一个带标识符的参数和其他内容合并得到一个新的带标符
+
+  1 #include<stdio.h>
+  2 #define  STR(n)    #n 
+  3 #define  LOCAL(n)  l_##n
+  4 int main () {
+  5     int num = 0;
+  6     int LOCAL(num = 0);
+  7     STR(2 + 3);
+  8     return 0;
+  9 }
+
+
+条件编译可以在编译的时候决定哪些语句要编译哪些语句不要编译
+
+条件编译需要使用一组预处理指令实现
+
+#ifdef/#ifndef...#else...#endif
+以上结构可以用来实现条件编译
+最前面的两个预处理指令是二选一的关系
+这个结构中包含两组不同的语句，编译时会选择其中一组编译
+#ifdef预处理指令后要写一个宏名称，如果在编译时这个宏名称已经被定义过则编译前一组语句，否则编译后一组语句
+#ifndef预处理指令后也要写一个宏名称，如果在编译时这个宏名称没有被定义过则编译前一组，否则编译后一组
+
+  1 #include<stdio.h>
+  2 int main () {
+  3 #ifdef  YI                          #ifndef   ER
+  4     printf ("1\n");
+  5 #else
+  6     printf ("2\n");
+  7 #endif
+  8     return 0;
+  9 }
+gcc ?.c      gcc -DYI ?.c
+
+练习：
+    1.编写点菜程序   
+      从键盘得到一个代表才的数字，1代表龙虾，2代表小鸡顿蘑菇
+      为赵和普通客人各编译一个版本
+
+  1 #include<stdio.h>
+  2 int main () {
+  3     int order = 0;
+  4     printf ("请点菜");
+  5     scanf ("%d",&order);
+  6 #ifdef  ZHAO
+  7     if (order == 1) {
+  8         printf ("没有\n");
+  9     }
+ 10     else {
+ 11         printf ("这个真没有\n");
+ 12     }
+ 13 #else
+ 14     if (order == 1) {
+ 15         printf ("有\n");
+ 16     }
+ 17     else {
+ 18         printf ("没有\n");
+ 19     }
+ 20 #endif
+ 21     return 0;
+ 22 }
+
+
+预习：
+     1.条件编译
+     2.多文件编程
+     3.结构体
+
+作业：
+     1.编写一个宏把一个代表十六进制数字的字符转换成对应的整数
+
+  /*
+   宏作业
+   */
+#include <stdio.h>
+#define  HEX(n)    ((n) >= '0' && (n) <= '9' ? (n) - '0' : (n) >= 'a' && (n) <= 'f' ? (n) - 'a' + 10 : (n) - 'A' + 10)
+int main() {
+	char ch = 0;
+	printf("请输入一个字符：");
+	scanf("%c", &ch);
+	printf("转换结果是%d\n", HEX(ch));
+	return 0;
+}
+   
+
+
+
+
+
+

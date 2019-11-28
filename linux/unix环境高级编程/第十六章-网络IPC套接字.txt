@@ -120,14 +120,14 @@
 	level:
 		标识了选项应用的协议，如果选项是通用套接字层选项，level设置成 SOL_SOCKET，
 		否则，level设置成控制这个选项的协议号。
-		例如：对于TCP选项，这是IPPROTO_TCP, 对于IP选项，这是IPPROTO_IP。
+		例如：对于TCP选项，这是 IPPROTO_TCP, 对于IP选项，这是 PPROTO_IP。
 		
-	int		getsockopt(int sockfd, int level, int option, void* restrict val,
-																socklen_t* restrict lenp);
+	int		getsockopt(int sockfd, int level, int option, void* restrict val, socklen_t* restrict lenp);
 														
 	option:
 		......
-		setsockopt()支持下列选项。其中“类型”表明optval所指数据的类型。
+		setsockopt()支持下列选项。其中“类型”表明 optval 所指数据的类型。
+		
 		选项 				类型 				意义
 		SO_BROADCAST 		BOOL 		允许套接口传送广播信息。
 		SO_DEBUG 			BOOL 		记录调试信息。
@@ -140,7 +140,9 @@
 		SO_REUSEADDR 		BOOL 		允许套接口和一个已在使用中的地址捆绑（参见bind()）。
 		SO_SNDBUF 			int 		指定发送缓冲区大小。
 		TCP_NODELAY 		BOOL 		禁止发送合并的Nagle算法。
+		
 		setsockopt()不支持的BSD选项有：
+		
 		选项名				类型 		意义
 		SO_ACCEPTCONN 		BOOL 		套接口在监听。
 		SO_ERROR 			int 		获取错误状态并清除。

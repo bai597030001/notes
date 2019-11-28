@@ -93,8 +93,6 @@
 
 
 
-
-
 ### 字符输出流Writer
 
 在上面的关系图中可以看出：
@@ -620,9 +618,135 @@ public class IoTest {
         }
     }
 
+    /**
+     * DataInputStream可以让你从InputStream读取Java基本类型来代替原始的字节。
+     * DataInputStream来包装InputStream，你就可以从DataInputStream直接以Java基本类型来读取数据。
+     * <p>
+     * 如果你需要读取的数据是由大于一个字节的java基础类型构成，比如int, long, float, double等，
+     * 那么用DataInputStream是很方便的。DataInputStream希望的数据是写入到网络的有序多字节数据。
+     */
     @Test
-    public void testFilterInputOutputStream() {
+    public void testDataInputStream() {
+        DataOutputStream dataOutputStream = null;
+        try {
+            dataOutputStream = new DataOutputStream(new FileOutputStream("E:/temp/file.txt"));
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
 
+        try {
+            dataOutputStream.writeInt(123);
+            dataOutputStream.writeFloat(123.45F);
+            dataOutputStream.writeLong(789);
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                dataOutputStream.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        DataInputStream dataInputStream = null;
+        try {
+            dataInputStream = new DataInputStream(new FileInputStream("E:/temp/file.txt"));
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        int int123 = 0;
+        float float12345 = 0;
+        long long789 = 0;
+        try {
+            int123 = dataInputStream.readInt();
+            float12345 = dataInputStream.readFloat();
+            long789 = dataInputStream.readLong();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                dataInputStream.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        System.out.println("int123     = " + int123);
+        System.out.println("float12345 = " + float12345);
+        System.out.println("long789    = " + long789);
+    }
+
+    /**
+     * 打印流 -> PrintWriter
+     */
+    @Test
+    public void testPrintStream() {
+        PrintStream ps = null;        // 声明打印流对象
+        // 使用FileOuputStream实例化，意味着所有的输出是向文件之中
+        try {
+            String inputFileName = "E:/temp/file.txt";
+            ps = new PrintStream(new FileOutputStream(inputFileName));
+            ps.print("hello ");
+            ps.println("world!!!");
+            ps.print("1 + 1 = " + 2);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } finally {
+            if (ps != null) {
+                ps.close();
+            }
+        }
+    }
+
+    /**
+     * 回退流：
+     * 在JAVA IO中所有的数据都是采用顺序的读取方式，即对于一个输入流来讲都是采用从头到尾的顺序读取的，
+     * 如果在输入流中某个不需要的内容被读取进来，则只能通过程序将这些不需要的内容处理掉，为了解决这样
+     * 的处理问题，在JAVA中提供了一种回退输入流（PushbackInputStream、PushbackReader），可以把读取进
+     * 来的某些数据重新回退到输入流的缓冲区之中。
+     * <p>
+     * 常用方法
+     * 1、public PushbackInputStream(InputStream in) 构造方法 将输入流放入到回退流之中。
+     * 2、public int read() throws IOException   普通读取数据。
+     * 3、public int read(byte[] b,int off,int len) throws IOException 普通方法 读取指定范围的数据。
+     * 4、public void unread(int b) throws IOException 普通方法 回退一个数据到缓冲区前面。
+     * 5、public void unread(byte[] b) throws IOException 普通方法 回退一组数据到缓冲区前面。
+     * 6、public void unread(byte[] b,int off,int len) throws IOException 普通方法 回退指定范围的一组数据到缓冲区前面。
+     */
+    @Test
+    public void testPushBackInputStream() {
+        String str = "www.baidu.com";        // 定义字符串
+
+        PushbackInputStream push = null;        // 定义回退流对象
+        ByteArrayInputStream bai = null;        // 定义内存输入流
+
+        bai = new ByteArrayInputStream(str.getBytes());    // 实例化内存输入流
+        push = new PushbackInputStream(bai);    // 从内存中读取数据
+
+        System.out.print("读取之后的数据为：");
+
+        int temp = 0;
+        while (true) {
+            try {
+                if ((temp = push.read()) == -1) {
+                    break;
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }    // 读取内容
+            if (temp == '.') {    // 判断是否读取到了“.”
+                try {
+                    push.unread(temp);    // 放回到缓冲区之中
+                    temp = push.read();    // 再读一遍
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                System.out.print("（退回" + (char) temp + "）");
+            } else {
+                System.out.print((char) temp);    // 输出内容
+            }
+        }
     }
 
     @Test

@@ -1,0 +1,281 @@
+今天内容：
+1.网络编程
+1.1网络的基本常识
+   目前比较主流的通讯软件：QQ，微信，飞信，YY，阿里旺旺
+
+    （1）七层网络协议  
+        IOS（国际标准委员会组织）对网络从逻辑上划分了7层，网络的7层模型如下 
+
+        应用层：主要表示针对应用软件的通信，也就是将数据交给了应用软件
+        表示层 ：主要实现按照统一规则对原始数据的封装
+        会话层：主要控制会话的开始和结束等等，会话就是对话
+        传输层：主要描述数据的传输通道，更多的表示逻辑概念
+        网络层：主要借助很多网络通信协议传输，表示物理概念
+        数据链路层：主要用于进行数据的转换，转为高低电平信号
+        物理层：主要表示各种物理设备，如路由器，交换机之类的
+
+     （2）网络协议
+          TCP  -  传输控制协议，是一种面向连接的协议
+          UDP  -  用户数据报协议，是一种非面向连接的协议
+          IP   -  互联网协议，是上述协议的底层协议
+
+     （3）IP地址
+          IP地址 本质上就是互联网中的唯一标识，本质上就是32位二进制的整数，也就是IPV4，正在向IPV6转换，128位二进制
+          IP地址采用的是点分十进制表示法，也就是将每一个字节转换位十进制，多个字节的整数之间用点分隔开
+             如：192.168.1.1
+          IP地址分为两部分：网络地址 和 主机地址
+          A类地址： 0 + 7位网络地址 + 24位主机地址
+          B类地址： 10 + 14位网络地址 + 16位主机地址
+          C类地址： 110 + 21位网络地址 + 8位主机地址
+          D类地址： 1110 + 28位多播地址
+
+     （4）子网掩码
+          主要用于区分一个IP地址中的网络地址和主机地址
+
+          IP地址： 192.168.100.2
+         子网掩码：255.255.255.0  &
+         -----------------------------------
+         网络地址：192.168.100.0
+
+         网络地址：192.168.100
+         主机地址：2
+
+         主要用于判断两个IP是否在同一个
+
+（5）Mac 地址
+       俗称 物理地址，就是硬件网卡上的地址,不会随着重装系统而改变，一般主要用于路由器等设备上进行过滤操作
+            Windows操作系统：
+                  ipconfig    ipconfig/all => 察看IP地址等信息
+                  ping  mstsc ...
+            unix/linux 操作系统：
+                  ifconfig  => 察看IP地址等信息
+
+
+（6）端口号
+    IP地址  -  在互联网中的唯一标识，通过IP地址可以定位主机
+    端口号  -  主要用于定位主机上的某一个进程
+    端口号的数据类型：unsigned short 类型，范围 0 ~ 65535
+         其中0~1024的端口号由系统占用
+    网络编程：IP地址  和  端口号
+
+
+（7）字节序
+    小端系统：表示地低字节存储低位数据  0x78 56 34 12
+    大端系统：表示地低字节存储高位数据  0x12 34 56 78
+
+  1 //大端系统和小端系统的概念
+  2 #include<stdio.h>
+  3 typedef union {
+  4     int x;
+  5     char buf[4];
+  6 }Un;
+  7 int main () {
+  8     Un un;
+  9     un.x = 0x12345678;
+ 10     int i = 0;
+ 11     for (i = 0;i < 4;i++) {
+ 12         printf("%#x[%p] ",un.buf[i],&un.buf[i]);
+ 13     }
+ 14     printf("\n");
+ 15     printf("&x = %p\n",&un.x);
+ 16     printf("buf = %p\n",un.buf);
+ 17     return 0;
+ 18 }
+
+    网络字节序：是为了解决不同系统的兼容性问题，一般将发送到网络中数据都先转换为网络字节序再进行发送，对方收到数据后，再转为主机字节序进行解析
+    网络字节序本质上就是大端字节序
+
+
+1.2 基于Socket的一对一通信模型
+服务器：
+   （1）创建Socket，使用socket函数
+   （2）准备通信地址，采用结构体类型
+   （3）绑定socket和通信地址，使用bind函数
+   （4）进行通信，使用read/write函数
+   （5）关闭socket，使用close函数
+
+客户端：
+   （1）创建Socket，使用socket函数
+   （2）准备通信地址，采用结构体类型
+   （3）连接socket和通信地址，使用connect函数
+   （4）进行通信，使用read/write函数
+   （5）关闭socket，使用close函数
+
+
+2.3 相关函数的解析
+（1）socket 函数
+
+       #include <sys/types.h>          /* See NOTES */
+       #include <sys/socket.h>
+       int socket(int domain, int type, int protocol);
+
+第一个参数：域，地址簇，决定本地通信还是网络通信
+       AF_UNIX/AF_LOCAL - 表示本地通信
+       AF_INET -  表示基于IPV4的网络通信
+       AF_INET6 - 表示基于IPV6的网络通信
+第二个参数：通信类型和通信协议
+       SOCK_STREAM - 表示数据流通信，用于TCP通信协议
+       SOCK_DGRAM -  表示数据报通信，用于UDP通信
+第三个参数：特殊协议，给0即可
+返回值：成功返回Socket描述浮，失败-1
+函数功能：创建一个用于通信的Socket，Socket就是通信载体
+
+（2）通信地址
+a. 通用结构体类型
+ struct sockaddr {
+               sa_family_t sa_family;
+               char        sa_data[14];
+           }
+主要作为函数的参数类型，并不会单独使用
+
+b. 本地通信的结构体类型
+ #include<sys/un.h>
+ struct sockaddr_un {
+ sa_family_t  sun_family  Address family.    地址簇，与socket第一个参数保持一致
+              char         sun_path[]  Socket pathname.   文件的路径和文件名
+ }
+
+c. 网络通信的结构体类型
+ #include<netinet/in.h>
+ struct sockaddr_in {
+ sa_family_t     sin_family                              AF_INET.
+              in_port_t       sin_port     Port number.   端口号
+              struct in_addr  sin_addr     IP address.    IP地址
+  }
+
+  struct in_addr {
+         in_addr_t  s_addr;  //IP地址
+  }
+
+（3）bind 函数
+
+       #include <sys/types.h>          /* See NOTES */
+       #include <sys/socket.h>
+       int bind(int sockfd, const struct sockaddr *addr,
+                socklen_t addrlen);
+第一个参数：socket描述浮，也就是socket函数的返回值
+第二个参数：准备的通信地址的地址
+第三个参数：通信地址的大小
+函数功能：绑定socket和通信地址
+
+（4）connect 函数
+
+       #include <sys/types.h>          /* See NOTES */
+       #include <sys/socket.h>
+       int connect(int sockfd, const struct sockaddr *addr,
+                   socklen_t addrlen);
+函数功能：
+    建立socket到通信地址的链接，参数和返回值同bind一样
+
+
+一。本地通信：
+服务器：创建套接字（socket,AF_LOCAL/AF_UNIX）；
+        准备地址结构（sockaddr_un）并绑定（bind）
+        接收数据（read）
+        发送数据（write）
+        关闭套接字（close）
+
+客户机：创建套接字（socket，AF_LOCAL/AF_UNIX）；
+        准备地址结构（socketaddr_un）并链接（connect）
+        发送数据（write）
+        接收数据（read）
+        关闭套接字（close）
+
+
+
+
+
+  1 //编写本地通信的服务器端         socka.c           -oA
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 #include<sys/types.h>
+  6 #include<sys/socket.h>
+  7 #include<string.h>
+  8 #include<sys/un.h>
+  9 int main () {
+ 10     //1创建socket
+ 11     int sockfd = socket(AF_LOCAL,SOCK_DGRAM,0);
+ 12     if (-1 == sockfd) {
+ 13         perror("socket"),exit(-1);
+ 14     }
+ 15     printf("创建socket成功\n");
+ 16     //2准备通信地址，使用结构体类型
+ 17     struct sockaddr_un addr;
+ 18     addr.sun_family = AF_LOCAL;
+ 19     strcpy(addr.sun_path,"a.sock");
+ 20     //3绑定socket和通信地址
+ 21     int res = bind(sockfd,(struct sockaddr *)&addr,sizeof(addr));
+ 22     if (-1 == res) {
+ 23         perror("bind"),exit(-1);
+ 24     }
+ 25     printf("绑定成功\n");
+ 26     //4进行通信
+ 27     char buf[100] = {0};
+ 28     res = read(sockfd,buf,sizeof(buf));
+ 29     if (-1 == res) {
+ 30         perror("read"),exit(-1);
+ 31     }
+ 32     printf("读取到客户端发来的消息是%s,消息大小是%d\n",buf,res);
+ 33     //5关闭socket
+ 34     close(sockfd);
+ 35     return 0;
+ 36 }
+
+
+
+ 1 //本地通信客户端                             sockb.c        -oB
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 #include<string.h>
+  6 #include<sys/types.h>
+  7 #include<sys/socket.h>
+  8 #include<sys/un.h>
+  9 int main () {
+ 10     //1创建socket
+ 11     int sockfd = socket(AF_LOCAL,SOCK_DGRAM,0);
+ 12     if (-1 == sockfd) {
+ 13         perror("socket"),exit(-1);
+ 14     }
+ 15     printf("创建socket成功\n");
+ 16     //2准备通信地址
+ 17     struct sockaddr_un addr;
+ 18     addr.sun_family = AF_LOCAL;
+ 19     strcpy(addr.sun_path,"a.sock");
+ 20     //3链接soket和通信地址
+ 21     int res = connect(sockfd,(struct sockaddr *)&addr,sizeof(addr));
+ 22     if (-1 == res) {
+ 23         perror("connect"),exit(-1);
+ 24     }
+ 25     printf("链接服务器成功\n");
+ 26     //4进行通信
+ 27     res = write(sockfd,"hello",5);
+ 28     if (-1 == res) {
+ 29         perror("write"),exit(-1);
+ 30     }
+ 31     printf("想服务器端发送成功\n");
+ 32     //5关闭socket
+ 33     close(sockfd);
+ 34     return 0;
+ 35 }
+
+先运行A，在运行B
+
+
+注意：客户端准备的通信地址本质上就是服务器端的通信地址，所以客户端可以通过该地址想服务器发数据内容，如果服务器需要给客户端发送数据，则需要提供客户端的通信地址
+
+
+二。网络通信
+服务器：创建套接字（socket,AF_INET）；
+        准备地址结构（sockaddr_in）并绑定（bind）
+        接收数据（read）
+        发送数据（write）
+        关闭套接字（close）
+
+客户机：创建套接字（socket，AF_INET）；
+        准备地址结构（socketaddr_in）并链接（connect）
+        发送数据（write）
+        接收数据（read）
+        关闭套接字（close）
+

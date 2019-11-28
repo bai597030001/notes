@@ -1,0 +1,159 @@
+一、标准模板库(STL)概述
+1.泛型容器：以类模板的形式实现的通用数据结构。
+1)向量(vector)        \
+2)双端队列(deque)   > 线性容器
+3)链表(list)              /
+4)堆栈(stack)                         \
+5)队列(queue)                         > 适配器容器
+6)优先队列(priority_queue)  /
+7)映射(map)                  \
+8)多重映射(multimap)   \ 关联
+9)集合(set)                      / 容器
+10)多重集合(multiset)  /
+2.迭代器：容器的内部类，在不了解容器内部结构的前提下，访问其中的数据元素；模仿指针的行为。
+1)根据迭代特性分为
+单向迭代器：只能沿一个方向迭代，只能做++。
+顺序迭代器：可以沿两个方向迭代，既可以++，也可以--，不支持随机迭代。
+随机迭代器：除了顺序迭代器的功能以外，还可以和整数进行加减运算，可以在同类型迭代器之间进行比较和相减运算。
+2)根据迭代方向分为
+正向迭代器：增运算从头到尾。
+反向迭代器：增运算从尾到头。
+3)根据只读特性分为
+可写迭代器：目标元素可以被修改。
+只读迭代器：目标元素不能被修改。
+3.泛型算法：一组模板函数，借助于迭代器操作不同容器中的数据元素。
+查找、排序、拆分、合并、复制、移动、交换，等等......
+二、向量(vector)
+1.基本特性和实例化
+1)向量中的元素被存放至一段连续的内存空间中。
+2)通过下标随机访问向量元素的效率和数组相当(O(1))。
+3)向量的内存空间随着新元素的加入而自动增长。
+4)向量支持预分配空间，避免频繁的动态内存分配。
+5)实例化
+#include <vector>
+using namespace std;
+vector<int> vi; // 空向量
+vector<int> vi (5); // 带有初始大小的向量，0初始化
+vector<int> vi (5, 10); // 带有初始大小和
+                                        // 指定初值的向量
+int a[5] = {10, 20, 30, 40, 50};
+vector<int> vi (a, a + 5);
+vector<int> v2 (vi.begin () + 1, vi.end () - 1);
+20, 30, 40 -> v2
+2.随机迭代
+1)STL中只有向量和双端队列这样的连续内存的容器才会支持随机迭代器，其它容器都只能支持顺序迭代器。
+2)随机迭代器可以和整数进行运算，可以大小比较，可以相减，注意正向和反向迭代器的区别。
+3.成员函数(用T表示容器元素的类型)
+T& front (void);
+T const& front (void) const;
+T& back (void);
+T const& back (void) const;
+void push_back (T const& data);
+void pop_back (void);
+iterator insert (iterator loc, T const& data);
+iterator erase (iterator loc);
+4.泛型函数
+#include <algorithm>
+iterator find (iterator begin, iterator end,
+    T const& key);
+在[begin, end)区间内查找第一个与key匹配的元素，查找成功返回指向匹配元素的迭代器，查找失败返回end。
+void sort (iterator begin, iterator end);
+对[begin, end)区间内的元素做快速排序(O(NlogN))。
+void sort (iterator begin, iterator end, less cmp);
+less: 小于比较器，可以是函数指针也可以是函数对象，实现小于比较的逻辑。
+bool <小于比较函数> (T a, T b) { ... }
+class <小于比较器类> {
+public:
+    bool operator() (T a, T b) { ... }
+};
+5.迭代器的有效期
+任何针对容器的结构性改变(元素的增删或合并拆分等)，先前获得迭代器有可能会失效，最好重新赋值以反映变化以后的内存地址，然后再使用。
+6.类类型容器
+如果容器中元素的类型是自定义的类，往往需要提供缺省构造函数，支持深拷贝的拷贝构造和拷贝赋值函数，以及“<”运算符函数和“==”运算符函数。
+三、双端队列(deque)
+1.连续内存存储、支持下标访问、支持随机迭代。
+2.增加了在容器首部压入和弹出元素的接口：push_front/pop_front和在尾部所做的相应操作具有相同的时间复杂度。
+3.为了维护两端开发的动态内存，在操作的空间复杂和时间性能方面比向量略差。
+四、链表(list)
+1.成员函数
+front/push_front/pop_front
+back/push_back/pop_back
+insert/erase/clear/remove
+size/empty
+begin/rbegin/end/rend
+void unique (void);
+将链表中连续重复出现的元素唯一化。
+void sort (void);
+void sort (less cmp);
+基于链表的结构特性，更优化的排序。
+void splice (iterator pos, list& lst);
+将lst中的全部元素剪切到调用链表的pos之前。
+void splice (iterator pos, list& lst, iterator del);
+将lst中del处的元素剪切到调用链表的pos之前。
+void splice (iterator pos, list& lst, iterator begin,
+    iterator end);
+将lst中位于[begin, end)区间中的元素剪切到调用链表的
+pos处。
+void merge (list& lst);
+void merge (list& lst, less cmp);
+将有序的lst合并到有序的调用链表中，并保持调用链表有序。
+五、堆栈、队列和优先队列
+1.堆栈(stack)
+push->push_back
+pop->pop_back
+top->back
+size->size
+empty->empty
+clear->clear
+底层容器：vector/deque(缺省)/list
+2.队列(queue)
+push->push_back
+pop->pop_front
+front->front
+back->back
+size->size
+empty->empty
+clear-clear
+底层容器：deque(缺省)/list
+3.优先队列(priority_queue)
+push
+pop
+top
+size
+empty
+clear
+优先级越高的元素越先出队，优先级相同的元素，先进先出。缺省情况下，越大的元素被认为优先级越高，也可以通过比较器定义优先级。
+底层容器：vector/deque(缺省)
+六、映射(map)
+1.映射将现实世界中不同类型事物之间的对应关系，抽象为由一系列key-value(键-值)对组成的集合，并提供通过key快速地检索与之相对应的value的方法。
+身份证号——个人信息
+学号——考分
+条码——商品价格
+主键——表记录
+KEY        VALUE
+2.在映射内部，都有key-value对被组织成以key为基准的红黑树(自平衡有序二叉树)的形式。
+3.key必须唯一，表达一一对应。
+4.支持按key做下标检索。
+m["张飞"] = 100; // 张飞——100
+5.映射的存储和访问单元是pair。
+template<typename FIRST, typename SECOND>
+class pair {
+public:
+    pair (FIRST const& f, SECOND const& s) :
+        first (f), second (s) {}
+    FIRST first;
+    SECOND second;
+};
+first是key
+second是value
+映射的迭代器相当于一个指向pair对象的指针。
+七、多重映射
+允许key重复的映射。
+不支持下标运算符。
+upper_bound：匹配上限，最后一个与key匹配节点之后
+lower_bound：匹配下限，第一个与key匹配节点
+八、集合
+没有value的映射。
+九、多重集合
+没有value的多重映射。
+允许key重复的集合。

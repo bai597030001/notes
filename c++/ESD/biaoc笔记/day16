@@ -1,0 +1,389 @@
+calloc函数也可以动态分配内存
+这个函数会把分配的所有存储区的内容都清0
+这个函数也需要包含stdlib.h头文件
+他的返回值也代表动态分配内存的首地址
+他也可能会失败，如果失败则返回值是NULL
+他需要两个参数，第一个参数表示分配的存储区个数，第二个参数表示单个存储区的大小
+
+  1 #include<stdio.h>
+  2 #include<stdlib.h>
+  3 int main () {
+  4     int *p_num = (int *)calloc(5, sizeof(int));
+  5     int num = 0;
+  6     if (p_num) {
+  7         for (num = 0; num <= 4; num++) {
+  8             printf ("%d ", *(p_num + num));
+  9         }
+ 10         printf ("\n");
+ 11         free(p_num);
+ 12         p_num = NULL;
+ 13     }
+ 14     return 0;
+ 15 }
+
+---------------------------------
+
+realloc函数可以调整一段动态分配内存的大小
+这个函数也需要包含stdlib.h头文件
+他也可能会失败，如果失败则返回值是NULL
+这个函数可能时间比较长而且代码容易出错，最好不采用
+
+----------------------------
+
+c语言中函数也有地址，函数名称可以代表函数的地址
+
+  1 #include<stdio.h>
+  2 int add(int num, int num1) {
+  3     return num + num1;
+  4 }
+  5 int main () {
+  6     printf ("add是%p\n", add);
+  7     return 0;
+  8 }
+
+函数指针可以用来记录函数的地址
+函数指针也是变量，也需要先声明然后再使用
+函数指针的声明可以根据函数声明变化得到
+
+  1 #include<stdio.h>
+  2 int add(int num, int num1) {
+  3     return num + num1;
+  4 }
+  5 int main () {
+  6     int (*p_func)(int, int) = NULL;  //函数指针声明
+  7     printf ("add是%p\n", add);
+  8     return 0;
+  9 }
+
+一旦把函数指针和函数捆绑后就可以利用函数指针调用函数
+
+  1 #include<stdio.h>
+  2 int add(int num, int num1) {
+  3     return num + num1;
+  4 }
+  5 int main () {
+  6     int (*p_func)(int, int) = NULL;  //函数指针声明
+  7     p_func = add;                    //把函数地址赋值给函数指针 
+  8     printf ("p_func(3, 8)是%d\n", p_func(3, 8));
+  9     printf ("add是%p\n", add);
+ 10     return 0;
+ 11 }
+
+利用函数指针可以在程序运行的时候建立调用函数和被调用函数之间的关系
+
+  1 #include<stdio.h>
+  2 int add(int num, int num1) {
+  3     return num + num1;
+  4 }
+  5 int sub(int num, int num1) {
+  6     return num - num1;
+  7 }
+  8 int mul(int num, int num1) {
+  9     return num * num1;
+ 10 }
+ 11 int div(int num, int num1) {
+ 12     return num / num1;
+ 13 }
+ 14 int main () {
+ 15     char opr = 0;
+ 16     int num = 0, num1 = 0;
+ 17     int res = 0;
+ 18     printf ("请输入表达式");
+ 19     scanf("%d%c%d", &num, &opr,&num1);
+ 20     if (opr == '+') {
+ 21         res = add(num,num1);
+ 22     }
+ 23     else if (opr == '-') {
+ 24         res = sub(num, num1);
+ 25     }
+ 26     else if (opr == '*') {
+ 27         res = mul(num, num1);
+ 28     }
+ 29     else {
+ 30         res = div(num, num1);
+ 31     }
+ 32     printf ("计算结果是%d\n", res
+ 33             );
+ 34     return 0;
+ 35 }
+
+利用函数指针
+  1 #include<stdio.h>
+  2 int add(int num, int num1) {
+  3     return num + num1;
+  4 }
+  5 int sub(int num, int num1) {
+  6     return num - num1;
+  7 }
+  8 int mul(int num, int num1) {
+  9     return num * num1;
+ 10 }
+ 11 int div(int num, int num1) {
+ 12     return num / num1;
+ 13 }
+ 14 int main () {
+ 15     int (*p_func)(int, int) = NULL;
+ 16     char opr = 0;
+ 17     int num = 0, num1 = 0;
+ 18     int res = 0;
+ 19     printf ("请输入表达式");
+ 20     scanf("%d%c%d", &num, &opr,&num1);
+ 21     if (opr == '+') {
+ 22         p_func = add;
+ 23     }
+ 24     else if (opr == '-') {
+ 25         p_func = sub;
+ 26     }
+ 27     else if (opr == '*') {
+ 28         p_func = mul;
+ 29     }
+ 30     else {
+ 31         p_func = div;
+ 32     }
+ 33     res = p_func(num, num1);
+ 34     printf ("计算结果是%d\n", res);
+ 35     return 0;
+ 36 }
+
+函数指针可以作为函数的形式参数使用
+和函数指针形式参数配合使用的实际参数应该是一个函数
+可以作为实际参数使用的函数叫回调函数                  ？？？？
+
+  1 #include<stdio.h>
+  2 void print(int *p_num) {
+  3     printf ("%d ", *p_num);
+  4 }
+  5 void for_each(int *p_num, int size, void (*p_func)(int*)) {
+  6     int num = 0;
+  7     for (num = 0; num <= size - 1; num++) {
+  8         p_func(p_num + num);                        ？？？？？/
+  9     }
+ 10 }
+ 11 int main () {
+ 12     int arr[] = {1,2,3,4,5};
+ 13     //print(arr, 5);
+ 14     for_each(arr, 5, print);             ？？？？？？？
+ 15     printf ("\n");
+ 16     return 0;
+ 17 }
+
+打印数组相反数
+
+  1 #include<stdio.h>
+  2 void neg(int *p_num) {
+  3     *p_num = 0 - *p_num;
+  4 }
+  5 void print(int *p_num) {
+  6     printf ("%d ", *p_num);
+  7 }
+  8 void for_each(int *p_num, int size, void (*p_func)(int*)) {
+  9     int num = 0;
+ 10     for (num = 0; num <= size - 1; num++) {
+ 11         p_func(p_num + num);                    ？？？？？？？？？？
+ 12     }
+ 13 }
+ 14 int main () {
+ 15     int arr[] = {1,2,3,4,5};
+ 16     //print(arr, 5);
+ 17     for_each(arr, 5, print);
+ 18     printf ("\n");
+ 19     for_each(arr, 5, neg);
+ 20     for_each(arr, 5, print);
+ 21     printf("\n");
+ 22     return 0;
+ 23 }
+ 
+--------------------------
+atoi是一个标准函数，他可以把字符串里的一个整数转换成整数类型
+atof也是一个标准函数，他可以把字符串里的浮点数转换成double类型
+为了使用这两个标准函数需要包含stdlib.h头文件
+
+  1 #include<stdio.h>
+  2 #include<stdlib.h>
+  3 int main () {
+  4     int num = atoi("435");
+  5     double dnum = atof("34.87");
+  6     printf ("num是%d\n", num);
+  7     printf ("dnum是%lg\n", dnum);
+  8     return 0;
+  9 }
+
+sqrt函数可以用来计算一个数字的平方根
+这个函数需要包含math.h头文件
+使用了这个函数的程序编译的时候需要加上-lm选项
+
+  1 #include<stdio.h>
+  2 #include<stdlib.h>
+  3 #include<math.h>
+  4 int main () {
+  5     int num = atoi("435");
+  6     double dnum = atof("34.87");
+  7     printf ("num是%d\n", num);
+  8     printf ("dnum是%lg\n", dnum);
+  9     dnum = sqrt(36.0);
+ 10     printf ("dnum是%lg\n", dnum);
+ 11     return 0;
+ 12 }
+
+pow可以计算一个数字的次方
+他也需要包含math.h头文件
+编译的时候也需要加上-lm选项
+
+  1 #include<stdio.h>
+  2 #include<stdlib.h>
+  3 #include<math.h>
+  4 int main () {
+  5     int num = atoi("435");
+  6     double dnum = atof("34.87");
+  7     printf ("num是%d\n", num);
+  8     printf ("dnum是%lg\n", dnum);
+  9     dnum = sqrt(36.0);
+ 10     printf ("dnum是%lg\n", dnum);
+ 11     dnum = pow(2, 3);
+ 12     printf ("dnum是%lg\n", dnum);
+ 13     return 0;
+ 14 }
+------------------------------------
+输出缓冲区管理规则
+1.'\n'字符前的所有字符会被显示在屏幕上
+
+  1 #include<stdio.h>
+  2 int main {
+  3     printf ("1");
+  4     while(1);
+  5     return 0;
+  6 }
+
+  1 #include<stdio.h>
+  2 int main() {
+  3     printf ("1\n");
+  4     while(1);
+  5     return 0;
+  6 }
+
+
+2.程序结束后他所打印的所有内容也会被显示在屏幕上
+
+  1 #include<stdio.h>
+  2 int main() {
+  3     printf ("1");
+  4     //while(1);
+  5     return 0;
+  6 }
+
+3.输出缓冲区被充满的时候也会把内容显示在屏幕上
+
+  1 #include<stdio.h>
+  2 int main() {
+  3     while(1) {
+  4         printf ("1");
+  5     }
+  6     return 0;
+  7 }
+
+4.函数调用语句fflush(stdout)也可以把输出缓冲区里的内容显示在屏幕上
+
+  1 #include<stdio.h>
+  2 int main() {
+  3         printf ("1");
+  4         fflush(stdout);
+  5     while(1);
+  6     return 0;
+  7 }
+-----------------------------------------------
+
+sleep函数可以让程序静止一定的时间
+这个函数需要一个参数表示精致的秒数
+为了使用这个函数需要包含unistd.h头文件
+静止的时间不精确
+
+  1 #include<stdio.h>
+  2 #include<time.h>
+  3 #include<unistd.h>
+  4 int main () {
+  5     printf ("%ld\n", time(0));
+  6     sleep(5);
+  7     printf ("%ld\n", time(0));
+  8     return 0;
+  9 }
+
+练习：
+    1.编写秒表程序
+
+  1 #include<stdio.h>
+  2 int main() {
+  3     int num = 0;
+  4     while (!0) {
+  5         num++;
+  6         fflush(stdout);
+  7         sleep(1);
+  8         printf ("%d\r", num);
+  9     }
+ 10     return 0;
+ 11 }
+
+
+  1 #include<stdio.h>
+  2 #include<unistd.h>
+  3 int main () {
+  4     int cnt = 0;
+  5     while (1) {
+  6         printf ("%d\r", cnt);
+  7         fflush(stdout);
+  8         cnt++;
+  9         sleep(1);
+ 10     }
+ 11     return 0;
+ 12 }
+
+------------------------------------
+
+sprintf函数可以把多个数字按照格式打印在字符数组里形成字符串
+这个函数的参数就是在pirntf函数的参数前面再加一个代表字符数组的参数，打印结果就保留在这个字符数组里
+
+  1 #include<stdio.h>
+  2 int main() {
+  3     char buf[] = {};
+  4     char ch = 't';
+  5     int num = 45;
+  6     float fnum = 4.76f;
+  7     printf ("%c %d %g\n", ch, num, fnum);
+  8     sprintf (buf, "%c %d %g\n", ch, num, fnum);
+  9     printf ("%s\n", buf);
+ 10     return 0;
+ 11 }
+
+sscanf函数可以从字符串里的到多个数据并把他们记录在变量存储区里
+这个函数的参数就是在scanf函数参数前面加一个代表字符数串的参数，所有数字都来自于这个字符串
+
+  1 #include<stdio.h>
+  2 int main() {
+  3     char buf[] = {};
+  4     char ch = 't';
+  5     int num = 45;
+  6     float fnum = 4.76f;
+  7     printf ("%c %d %g\n", ch, num, fnum);
+  8     sprintf (buf, "%c %d %g\n", ch, num, fnum);
+  9     printf ("%s\n", buf);
+ 10     sscanf("4.23 p 58", "%g %c %d", &fnum, &ch, &num);
+ 11     printf ("%c %g %d\n", ch, fnum, num);
+ 12     return 0;
+ 13 }
+
+fprintf函数会把多个数据记录到文件中（只能操作文本文件）
+这个函数的参数就是在printf函数参数的前面加上一个文件指针参数
+
+fscanf函数可以从文本文件里的到多个数据并把他们记录在变量存储区里
+这个函数的参数就是在scanf函数参数的前面加上一个文件指针参数
+
+
+
+
+指针，结构体，动态分配内存，函数
+
+
+
+
+
+
+

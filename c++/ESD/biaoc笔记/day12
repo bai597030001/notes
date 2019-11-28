@@ -1,0 +1,311 @@
+二维字符数组可以用来记录多个相关字符串，其中每组存储区用来记录一个字符串
+
+  1 #include<stdio.h>
+  2 int main () {
+  3     char strs[][10] = {"china","russia","amerrica","england","france"};
+  4     int num = 0;
+  5     for (num = 0;num <= 4;num++) {
+  6         printf ("%s\n",strs[num]);
+  7     }
+  8     return 0;
+  9 }
+
+这种方式有可能造成内存的浪费并且内存的使用也不灵活
+
+
+
+字符指针数组也可以用来记录多个相关字符串
+字符指针数组中包含多个字符指针类型存储区，其中每个指针代表一个字符串
+
+字符指针数组申明格式如下
+ char *strs[2] = {"abc","def"};
+
+
+  1 #include<stdio.h>
+  2 int main () {
+  3     char *strs[] = {"abc","det","dws","huj","gui"};
+  4     int num = 0;
+  5     printf ("%d\n",sizeof(strs));
+  6     for (num = 0;num <= 4;num++) {
+  7         printf ("%s\n",strs[num]);
+  8     }
+  9     return 0;
+ 10 }
+
+这种方法更节省内存并且内存的使用更灵活
+
+“36，14，56，78，49”
+
+
+
+
+二级指针用来记录指针地址
+
+一级指针只能记录普通变量的地址
+
+二级指针声明的时候需要写两个*
+
+二级指针代表留个不同的内容
+1.二级指针名称本身可以代表二级指针自己的存储区或者这个存储区里记录的一级之指针地址
+2.二级指针名称前加一个*可以用来表示捆绑的一级指针存储区或者他里面记录的普通变量的地址
+3.二级指针名称钱加两个*可以用来表示一级指针在捆绑的普通变量存储区或者这个存储区里的数据         ---------
+
+
+可以把指针数组名称赋值给二级指针
+
+无类型指针有可能实际代表一个二级指针
+
+主函数参数演示
+
+  1 #include<stdio.h>
+  2 int main (int argc, char *argv[]) {
+  3     int num = 0;
+  4     for (num = 0;num <= argc - 1;num++) {
+  5         printf ("%s\n",argv[num]);
+  6     }
+  7     return 0;
+  8 }
+
+
+
+
+
+
+
+计算机里的所有文件记录的都是二进制数据
+
+文本文件中记录的所有二进制内容都来自于字符
+          .c
+
+除了文本文件以外的文件叫二进制文件
+
+可以采用二进制方式对所有文件进行处理
+
+文件操作的基本流程分如下三歩
+1.打开文件（fopen）
+2.操作文件（fread/fwrite）
+3.关闭文件（fclose）
+
+文件操作代码框架
+
+  1 #include<stdio.h>
+  2 int main () {
+  3     FILE *p_file = fopen("a.txt","w");
+  4     if (p_file) {
+  5         //
+  6         fclose(p_file);
+  7         p_file = NULL;
+  8     }
+  9     return 0;
+ 10 }
+
+fopen函数需要两个参数
+1.参数1代表文件路径
+2.参数2代表文件的打开方式（打开方式决定可以在程序中对文件做什么操作）
+
+打开方式介绍
+"r"           只能察看文件内容并且只能从文件头开始察看，文件必须已经存在否则打开失败
+
+"r+"          比前一个多了修改功能
+
+"w"           只能修改文件内容并且只能从文件头开始修改。如果文件已经存在则删除文件内容，如果文件不存在就创建新文件
+
+"w+"          比前一个多了察看功能
+
+"a"           只能修改文件内容，但是新内容要追加在文件中原有内容后面，如果文件不存在就创建心文件，
+              如果文件存在就不改变文件原有内容
+
+"a+"          比前一个多了察看功能
+
+"b"           也是打开方式，他可以和上面任何一个混用，表示以二进制方式对文件进行操作
+
+
+fopen函数的返回值叫文件指针，它是唯一可以用来在程序中代表文件的
+
+fopen函数有可能失败，如果失败则返回值是空
+
+当完成对文件的操作后必须使用fclose函数关闭文件
+
+fclose函数需要文件指针作为参数
+
+文件关闭后文件指针成为野指针，必须恢复成空指针
+
+  1 #include<stdio.h>
+  2 int main () {
+  3     FILE *p_file = fopen("a.txt","w");
+  4     if (!p_file) {
+  5         return 0;
+  6     }
+  7     //
+  8     fclose(p_file);
+  9     p_file = NULL;
+ 10     return 0;
+ 11 }
+
+
+
+对文件的操作分成两中
+1.把内存里一组连续字节的内容拷贝到文件里（这个叫写文件）
+2.把文件中的内容拷贝到内存中一组连续的字节里（这个叫读文件）
+
+fread函数可以涌来以二进制方式读文件内容
+
+fwrite函数可以涌来以二进制的方式写文件内容
+
+这两个函数都需要四个参数
+1.内存中第一个字节的地址
+2.内存中单个存储区包含的字节个数
+3.希望拷贝的存储区个数
+4.文件指针
+
+他们的返回值表示实际拷贝的存储区个数                ************
+
+演示程序
+
+
+  1 #include<stdio.h>
+  2 int main () {
+  3     int arr[] = {1,2,3,4,5},size = 0;
+  4     FILE *p_file = fopen("a.bin","wb");
+  5     if (p_file) {
+  6         size = fwrite(arr,sizeof(int),5,p_file);
+  7         printf("一共写入%d个整数类型存储区\n",size);
+  8         fclose(p_file);
+  9         p_file = NULL;
+ 10     }
+ 11     return 0;
+ 12 }
+
+
+
+  1 #include<stdio.h>
+  2 int main () {
+  3     int arr[10] = {},size = 0,num = 0;
+  4     FILE *p_file = fopen("a.bin","rb");
+  5     if (p_file) {
+  6         size = fread(arr, sizeof(int), 10, p_file);
+  7         printf ("一共读出%d个整数类型存储区\n",size);
+  8         for (num = 0;num <= size - 1;num++) {
+  9             printf ("%d",arr[num]);
+ 10         }
+ 11         printf ("\n");
+ 12         fclose(p_file);
+ 13         p_file = NULL;
+ 14     }
+ 15     return 0;
+ 16 }
+
+ 
+练习：
+     1.编写模拟人员信息管理系统，每个人员信息有三部分构成：整数类型的id，但精度浮点类型的salary，字符数组的name（20个存储区）.
+       一个程序从键盘的到多个人员信息并把他们记录在一个文件里（文件内容可以多次扩展，每次记录一个人员信息后询问用户是否输入下一个人员信息）
+       另外一个程序从文件中的到多有人员信息并把他们打印在屏幕上
+       
+
+  1 #include<stdio.h>
+  2 #include<string.h>
+  3 int main () {
+  4     int id = 0,choice = 0;
+  5     float salary = 0.0f;
+  6     char name[20] = {};
+  7     FILE *p_file = fopen("person.bin","ab");
+  8     if (p_file) {
+  9         do {
+ 10             printf ("请输入id");
+ 11             scanf("%d",&id);
+ 12             printf ("请输入工资");
+ 13             scanf ("%g",&salary);
+ 14             scanf("%*[^\n]");
+ 15             scanf("%*c");
+ 16             printf ("请输入姓名");
+ 17             fgets(name, 20, stdin);
+ 18             if (strlen(name) == 19 && name[18] != '\n') {
+ 19                 scanf("%*[^\n]");
+ 20                 scanf("%*c");
+ 21         }
+ 22         fwrite(&id, sizeof(int), 1, p_file);
+ 23         fwrite(&salary, sizeof(float), 1,p_file);
+ 24         fwrite(name, sizeof(char),20,p_file);
+ 25         printf ("是否需要输入下一个人员信息？0表示不需要，1表示需要");
+ 26         scanf("%d",&choice);
+ 27         }while (choice);
+ 28     fclose(p_file);
+ 29     p_file = NULL;
+ 30     }
+ 31     return 0;
+ 32 }
+
+
+
+  1 #include<stdio.h>
+  2 int main () {
+  3     int id = 0;
+  4     float salary = 0.0f;
+  5     char name[20] = {};
+  6     FILE *p_file = fopen("person.bin","rb");
+  7     if (p_file) {
+  8         while (fread(&id, sizeof(int), 1, p_file)) {
+  9             fread(&salary, sizeof(float), 1, p_file);
+ 10             fread(name, sizeof(char), 20, p_file);
+ 11             printf ("id是%d,工资时%g,姓名时%s\n",id,salary,name);
+ 12         }
+ 13         fclose(p_file);
+ 14         p_file = NULL;
+ 15     }
+ 16     return 0;
+ 17 }
+
+
+
+
+      2.根据用户给定的id从文件中找到对应的人员信息并打印在屏幕上（假设用户给定的id是存在的）
+
+
+
+预习：
+    1.文件的位置指针
+    2.预处理指令（宏和条件编译）
+    3.多文件编程
+    
+
+作业：
+    1.编写程序实现文件拷贝功能  
+         程序从命令中的到两个文件路径，第一个路径表示一个已经存在的文件，第二个路径表示一个还不存在的文件
+         程序执行后第二个路径代表的文件被创建出来，他们的内容和第一个路径代表的文件一样
+
+
+  1 #include<stdio.h>
+  2 int main (int argc, char *argv[]) {
+  3     char buf[100] = {};
+  4     int size = 0;
+  5     FILE *p_src = fopen(argv[1],"rb");
+  6     FILE *p_dest = NULL;
+  7     if (!p_src) {
+  8         printf ("原始文件打开失败\n");
+  9         return 0;
+ 10     }
+ 11     p_dest = fopen(argv[2],"wb");
+ 12     if (!p_dest) {
+ 13         fclose(p_src);
+ 14         p_src = NULL;
+ 15         printf ("新文件打开失败\n");
+ 16         return 0;
+ 17     }
+ 18         while (size = fread(buf,sizeof(char),100,p_src)) {
+ 19         fwrite(buf,sizeof(char),size,p_dest);
+ 20     }
+ 21     fclose(p_src);
+ 22     p_dest = NULL;
+ 23     fclose(p_src);
+ 24     p_src = NULL;
+ 25     return 0;
+ 26 }
+
+
+
+
+
+
+
+
+

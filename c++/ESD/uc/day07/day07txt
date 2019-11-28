@@ -1,0 +1,430 @@
+今天内容：
+1.进程和多进程的操作
+1.1 进程的概念和基本命令
+    程序：主要指存放在硬盘上的可执行文件
+    进程：主要指运行在内存中的程序
+ps  -  察看当前终端的进程
+
+执行结果：
+    PID  -  进程号
+    TTY  -  终端号
+    TIME -  消耗CPU的时间
+    CMD  -  命令/进程的命令和选项
+    =>  whereis 命令 表示察看指定命令所在的位置
+
+    ps -aux  显示所有包含其他使用者的进程
+    ps -aux | more 表示分屏显示命令执行的结果
+
+ps -aux命令的执行结果：
+    USER  -  用户名，也就是进程的属主
+    PID   -  进程的进程号
+    %CPU  -  进程占用的CPU百分比
+    %MEM  -  进程占用的内存百分比
+    STAT  -  进程的状态信息
+    TIME  -  消耗CPU的时间
+    COMMAND- 进程的名称
+其中进程的状态信息主要有：
+    S  休眠状态           s  进程的领导者
+    Z  僵尸进程           R 正在运行的
+    O  可运行状态         T 挂起状态
+    <  优先级高的进程     N 优先级低的进程
+    L  有些页被锁进进程
+
+    ps -ef 表示以全格式的方式显示进程
+    ps -ef | more
+ps -ef命令的执行结果：
+    PPID   -   父进程ID
+    如果进程A启动了进程B，那么进程A叫做进程B的父进程，而进程B叫做进程A的子进程  
+    一般来说，进程0是系统内部进程，负责启动进程1和进程2，而其它的所有进程都是直接或间接的由进程1和进程2启动起来，而进程1也就是init进程
+
+    kill -9 进程号 ， 表示杀死指定的进程
+
+1.2各种ID的获取
+    PID   -   进程ID，系统采用PID唯一标识一个进程，在每一个时刻都可以保证PID的唯一性，采用延迟重用的策略
+
+    #include <unistd.h>
+    #include <sys/types.h>
+
+    getpid(),  -  表示获取当前进程的进程号
+    getppid(), -  表示获取 当前进程的父进程号
+    getuid(),  -  表示获取用户ID
+    getgid(),  -  表示获取组ID
+
+
+1.3 进程的创建
+（1）fork 函数
+
+       #include <unistd.h>
+       pid_t fork(void);
+函数功能：
+    表示以复制当前运行进程的方式去创建一个新的子进程，如果成功父进程返回子进程的PID，子进程返回0，失败返回-1
+
+（2）fork创建子进程之后，代码执行的方式是：
+a. fork 函数之前的代码，父进程执行一次
+b. fork 函数之后的代码，父子进程各执行一次
+c. fork 函数的返回值，由父子进程各执行一次，也就是父进程返回子进程的PID，子进程返回0；可以通过返回值区分父子目录
+
+注意：
+     父子进程的执行顺序是不确定的，由系统决定
+
+（3）父子进程之间的资源关系
+使用fork创建的子进程会复制父进程中除了代码区之外的其他区域，而代码区和父进程共享
+
+  1 //fork函数的使用
+  2 #include<stdio.h>
+  3 #include<unistd.h>
+  4 #include<stdlib.h>
+  5 int main () {
+  6     printf("pid = %d\n",getpid());//父进程
+  7     printf("main函数开始执行\n");
+  8     pid_t pid = fork();//fork出错
+  9     if (-1 == pid) {
+ 10         perror("fork"),exit(-1);
+ 11     }
+ 12     //printf("main函数结束%d\n",pid);
+ 13     if (0 == pid) {//子进程
+ 14         printf("我是子进程%d,我的父进程是%d\n",getpid(),getppid());
+ 15     }
+ 16     else {//父进程
+ 17         printf("我是父进程%d,我的子进程是%d\n",getpid(),pid);
+ 18     }
+ 19     return 0;
+ 20 }
+
+
+
+
+(4)父子进程之间的关系
+a. 父进程启动子进程之后，父子进程同时执行，如果子进程先结束，会给父进程发信号，父进程负责帮助子进程回收子进程的资源
+b. 如果父进程先结束，子进程会变成孤儿进程，子进程会变更父进程为init进程，也就是进程1，init进程叫做孤儿院
+c. 如果子进程先结束，但是父进程由于各种原因没有收到子进程发来的信号，子进程变成僵尸进程 
+
+  1 //父子进程之间的资源关系
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 #include<sys/types.h>
+  6 #include<string.h>
+  7 int i1 = 1;//全局区
+  8 int main () {
+  9     int i2 = 1;//栈区
+ 10     //pi指向堆区，pi在栈区
+ 11     char *pi = (char *)malloc(sizeof (char) * 10);
+ 12     strcpy(pi,"abcd");
+ 13     //创建子进程
+ 14     pid_t pid = fork();
+ 15     if (-1 == pid) {
+ 16         perror("fork"),exit(-1);
+ 17     }
+ 18     if (0 == pid) {//子进程
+ 19         i1 = 2;
+ 20         i2 = 2;
+ 21         strcpy(pi,"1234");
+ 22         int i3 = 2;
+ 23         printf("我是子进程%d,i1 = %d,i2 = %d,p1 = %s,i3 = %d\n",getpid(),i1,i2,pi,i3);
+ 24         exit(0);//终止程序
+ 25     }
+ 26     //i3不能访问
+ 27 //  printf("我是父进程%d,i1 = %d,i2 = %d,pi = %s,i3 = %d\n",getpid(),i1,i2,pi,i3);
+ 28     return 0;
+ 29 }
+
+
+  1 //fork进程执行次序和结束次序的比较
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 #include<sys/types.h>
+  6 int main () {
+  7     pid_t pid = fork();
+  8     if (-1 == pid) {
+  9         perror("fork"),exit(-1);
+ 10     }
+ 11     if (0 == pid) {//子进程
+ 12         printf("我是字进程%d,我的父进程是%d\n",getpid(),getppid());
+ 13         sleep(2);
+ 14         printf("我是字进程%d,我的父进程是%d\n",getpid(),getppid());
+ 15     }
+ 16     else {//父进程
+ 17         sleep(1);
+ 18         printf("我是父进程%d,我的子进程是%d\n",getpid(),pid);
+ 19     }
+ 20     return 0;
+ 21 }
+
+
+（5）扩展：
+a. 如何创建4个进程 
+   fork()； 调用两次，一个父进程，两个子进程，一个孙子进程
+b. 如何创建三个进程，也就是一个父进程，两个子进程
+   fork();  一个父进程 和 1个子进程
+   if (父进程) {
+       fork();   一个父进程 又创建了 一个子进程
+   }
+c. 俗称 ：fork炸弹
+    while (1) {
+        fork();  //采用指数级的增长方式
+    }
+
+1.4 进程的终止
+（1）正常终止
+a. 在main函数中执行了return 0;
+b. 调用exit()函数
+c. 调用_exit()/_Exit函数
+d. 最后一个线程返回
+e. 最后一个线程调用了pthread_exit()函数
+（2）非正常终止
+a. 采用信号终止进程
+b. 最后一个线程被其他线程取消
+
+（3）进程的终止函数
+
+       #include <unistd.h>
+       void _exit(int status);    =>uc函数
+       #include <stdlib.h>
+       void _Exit(int status);    =>标c函数
+函数功能：
+    表示立即终止当前进程，参数为退出状态信息，用于返回给父进程，一般给0表示正常退出，给-1表示分正常退出
+
+       #include <stdlib.h>
+       void exit(int status);   => 标C函数
+函数功能：
+    表示引起当前进程的终止，参数中的低八位被返回给父进程，终止进程的同时，会调用atexit()和 on_exit()函数注册过的函数
+
+       #include <stdlib.h>
+       int atexit(void (*function)(void));
+函数功能：
+    表示将参数指定的函数注册一下，等待被调用
+
+  1 //进程的终止
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 void fa(void) {
+  6     printf("恭喜，地雷\n");
+  7 }
+  8 int main () {
+  9     //注册一个函数
+ 10     atexit(fa);
+ 11     printf("main函数开始执行\n");
+ 12     //_exit(0);//立即终止
+ 13     //_Exit(0);//同上
+ 14     exit(0);//会调用注册函数
+ 15     printf("main函数结束\n");
+ 16     return 0;
+ 17 }
+
+1.5 进程的等待
+（1）wait 函数
+
+       #include <sys/types.h>
+       #include <sys/wait.h>
+       pid_t wait(int *status);
+函数功能：
+    表示挂起当前正在运行的进程，直到该进程的子进程状态发生改变，而子进程的终止也属于状态改变的一种，参数status用于获取子进程终止时的退出状态，成功返回终止的子进程，失败返回-1
+
+  WIFEXITED(status)  -  判断子进程是否正常终止
+  WEXITSTATUS(status) - 获取子进程的退出状态
+
+  1 //wait函数的使用
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 #include<sys/types.h>
+  6 #include<sys/wait.h>
+  7 int main() {
+  8     //1创建子进程
+  9     pid_t pid = fork();
+ 10     if (-1 == pid) {
+ 11         perror("fork"),exit(-1);
+ 12     }
+ 13     //2分别处理父子进程
+ 14     if (0 == pid) {
+ 15         printf("子进程%d开始执行\n",getpid());
+ 16         sleep(5);
+ 17         printf("子进程结束\n");
+ 18         exit(100);//取低八位
+ 19     }
+ 20     printf("父进程开始等待\n");
+ 21     int status = 0;
+ 22     int res = wait(&status);
+ 23     if (-1 == res) {
+ 24         perror("wait"),exit(-1);
+ 25     }
+ 26     printf("子进程%d总算结束了,status = %d,res = %d\n",pid,status,res);
+ 27     if (WIFEXITED(status)) {
+ 28         //获取exit函数参数的低8位
+ 29         printf("子进程终止时的退出码是%d\n",WEXITSTATUS(status));
+ 30     }
+ 31     return 0;
+ 32 }
+
+（2）waitpid函数
+
+     int waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options);
+第一个参数：进程号
+     < -1  表示等待进程号组ID为pid绝对值的任何一个子进程（了解）
+     = -1  表示等待任意一个子进程
+     = 0   表示等待和调用进程同一个进程组的任何一个子进程（了解）
+     > 0   表示等待进程号为PID的子进程（具体某一个，掌握）
+第二个参数：获取退出状态信息                                                                                                                                                                                                                                                                                                                                                                                                                                                           
+第三个参数：选项，一般给0即可
+返回值：    成功返回状态发生改变的进程PID，失败返回-1
+函数功能：
+    表示按照指定的方式等待指定的子进程状态发生改变，并且采用第二个参数获取退出状态信息
+
+  1 //waitpid函数的使用
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 #include<sys/types.h>
+  6 #include<sys/wait.h>
+  7 int main () {
+  8     //创建两个子进程
+  9     pid_t pid = fork();
+ 10     if (-1 == pid) {
+ 11         perror("fork"),exit(-1);
+ 12     }
+ 13     pid_t pid2;
+ 14     if (0 != pid) {//父进程
+ 15         pid2 = fork();
+ 16     }
+ 17     if (0 == pid) {//子进程1
+ 18         printf("子进程1开始运行PID = %d\n",getpid());
+ 19         sleep(3);
+ 20         printf("子进程1结束运行");
+ 21         exit(100);//子进程结束
+ 22     }
+ 23     if (0 == pid2) {//子进程2
+ 24         printf("子进程2开始运行，PID = %d\n",getpid());
+ 25         sleep(5);
+ 26         printf("子进程2结束运行\n");
+ 27         exit(200);//子进程结束
+ 28     }
+ 29     //父进程
+ 30     printf("父进程开始等待\n");
+ 31     int status = 0;
+ 32     //表示等待任意一个子进程结束
+ 33     //int res = waitpid(-1,&status,0);
+ 34     //等待子进程2结束
+ 35     int res = waitpid(pid2,&status,0);
+ 36     if (-1 == res) {
+ 37         perror("waitpid"),exit(-1);
+ 38     }
+ 39     if (WIFEXITED(status)) {
+ 40         printf("进程%d总算结束了，退出状态信息是%d\n",res,WEXITSTATUS(status));
+ 41     }
+ 42     return 0;
+ 43 }
+
+注意：
+    wait(&status) <=> waitpid(-1,&status,0)
+
+（3）工作方式：
+a. 调用wait()/waitpid()函数后，父进程开始等待子进程，父进程自身进入阻塞状态
+b. 如果没有子进程，父进程立即返回
+c. 如果有子进程，但是没有已经结束的子进程，父进程保持阻塞状态，直到有一个符合要求的子进程 结束，那么父进程会获取子进程的退出状态信息并且返回
+
+1.6其他相关函数
+（1）vfork 函数
+
+       #include <sys/types.h>
+       #include <unistd.h>
+       pid_t vfork(void);
+函数功能： 
+    该函数功能与fork基本相似，所不同的是不会拷贝父进程的内存区域，而是直接占用父进程的内存空间，使得父进程进入阻塞状态，直到子进程结束位置，也就是说子进程先于父进程执行
+
+  1 //vfork函数的使用
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 #include<sys/types.h>
+  6 int main () {
+  7     pid_t pid = vfork();
+  8     if (-1 == pid) {
+  9         perror("vfork"),exit(-1);
+ 10     }
+ 11     if (0 == pid) {//子进程
+ 12         printf("子进程%d开始执行\n",getpid());
+ 13         sleep(10);
+ 14         printf("子进程结束\n");
+ 15         exit(100);//结束子进程
+ 16     }
+ 17     printf("父进程开始执行\n");
+ 18     printf("父进程结束\n");
+ 19     return 0;
+ 20 }
+
+
+
+（2）execx系列函数
+int execl(const char *path, const char *arg, ...);
+
+第一个参数：文件路径
+第二个参数：文件的执行方式/选项
+第三个参数：可边长参数
+函数功能：
+    表示根据参数的信息执行对应的文件
+
+如：execl(/bin/ls,"ls","-l",NULL); //NULL表示参数结束
+    表示执行ls -l命令
+
+注意：
+    vfork函数本身没有太大意义，一般与exec系列函数搭配使用，可以实现多进程的并行；fork函数也可以与exec系列函数搭配使用，但是没有必要
+
+  1 //execl和vfork的搭配使用
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 #include<sys/types.h>
+  6 int main () {
+  7     pid_t pid = vfork();
+  8     if (0 == pid) {
+  9         printf("子进程%d开始运行\n",getpid());
+ 10         //sleep(5);
+ 11         //相当于子进程跳转出去执行
+ 12         //execl("/bin/ls","ls","-l",NULL);
+ 13         execl("./pro","pro",NULL);
+ 14         printf("子进程结束\n");
+ 15         //如果没有exit，子进程执行return 0之后可能会造成死循环，结果不可预知
+ 16         exit(0);
+ 17     }
+ 18     printf("父进程开始运行\n");
+ 19     printf("父进程结束\n");
+ 20     return 0;
+ 21 }
+
+
+  1 //execl执行的文件                 pro.c文件
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 int main () {
+  5     printf("pid = %d\n",getpid());
+  6     int i = 0;
+  7     for (i = 0;i < 10;i++) {
+  8         printf("使用execl函数就是人性\n");
+  9         sleep(1);
+ 10     }
+ 11     return 0;
+ 12 }
+
+
+（3）system函数
+     #include <stdlib.h>
+     int system(const char *command);
+函数功能：
+    表示执行参数指定的shell命令或文件
+
+  1 //system函数的使用
+  2 #include<stdio.h>
+  3 #include<stdlib.h>
+  4 #include<unistd.h>
+  5 int main () {
+  6     //int res = system("ls -l");
+  7     int res = system("./pro");
+  8     if (-1 == res) {
+  9         perror("system"),exit(-1);
+ 10     }
+ 11     return 0;
+ 12 }
+
