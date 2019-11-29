@@ -1,6 +1,6 @@
 # 控制层相关注解
 
-![](E:/notes/java/javaweb/spring/spring注解/img/spring_controller_annotation1.png)
+![](img/spring_controller_annotation1.png)
 
 - 前端请求类型
 

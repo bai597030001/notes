@@ -645,6 +645,87 @@ Java HotSpot(TM) 64-Bit Server VM (build 25.212-b10, mixed mode)
 
 
 
+# JVM进行Full GC的情况
+
+
+
+## 1、System.gc()方法的调用
+
+此方法的调用是建议JVM进行Full GC,虽然只是建议而非一定,但很多情况下它会触发 Full GC,从而增加Full GC的频率,也即增加了间歇性停顿的次数。强烈影响系建议能不使用此方法就别使用，让虚拟机自己去管理它的内存，可通过通过-XX:+ DisableExplicitGC来禁止RMI调用System.gc。
+
+## 2、老年代代空间不足
+
+老年代空间只有在新生代对象转入及创建为大对象、大数组时才会出现不足的现象，当执行Full GC后空间仍然不足，则抛出如下错误：
+java.lang.OutOfMemoryError: Java heap space
+为避免以上两种状况引起的Full GC，调优时应尽量做到让对象在Minor GC阶段被回收、让对象在新生代多存活一段时间及不要创建过大的对象及数组。
+
+## 3、永生区空间不足
+
+JVM规范中运行时数据区域中的方法区，在HotSpot虚拟机中又被习惯称为永生代或者永生区，Permanet Generation中存放的为一些class的信息、常量、静态变量等数据，当系统中要加载的类、反射的类和调用的方法较多时，Permanet Generation可能会被占满，在未配置为采用CMS GC的情况下也会执行Full GC。如果经过Full GC仍然回收不了，那么JVM会抛出如下错误信息：
+java.lang.OutOfMemoryError: PermGen space
+为避免Perm Gen占满造成Full GC现象，可采用的方法为增大Perm Gen空间或转为使用CMS GC。
+
+## 4、CMS GC时出现promotion failed和concurrent mode failure
+
+对于采用CMS进行老年代GC的程序而言，尤其要注意GC日志中是否有promotion failed和concurrent mode failure两种状况，当这两种状况出现时可能会触发Full GC。
+
+promotion failed是在进行Minor GC时，survivor space放不下、对象只能放入老年代，而此时老年代也放不下造成的；concurrent mode failure是在
+
+执行CMS GC的过程中同时有对象要放入老年代，而此时老年代空间不足造成的（有时候“空间不足”是CMS GC时当前的浮动垃圾过多导致暂时性的空间不足触发Full GC）。
+对措施为：增大survivor space、老年代空间或调低触发并发GC的比率，但在JDK 5.0+、6.0+的版本中有可能会由于JDK的bug29导致CMS在remark完毕
+
+后很久才触发sweeping动作。对于这种状况，可通过设置-XX: CMSMaxAbortablePrecleanTime=5（单位为ms）来避免。
+
+
+
+### concurrent mode failure 
+
+concurrent mode failure是在执行CMS GC的过程中同时有对象要放入老年代，而此时老年代空间不足造成的（有时候“空间不足”是CMS GC时当前的浮动垃圾过多导致暂时性的空间不足触发Full GC）。
+
+相关参数:-XX:+UseCMSInitiatingOccupancyOnly ，如果没有设置此参数，虚拟机会根据收集的数据决定是否触发（建议线上环境带上这个参数，不然会加大问题排查的难度）。
+
+相关参数：-XX:CMSInitiatingOccupancyFraction=80，即老年代满80%时触发CMS GC。设置太高，就容易产生concurrent mode failure，设置过低，CMS GC又太过频繁。
+
+相关参数：-XX:UseCMSCompactAtFullCollection=true，由于CMS没有对内存进行压缩，所以会有内存碎片，设置此参数，默认每次执行Full GC的时候会进行整理压缩，目前默认是true。
+
+相关参数：-XX:CMSFullGCsBeforeCompaction=n，指定多少次不压缩的CMS GC刚才之后，跟着来一次带压缩的CMS GC。默认是0，表示每次发生forground的cms gc 都会进行压缩，但压缩会影响暂停时间,因此可以适当调整次参数。
+
+
+
+### promotion failed
+
+minor gc时年轻代的存活区空间不足而晋升老年代，老年代又空间不足而触发full gc。
+
+相关参数： -XX:SurvivorRatio=8，设置eden和survivor的比例，默认8:1。
+
+相关参数： -XX:MaxTenuringThreshold=15，最多经过多少次minor gc后存活的年轻代对象会晋升老年代，默认15。
+
+
+
+## 5、统计得到的Minor GC晋升到旧生代的平均大小大于老年代的剩余空间
+
+这是一个较为复杂的触发情况，Hotspot为了避免由于新生代对象晋升到旧生代导致旧生代空间不足的现象，在进行Minor GC时，做了一个判断，如果之
+
+前统计所得到的Minor GC晋升到旧生代的平均大小大于旧生代的剩余空间，那么就直接触发Full GC。
+例如程序第一次触发Minor GC后，有6MB的对象晋升到旧生代，那么当下一次Minor GC发生时，首先检查旧生代的剩余空间是否大于6MB，如果小于6MB，
+
+则执行Full GC。
+当新生代采用PS GC时，方式稍有不同，PS GC是在Minor GC后也会检查，例如上面的例子中第一次Minor GC后，PS GC会检查此时旧生代的剩余空间是否
+
+大于6MB，如小于，则触发对旧生代的回收。
+除了以上4种状况外，对于使用RMI来进行RPC或管理的Sun JDK应用而言，默认情况下会一小时执行一次Full GC。可通过在启动时通过- java -
+
+Dsun.rmi.dgc.client.gcInterval=3600000来设置Full GC执行的间隔时间或通过-XX:+ DisableExplicitGC来禁止RMI调用System.gc。
+
+## 6、堆中分配很大的对象
+
+
+所谓大对象，是指需要大量连续内存空间的java对象，例如很长的数组，此种对象会直接进入老年代，而老年代虽然有很大的剩余空间，但是无法找到足够大的连续空间来分配给当前对象，此种情况就会触发JVM进行Full GC。
+
+为了解决这个问题，CMS垃圾收集器提供了一个可配置的参数，即-XX:+UseCMSCompactAtFullCollection开关参数，用于在“享受”完Full GC服务之后额外免费赠送一个碎片整理的过程，内存整理的过程无法并发的，空间碎片问题没有了，但提顿时间不得不变长了，JVM设计者们还提供了另外一个参数 -XX:CMSFullGCsBeforeCompaction,这个参数用于设置在执行多少次不压缩的Full GC后,跟着来一次带压缩的。
+
+
+
 # GC日志
 
 设置 `JVM` 参数为 `-XX:+PrintGCDetails`，使得控制台能够显示 `GC` 相关的日志信息，执行上面代码，下面是其中一次执行的结果。
@@ -688,6 +769,110 @@ XX:+PrintGCTimeStamps -XX:+PrintGCDetails -Xloggc:<filename>
 ## GC Easy
 
 [https://gceasy.io](https://gceasy.io)
+
+
+
+使用： https://blog.csdn.net/CoderBruis/article/details/101234738 
+
+
+
+### 分析结果
+
+gc easy分析完成后，可以查看其分析结果。
+
+
+
+#### JVM Heap Size
+
+ 这一部分分别使用了表格和图形界面来展示了JVM堆内存大小。 
+
+![](img/jvm-gc12.png)
+
+
+
+左侧分别展示了年轻代的内存分配分配空间大小（Allocated）和年轻代内存分配空间大小的最大峰值（Peek）。
+
+然后依次是老年代（Old Generation）、元数据区（Meta Space）、堆区和非堆区（Young + Old + Meta Space）总大小。
+
+值得注意的是，每一代的最大内存利用率都会超过分配的大小。
+
+
+#### Key Performance Indicators
+
+ 这一部分是关键的性能指标 
+
+![](img/jvm-gc13.png)
+
+
+
+- Throughput表示的是吞吐量
+- Latency表示响应时间
+  - Avg Pause GC Time 平均GC时间
+  - Max Pause GC TIme 最大GC时间
+
+
+
+#### Interactive Graphs
+
+
+
+
+
+#### GC Statistics
+
+
+
+![](img/jvm-gc14.png)
+
+
+
+左图：表示的是堆内存中Minor GC和Full GC回收垃圾对象的内存。
+中图：总计GC时间，包括Minor GC和Full GC，时间单位为ms。
+右图：GC平均时间，包括了Minor GC和Full GC。 
+
+
+
+#### Object Stats
+
+
+
+![](img/jvm-gc15.png)
+
+
+
+Total Created Bytes表示的是创建的字节总数，
+
+Total promoted bytes表示的是晋升的字节总数，
+
+Avg creation rate表示的是平均创建字节率，
+
+Avg promotion rate表示平均的晋升率。 
+
+
+
+#### Memory Leak
+
+检测程序没有内存泄漏。
+
+
+
+此处可以诊断8种OOM中的5种（Java堆内存溢出，超出GC开销限制，请求数组大小超过JVM限制，Permgen空间，元空间）。 
+
+
+
+#### GC Causes
+
+
+
+![](img/jvm-gc16.png)
+
+
+
+CG原因，以及所花费的时间，也就是停顿线程的时间。 
+
+
+
+除了上面介绍的以外，还有`System.gc() calls`，`Consecutive Full GC`、`Safe Point Duration`、`Tenuring Summary`以及`command Line Flags`等等 
 
 
 
@@ -839,6 +1024,14 @@ clean map 8862
 cost time=1530
 
 上面例子的 GC 输出可以看出，采用不同的垃圾回收机制及设定不同的线程数，对于代码段的整体执行时间有较大的影响。需要读者有针对性地选用适合自己代码段的垃圾回收机制。
+
+
+
+# GC常见问题
+
+
+
+## 应用GC长时间停顿
 
 
 
