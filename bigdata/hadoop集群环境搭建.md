@@ -1744,3 +1744,33 @@ sda                              8:0    0  2.7T  0 disk
 sr0                             11:0    1 1024M  0 rom
 ```
 
+
+
+## 3.5刷新磁盘信息与写入
+
+注意：
+
+按照上述方法执行后，`lsblk`命令可以看到磁盘已经扩容，但是`df -h`可能还未扩容。
+
+
+
+我们需要用`resize2fs/xfs_growfs`重设分区大小, 这样才能使`df -h` 也能生效. 
+
+>  xfs用以下命令来扩磁盘空间；而ext2/3/4需要用resize2fs来扩展磁盘空间。
+
+
+
+```shell
+[root@host-application ~]# xfs_growfs /dev/mapper/cl-root
+meta-data=/dev/mapper/cl-root    isize=512    agcount=4, agsize=1113856 blks
+         =                       sectsz=512   attr=2, projid32bit=1
+         =                       crc=1        finobt=0 spinodes=0
+data     =                       bsize=4096   blocks=4455424, imaxpct=25
+         =                       sunit=0      swidth=0 blks
+naming   =version 2              bsize=4096   ascii-ci=0 ftype=1
+log      =internal               bsize=4096   blocks=2560, version=2
+         =                       sectsz=512   sunit=0 blks, lazy-count=1
+realtime =none                   extsz=4096   blocks=0, rtextents=0
+data blocks changed from 4455424 to 7024640
+```
+

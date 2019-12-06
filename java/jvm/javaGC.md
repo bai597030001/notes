@@ -117,9 +117,23 @@
 
 当对象在`Survivor`区躲过一次`GC`的话，其对象年龄便会加1，默认情况下，如果对象年龄达到15岁，就会移动到老年代中。若是老年代也满了就会触发一次`Full GC/MajorGC`，也就是新生代、老年代都进行回收。
 
-新生代大小可以由`-Xmn`来控制，也可以用`-XX:SurvivorRatio`来控制`Eden`和`Survivor`的比例。
-
 因为Java对象大多都具备朝生夕灭的特性，所以`Minor GC`非常频繁，一般回收速度也比较快。
+
+
+
+### jvm相关参数
+
+新生代大小可以由`-Xmn`来控制。
+
+可以用`-XX:SurvivorRatio`来控制`Eden`和`Survivor`的比例。
+
+`-XX:NewRatio`  新生代与老年代的比例。比如 `-XX:NewRatio=2`，则新生代占整个堆空间的1/3，老年代占2/3。
+
+`-XX:PretenureSizeThreshold`  对象如果大于或等于此值,会直接分配到老年代里。
+
+​		eg: `-XX:PretenureSizeThreshold=3145728`
+
+ `-XX:MaxTenuringThreshold` 调整晋升到老年代的年龄。
 
 
 
@@ -151,6 +165,12 @@
 
 
 
+`-XX:MaxMetaspaceSize=256m`
+
+ `-XX:MetaspaceSize=size`
+
+
+
 ***堆内存分配策略明确以下三点：***
 
 （1）对象优先在`Eden`分配。
@@ -167,6 +187,10 @@ jvm 可配置的参数选项可以参考 Oracle 官方网站给出的相关信�
 
 [Oracle官网示例](http://www.oracle.com/technetwork/java/javase/tech/vmoptions-jsp-140102.html)
 
+[java8 linux Oracle官网示例](https://docs.oracle.com/javase/8/docs/technotes/tools/unix/java.html)
+
+[java8 linux Oracle官网示例](https://docs.oracle.com/javase/8/docs/technotes/tools/windows/java.html)
+
 下面只列举其中的几个常用和容易掌握的配置选项
 
 | 配置参数                        | 功能                                                         |
@@ -177,7 +201,7 @@ jvm 可配置的参数选项可以参考 Oracle 官方网站给出的相关信�
 | -Xss                            | 线程栈深度。JDK1.5+每个线程栈大小为1M，一般来说如果线程不是很深的话，1M足够用 |
 | -XX:NewRatio                    | 新生代与老年代的比例。比如 -XX:NewRatio=2，则新生代占整个堆空间的1/3，老年代占2/3 |
 | -XX:SurvivoRatio                | 新生代中Eden与Survivor的比例值。默认是8。即：8:1:1           |
-| -XX:PermSize                    | 永久代（方法去）的初始大小                                   |
+| -XX:PermSize                    | 永久代（方法区）的初始大小                                   |
 | -XX:MaxPermSize                 | 永久代最大值                                                 |
 | -XX:+PrintGCDetails             | 打印gc信息                                                   |
 | -XX:+HeapDumpOnOutOfMemoryError | 让虚拟机发生内存溢出时Dump出当前的内存堆转储快照，以便分析使用 |
@@ -536,6 +560,78 @@ G1把Java堆分为多个Region，就是“化整为零”。但是Region不可�
 
 
 
+## G1番外篇
+
+G1收集器是一款在server端运行的垃圾收集器，专门针对于拥有多核处理器和大内存的机器，在JDK 7u4版本发行时被正式推出，在JDK9中更被指定为官方GC收集器。它满足高吞吐量的同时满足GC停顿的时间尽可能短。G1收集器专门针对以下应用场景设计
+
+- 可以像CMS收集器一样可以和应用并发运行
+- 压缩空闲的内存碎片，却不需要冗长的GC停顿
+- 对GC停顿可以做更好的预测
+- 不想牺牲大量的吞吐量性能
+- 不需要更大的Java Heap
+
+
+
+G1从长期计划来看是以取代CMS为目标。与CMS相比有几个不同点使得G1成为GC的更好解决方案。
+
+- 第一点：G1会压缩空闲内存使之足够紧凑，做法是用regions代替细粒度的空闲列表进行分配，减少内存碎片的产生。
+- 第二点：G1的STW更可控，G1在停顿时间上添加了预测机制，用户可以指定期望停顿时间。 
+
+
+
+### 内存布局
+
+在传统的GC收集器(serial,parallel,CMS)无一不例外都把heap分成固定大小连续的三个空间：新生代、老年代、永久代/元空间。
+
+
+
+但G1收集器采用了一种全新的内存布局。
+
+![](img/jvm-gc1.jpg)
+
+在G1中堆被分成一块块大小相等的heap region，一般有2000多块，这些region在逻辑上是连续的。
+
+每块region都会被打唯一的分代标志(eden,survivor,old)。
+
+在逻辑上，eden regions构成Eden空间，survivor regions构成Survivor空间，old regions构成了old 空间。 
+
+
+
+### G1中的Region
+
+G1中每个Region大小是固定相等的，Region的大小可以通过参数-XX:G1HeapRegionSize设定，取值范围从1M到32M，且是2的指数。如果不设定，那么G1会根据Heap大小自动决定。
+
+决定逻辑:
+
+size =（堆最小值+堆最大值）/ TARGET_REGION_NUMBER(2048) ，然后size取最靠近2的幂次数值， 并将size控制在[1M,32M]之间。
+
+
+
+### 总结
+
+- G1把内存分成一块块的Region，每块的Region的大小都是一样的。
+- G1保留了YGC并加上了一种全新的MIXGC用于收集老年代。G1中没有Full GC，G1中的Full GC是采用serial old Full GC。在MIXGC中的Cset是选定所有young gen里的region，外加根据global concurrent marking统计得出收集收益高的若干old gen region。在YGC中的Cset是选定所有young gen里的region。通过控制young gen的region个数来控制young GC的开销。YGC与MIXGC都是采用多线程复制清除，整个过程会STW。
+- G1的低延迟原理在于其回收的区域变得精确并且范围变小了。
+- 全局并发标记分的五个阶段。
+- 用STAB来维持并发GC的准确性。
+
+
+
+### jvm参数配置
+
+- -XX:+UseG1GC 使用G1 GC。
+- -XX:MaxGCPauseMillis=n <font color=#dd0000>设置最大GC停顿时间</font>，这是一个软目标，JVM会尽最大努力去达到它。
+- -XX:InitiatingHeapOccupancyPercent=n 启动并发标记循环的堆占用率的百分比，当整个堆的占用达到比例时，启动一个全局并发标记循环，0代表并发标记一直运行。默认值是45%。
+- -XX:NewRatio=n 新生代和老年代大小的比例，默认是2。
+- -XX:SurvivorRatio=n eden和survivor区域空间大小的比例，默认是8。
+- -XX:MaxTenuringThreshold=n 晋升的阈值，默认是15（一个存活对象经历多少次GC周期之后晋升到老年代)。
+- -XX:ParallelGCThreads=n 设置GC并发阶段的线程数，默认值与JVM运行平台相关。
+- -XX:ConcGCThreads=n 设置并发标记的线程数，默认值与JVM运行平台相关。
+- -XX:G1ReservePercent=n 设置保留java堆大小比例，用于防止晋升失败/Evacuation Failure,默认值是10%。
+- -XX:G1HeapRegionSize=n 设置Region的大小，默认是根据堆的大小动态决定，大小范围是[1M,32M]
+
+
+
 ## 总结
 
 
@@ -587,7 +683,7 @@ Java HotSpot(TM) 64-Bit Server VM (build 25.212-b10, mixed mode)
 
 
 
-## 与并行 GC 相关的参数
+## 与并行回收器相关的参数
 
 -`XX:+UseParallelGC`
 
@@ -728,11 +824,23 @@ Dsun.rmi.dgc.client.gcInterval=3600000来设置Full GC执行的间隔时间或�
 
 # GC日志
 
-设置 `JVM` 参数为 `-XX:+PrintGCDetails`，使得控制台能够显示 `GC` 相关的日志信息，执行上面代码，下面是其中一次执行的结果。
+ **-verbosegc(相当于-XX:+PrintGC)**将日志的详细级别设置为详细。 
+
+ **-XX:+PrintGCDetails**将细节级别设置为更精细。 
 
 
 
-收集`GC`日志到文件：
+**`-XX:+PrintGCTimeStamps`** - 显示JVM启动后经过的时间。 
+
+ **`-XX:+PrintGCDateStamps`** - 为每个条目添加日期前缀。 
+
+
+
+**-Xloggc:<filename>** 记录gc日志到文件
+
+
+
+eg：
 
 ```shell
 XX:+PrintGCTimeStamps -XX:+PrintGCDetails -Xloggc:<filename>

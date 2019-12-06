@@ -1045,15 +1045,15 @@ MappedByteBuffer 用于实现内存映射文件，也不是本文关注的重点
 
 ![](img/nio2.jpg)
 
-最好理解的当然是 capacity，它代表这个缓冲区的容量，一旦设定就不可以更改。比如 capacity 为 1024 的 IntBuffer，代表其一次可以存放 1024 个 int 类型的值。一旦 Buffer 的容量达到 capacity，需要清空 Buffer，才能重新写入值。
+**capacity**，它代表这个缓冲区的容量，一旦设定就不可以更改。比如 capacity 为 1024 的 IntBuffer，代表其一次可以存放 1024 个 int 类型的值。一旦 Buffer 的容量达到 capacity，需要清空 Buffer，才能重新写入值。
 
 position 和 limit 是变化的，我们分别看下读和写操作下，它们是如何变化的。
 
-**position** 的初始值是 0，每往 Buffer 中写入一个值，position 就自动加 1，代表下一次的写入位置。读操作的时候也是类似的，每读一个值，position 就自动加 1。
+**position** 的初始值是 0，每往 Buffer 中写入一个值，position 就自动加 1，<font color=#dd0000>代表下一次的写入/读取位置</font>。读操作的时候也是类似的，每读一个值，position 就自动加 1。
 
-从写操作模式到读操作模式切换的时候（**flip**），position 都会归零，这样就可以从头开始读写了。
+从写操作模式到读操作模式切换的时候（**flip**），<font color=#0000dd>position 都会归零</font>，这样就可以从头开始读写了。
 
-**Limit**：写操作模式下，limit 代表的是最大能写入的数据，这个时候 limit 等于 capacity。写结束后，切换到读模式，此时的 limit 等于 Buffer 中实际的数据大小，因为 Buffer 不一定被写满了。
+**Limit**：写操作模式下，limit 代表的是<font color=#dd0000>最大能写入的数据</font>，这个时候 limit 等于 capacity。写结束后，切换到读模式，此时的 limit 等于 Buffer 中实际的数据大小，因为 Buffer 不一定被写满了。
 
 ![](img/nio3.jpg)
 
@@ -1062,13 +1062,18 @@ position 和 limit 是变化的，我们分别看下读和写操作下，它们�
 每个 Buffer 实现类都提供了一个静态方法 `allocate(int capacity)` 帮助我们快速实例化一个 Buffer。如：
 
 ```java
-ByteBuffer byteBuf = ByteBuffer.allocate(1024);IntBuffer intBuf = IntBuffer.allocate(1024);LongBuffer longBuf = LongBuffer.allocate(1024);// ...
+ByteBuffer byteBuf = ByteBuffer.allocate(1024);
+IntBuffer intBuf = IntBuffer.allocate(1024);
+LongBuffer longBuf = LongBuffer.allocate(1024);
+// ...
 ```
 
 另外，我们经常使用 wrap 方法来初始化一个 Buffer。
 
 ```java
-publicstatic ByteBuffer wrap(byte[] array) {    ...}
+public static ByteBuffer wrap(byte[] array) {
+    ...
+}
 ```
 
 ### 填充 Buffer
@@ -1081,13 +1086,15 @@ public abstract ByteBuffer put(byte b);
 // 在指定位置填充一个 int 值
 public abstract ByteBuffer put(int index, byte b);
 // 将一个数组中的值填充进去
-publicfinal ByteBuffer put(byte[] src) {...}
+public final ByteBuffer put(byte[] src) {...}
 public ByteBuffer put(byte[] src, int offset, int length) {...}
 ```
 
 上述这些方法需要自己控制 Buffer 大小，不能超过 capacity，超过会抛 java.nio.BufferOverflowException 异常。
 
-对于 Buffer 来说，另一个常见的操作中就是，我们要将来自 Channel 的数据填充到 Buffer 中，在系统层面上，这个操作我们称为**读操作**，因为数据是从外部（文件或网络等）读到内存中。
+对于 Buffer 来说，另一个常见的操作中就是：
+
+​	我们要将来自 Channel 的数据填充到 Buffer 中，在系统层面上，这个操作我们称为**读操作**，因为数据是从外部（文件或网络等）读到内存中。
 
 ```java
 int num = channel.read(buf);
@@ -1116,9 +1123,9 @@ publicfinal Buffer flip() {
 
 ```java
 // 根据 position 来获取数据
-public abstractbyteget();
+public abstract byte get();
 // 获取指定位置的数据
-public abstractbyteget(int index);
+public abstract byte get(int index);
 // 将 Buffer 中的数据写入到数组中
 public ByteBuffer get(byte[] dst)
 ```
@@ -1217,7 +1224,7 @@ Channel 经常翻译为通道，类似 IO 中的流，用于读取和写入。�
 
 至少读者应该记住一点，这两个方法都是 channel 实例的方法。
 
-### FileChannel
+#### FileChannel
 
 我想文件操作对于大家来说应该是最熟悉的，不过我们在说 NIO 的时候，其实 FileChannel 并不是关注的重点。而且后面我们说非阻塞的时候会看到，FileChannel 是不支持非阻塞的。
 
@@ -1251,7 +1258,7 @@ while(buffer.hasRemaining()) {
 }
 ```
 
-### SocketChannel
+#### SocketChannel
 
 我们前面说了，我们可以将 SocketChannel 理解成一个 TCP 客户端。虽然这么理解有点狭隘，因为我们在介绍 ServerSocketChannel 的时候会看到另一种使用方式。
 
@@ -1281,9 +1288,7 @@ while(buffer.hasRemaining()) {
 }
 ```
 
-不要在这里停留太久，先继续往下走。
-
-### ServerSocketChannel
+#### ServerSocketChannel
 
 之前说 SocketChannel 是 TCP 客户端，这里说的 ServerSocketChannel 就是对应的服务端。
 
@@ -1293,7 +1298,8 @@ ServerSocketChannel 用于监听机器端口，管理从这个端口进来的 TC
 // 实例化
 ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
 // 监听 8080 端口
-serverSocketChannel.socket().bind(new InetSocketAddress(8080));while (true) {    
+serverSocketChannel.socket().bind(new InetSocketAddress(8080));
+while (true) {    
     // 一旦有一个 TCP 连接进来，就对应创建一个 SocketChannel 进行处理    
     SocketChannel socketChannel = serverSocketChannel.accept();
 }
@@ -1305,7 +1311,7 @@ serverSocketChannel.socket().bind(new InetSocketAddress(8080));while (true) {
 
 ServerSocketChannel 不和 Buffer 打交道了，因为它并不实际处理数据，它一旦接收到请求后，实例化 SocketChannel，之后在这个连接通道上的数据传递它就不管了，因为它需要继续监听端口，等待下一个连接。
 
-### DatagramChannel
+#### DatagramChannel
 
 UDP 和 TCP 不一样，DatagramChannel 一个类处理了服务端和客户端。
 
@@ -1328,8 +1334,6 @@ String newData = "New String to write to file..."                    + System.cu
 
 NIO 三大组件就剩 Selector 了，Selector 建立在非阻塞的基础之上，大家经常听到的 **多路复用** 在 Java 世界中指的就是它，用于实现一个线程管理多个 Channel。
 
-读者在这一节不能消化 Selector 也没关系，因为后续在介绍非阻塞 IO 的时候还得说到这个，这里先介绍一些基本的接口操作。
-
 1. 首先，我们开启一个 Selector。你们爱翻译成**选择器**也好，**多路复用器**也好。
 
    ```java
@@ -1351,7 +1355,9 @@ NIO 三大组件就剩 Selector 了，Selector 建立在非阻塞的基础之上
 
    注册方法返回值是 **SelectionKey** 实例，它包含了 Channel 和 Selector 信息，也包括了一个叫做 Interest Set 的信息，即我们设置的我们感兴趣的正在监听的事件集合。
 
-3. - SelectionKey.OP_READ
+   
+
+   - SelectionKey.OP_READ
 
      > 对应 00000001，通道中有数据可以进行读取
 
@@ -1367,20 +1373,26 @@ NIO 三大组件就剩 Selector 了，Selector 建立在非阻塞的基础之上
 
      > 对应 00010000，接受 TCP 连接
 
-4. 调用 select() 方法获取通道信息。用于判断是否有我们感兴趣的事件已经发生了。
+   
+
+3. 调用 select() 方法获取通道信息。用于判断是否有我们感兴趣的事件已经发生了。
+
+
 
 Selector 的操作就是以上 3 步，这里来一个简单的示例，大家看一下就好了。之后在介绍非阻塞 IO 的时候，会演示一份可执行的示例代码。
 
 ```java
 Selector selector = Selector.open();
 channel.configureBlocking(false);
-SelectionKey key = channel.register(selector, SelectionKey.OP_READ);while(true) {  
+SelectionKey key = channel.register(selector, SelectionKey.OP_READ);
+while(true) {  
     // 判断是否有事件准备好  
     int readyChannels = selector.select();  
-    if(readyChannels == 0) continue;  
+    if(readyChannels == 0) 
+        continue;  
     // 遍历  
     Set<SelectionKey> selectedKeys = selector.selectedKeys();  
-    Iterator<SelectionKey> keyIterator = selectedKeys.iterator();  				  while(keyIterator.hasNext()) {    
+    Iterator<SelectionKey> keyIterator = selectedKeys.iterator();  				  			while(keyIterator.hasNext()) {    
         SelectionKey key = keyIterator.next();    
         if(key.isAcceptable()) {        
             // a connection was accepted by a ServerSocketChannel.    
