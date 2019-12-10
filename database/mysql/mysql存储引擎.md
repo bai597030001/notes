@@ -83,7 +83,7 @@
 
 - 一般来说，如果需要事务支持，并且有较高的并发读取频率，InnoDB是不错的选择。
 
-  
+
 
 ### InnoDB一棵B+树可以存放多少行数据
 
@@ -167,7 +167,7 @@ innodb 的所有数据文件（后缀为 ibd 的文件），他的大小始终�
 
 那么可以算出一棵高度为 2 的 B + 树，能存放 1170*16=18720 条这样的数据记录。
 
-根据同样的原理我们可以算出一个高度为 3 的 B + 树可以存放：1170117016=21902400 条这样的记录。
+根据同样的原理我们可以算出一个高度为 3 的 B + 树可以存放：1170X1170X16=21902400 条这样的记录。
 
 所以在 InnoDB 中 B + 树高度一般为 1-3 层，它就能满足千万级的数据存储。
 
@@ -287,7 +287,7 @@ region 表只有 5 行数据，当然他的 B + 树高度为 1。
 	示例：
 
 		下述代码创建了一个表，在username字段上使用了HASH散列索引。
-	
+		
 		create table users
 		(
 		    id smallint unsigned not null auto_increment,
@@ -296,7 +296,7 @@ region 表只有 5 行数据，当然他的 B + 树高度为 1。
 		    index using hash (username),
 		    primary key (id)
 		)engine=memory;
-	
+		
 		下面的代码就创建一个表，使用BTREE索引。
 				
 		create table users

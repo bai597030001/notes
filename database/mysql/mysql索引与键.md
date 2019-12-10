@@ -13,11 +13,10 @@
 
 - 主键也是一个特殊的索引(唯一性索引)。
 
-```
+```mysql
+CREATETABLE tablename ( [...], PRIMARY KEY (列的列表) )
 
-	CREATETABLE tablename ( [...], PRIMARY KEY (列的列表) )
-
-	ALTER TABLE tablename ADD PRIMARY KEY(列的列表)
+ALTER TABLE tablename ADD PRIMARY KEY(列的列表)
 ```
 
 ## 1.2 唯一键(unique key)
@@ -28,40 +27,40 @@
 
 - 增加唯一键
 	
-```
+```mysql
+1.创建表时
 
-	1.创建表时
-	
-		--第一种，字段增加
-		create table my_unique(
-		name varchar(4) unique key,
-		number varchar(20) unique key
-		)charset utf8;
-		
-		--第二种，字段末尾增加
-		create table my_unique(
-		name varchar(4) ,
-		number varchar(20) ,
-		unique key name(name),--指定唯一约束名字
-		unique key(number)--使用默认名字
-		
-		)charset utf8;
-	
-	2.创建表后
-	
-		-- 创建表，不带唯一约束
-		create table my_unique(
-		name varchar(4) ,
-		number varchar(20) 
-		)charset utf8;
-		
-		--第一种，modify column
-		alter table my_unique modify column name varchar(5) UNIQUE KEY;
-		
-		--第二种 add constraint unique key
-		
-		alter TABLE my_unique add CONSTRAINT num_uk UNIQUE KEY(number);
-		--指定唯一约束名字为num_uk
+    --第一种，字段增加
+    create table my_unique(
+    name varchar(4) unique key,
+    number varchar(20) unique key
+    )charset utf8;
+
+--第二种，字段末尾增加
+    create table my_unique(
+    name varchar(4) ,
+    number varchar(20) ,
+    unique key name(name),--指定唯一约束名字
+    unique key(number)--使用默认名字
+
+    )charset utf8;
+
+2.创建表后
+
+-- 创建表，不带唯一约束
+    create table my_unique(
+    name varchar(4) ,
+    number varchar(20) 
+    )charset utf8;
+
+--第一种，modify column
+	alter table my_unique modify column name varchar(5) UNIQUE KEY;
+
+--第二种 add constraint unique key
+
+	alter TABLE my_unique add CONSTRAINT num_uk UNIQUE KEY(number);
+
+--指定唯一约束名字为num_uk
 ```
 
 ## 1.3 外键（foreign key）
@@ -70,36 +69,33 @@
 
 ![](img/primaryForeignKey.png)
 
-```
-
-	[CONSTRAINT symbol] FOREIGN KEY [id] (从表的字段1) REFERENCES tbl_name (主表的字段2) 
-	[ON DELETE 
-		{RESTRICT | CASCADE | SET NULL | NO ACTION}] 
-	[ON UPDATE 
-		{RESTRICT | CASCADE | SET NULL | NO ACTION} 
+```mysql
+[CONSTRAINT symbol] FOREIGN KEY [id] (从表的字段1) REFERENCES tbl_name (主表的字段2) 
+[ON DELETE 
+	{RESTRICT | CASCADE | SET NULL | NO ACTION}] 
+[ON UPDATE 
+	{RESTRICT | CASCADE | SET NULL | NO ACTION} 
 ```
 中括号里的内容是可选项
 
 - 解释如下
 
 ```
+CONSTRAINT symbol：可以给这个外键约束起一个名字，有了名字，以后找到它就很方便了。如果不加此参数的话，系统会自动分配一个名字。
 
-	CONSTRAINT symbol：可以给这个外键约束起一个名字，有了名字，以后找到它就很方便了。如果不加此参数的话，系统会自动分配一个名字。
-	
-	FOREIGN KEY：将从表中的字段1作为外键的字段。
-	
-	REFERENCES：映射到主表的字段2。
-	
-	ON DELETE后面的四个参数：代表的是当删除主表的记录时，所做的约定。
-	
-	RESTRICT(限制)：如果你想删除的那个主表，它的下面有对应从表的记录，此主表将无法删除。
-	
-	CASCADE（级联）：如果主表的记录删掉，则从表中相关联的记录都将被删掉。
-	
-	SET NULL：将外键设置为空。
-	
-	NO ACTION：什么都不做。
+FOREIGN KEY：将从表中的字段1作为外键的字段。
 
+REFERENCES：映射到主表的字段2。
+
+ON DELETE后面的四个参数：代表的是当删除主表的记录时，所做的约定。
+
+RESTRICT(限制)：如果你想删除的那个主表，它的下面有对应从表的记录，此主表将无法删除。
+
+CASCADE（级联）：如果主表的记录删掉，则从表中相关联的记录都将被删掉。
+
+SET NULL：将外键设置为空。
+
+NO ACTION：什么都不做。
 ```
 注：一般是**RESTRICT**和**CASCADE**用的最多。
 
@@ -125,7 +121,6 @@
 ### 建立外键一（修改表）
 
 ```sql
-
 	mysql> show create table xiaodi;
 	CONSTRAINT `xiaodi_ibfk_1` FOREIGN KEY (`dage_id`) REFERENCES `dage` (`id`)
 
@@ -195,13 +190,12 @@ FULLTEXT 是全文索引，用于在一篇文章中，检索文本信息的。
 
 - 用来快速地寻找那些具有特定值的记录。主要是为了检索的方便，是为了加快访问速度， 按一定的规则创建的，一般起到排序作用。
 
-```
+```mysql
+CREATE INDEX <索引的名字> ON tablename (列的列表); 
 
-	CREATE INDEX <索引的名字> ON tablename (列的列表); 
+ALTER TABLE tablename ADD INDEX [索引的名字] (列的列表); 
 
-	ALTER TABLE tablename ADD INDEX [索引的名字] (列的列表); 
-
-	CREATE TABLE tablename ( [...], INDEX [索引的名字] (列的列表) )
+CREATE TABLE tablename ( [...], INDEX [索引的名字] (列的列表) )
 ```
 ## 2.2 唯一性索引
 
@@ -233,13 +227,12 @@ FULLTEXT 是全文索引，用于在一篇文章中，检索文本信息的。
 - 建表语句建立
 
 ```sql
-
-	CREATE TABLE index5(
-		id INT,
-		name VARCHAR(20),
-		sex CHAR(4),
-		INDEX index5_ns(name,sex)
-	);
+CREATE TABLE index5(
+    id INT,
+    name VARCHAR(20),
+    sex CHAR(4),
+    INDEX index5_ns(name,sex)
+);
 ```
 
 ### 2.4.2 最左前缀匹配原则
@@ -258,12 +251,11 @@ FULLTEXT 是全文索引，用于在一篇文章中，检索文本信息的。
 	
 	上面这个查询语句执行时会依照最左前缀匹配原则，检索时会使用索引(col1,col2)进行数据匹配。
 
-注意:
+注意：索引的字段可以是任意顺序的，如：
 
-	索引的字段可以是任意顺序的，如：
+	SELECT * FROM test WHERE col1=“1” AND clo2=“2”
 	
-		SELECT * FROM test WHERE col1=“1” AND clo2=“2”
-		SELECT * FROM test WHERE col2=“2” AND clo1=“1”
+	SELECT * FROM test WHERE col2=“2” AND clo1=“1”
 
 # 3.主键与索引对比
 
@@ -302,24 +294,22 @@ FULLTEXT 是全文索引，用于在一篇文章中，检索文本信息的。
 - 索引指向数据所在行（磁盘）的位置
 
 ```
+以myisam为例，一个数据表table中，它是有table.frm、table.myd以及table.myi组成。
 
-	以myisam为例，一个数据表table中，它是有table.frm、table.myd以及table.myi组成。
+table.myd记录了数据，table.myi记录了索引的数据。在用到索引时，先到table.myi（索引树）中进行查找，
 
-	table.myd记录了数据，table.myi记录了索引的数据。在用到索引时，先到table.myi（索引树）中进行查找，
-
-	取到数据所在table.myd的行位置，拿到数据。所以myisam引擎的索引文件和数据文件是独立分开的，则称之为非聚簇索引。
+取到数据所在table.myd的行位置，拿到数据。所以myisam引擎的索引文件和数据文件是独立分开的，则称之为非聚簇索引。
 ```
 
 
 ## 聚簇索引
 
-- 索引指向主键对数据的引用（即存储主键索引值，又存储行数据）
+- 索引指向主键对数据的引用（既存储主键索引值，又存储行数据）
 
 ```
+以innodb为例，在一个数据table中，它的数据文件和索引文件是同一个文件。
 
-	以innodb为例，在一个数据table中，它的数据文件和索引文件是同一个文件。
-
-	即在查询过程中，找到了索引，便找到了数据文件。在innodb中，即存储主键索引值，又存储行数据，称之为聚簇索引。
+即在查询过程中，找到了索引，便找到了数据文件。在innodb中，即存储主键索引值，又存储行数据，称之为聚簇索引。
 ```
 
 - 图示

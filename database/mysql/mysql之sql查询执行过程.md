@@ -172,7 +172,7 @@ mysql> explain partitions select * from film where id = 1;
 | `key_len`       | 使用的索引的长度。在不损失精确性的情况下，长度越短越好。     |
 | `ref`           | 显示索引的哪一列被使用了，如果可能的话，是一个常数。         |
 | `rows`          | MySQL认为必须检查的用来返回请求数据的行数。注意这是一个预估值。 |
-| `Extra`         | 关于MySQL如何解析查询的额外信息。将在表4.3中讨论，但这里可以看到的坏的例子是`Using temporary`和`Using filesort`，意思MySQL根本不能使用索引，结果是检索会很慢。 |
+| `Extra`         | 关于MySQL如何解析查询的额外信息。这里可以看到的坏的例子是`Using temporary`和`Using filesort`，意思MySQL根本不能使用索引，结果是检索会很慢。 |
 
 
 
@@ -369,7 +369,7 @@ explain select * from user_info where name = 'c' or name is null;
 
 ### ref
 
-- 如果连接只使用键的最左端前缀，或者键不是主键或惟一索引(换句话说，如果连接不能根据键值选择单个行)，则使用ref。如果使用的键只匹配几行，这是一个很好的连接类型。
+- 如果连接查询只使用键的最左端前缀，或者键不是主键或惟一索引(换句话说，如果连接不能根据键值选择单个行)，则使用ref。如果使用的键只匹配几行，这是一个很好的连接类型。
 
 ```mysql
 SELECT * FROM ref_table WHERE key_column=expr;
@@ -409,7 +409,7 @@ mysql> explain select * from film left join film_actor on film.id = film_actor.f
 
 ### eq_ref
 
-- 当联接使用索引的所有部分并且索引是主键或惟一非空索引时，将使用此索引。
+- 当联接查询使用索引的所有部分并且索引是主键或惟一非空索引时，将使用此索引。
 
 ```mysql
 SELECT * FROM ref_table,other_table WHERE ref_table.key_column=other_table.column;

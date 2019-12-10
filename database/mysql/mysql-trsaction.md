@@ -59,11 +59,12 @@ mysql默认隔离级别，InnoDB通过多版本并发控制（MVCC，Multiversio
 
 ### 修改配置文件
 
-> my.ini文件中使用transaction-isolation选项来设置服务器的缺省事务隔离级别
-> READ-UNCOMMITTED  
-> READ-COMMITTED  
-> REPEATABLE-READ  
-> SERIALIZABLE  
+> my.ini文件中使用 transaction-isolation 选项来设置服务器的缺省事务隔离级别
+>
+> ​	READ-UNCOMMITTED 
+> ​	READ-COMMITTED 
+> ​	REPEATABLE-READ 
+> ​	SERIALIZABLE  
 
 > 例如: transaction-isolation = READ-COMMITTED
 
@@ -72,11 +73,13 @@ mysql默认隔离级别，InnoDB通过多版本并发控制（MVCC，Multiversio
 ### 命令动态设置隔离级别 
 
 > SET [GLOBAL | SESSION] TRANSACTION ISOLATION LEVEL <isolation-level>
+>
 > 其中的<isolation-level>可以是：  
-> READ UNCOMMITTED  
-> READ COMMITTED  
-> REPEATABLE READ  
-> SERIALIZABLE  
+> 	READ UNCOMMITTED 
+> 	READ COMMITTED 
+> 	REPEATABLE READ 
+> 	SERIALIZABLE  
+>
 > 例如： SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 
 
@@ -202,11 +205,9 @@ mysql默认隔离级别，InnoDB通过多版本并发控制（MVCC，Multiversio
 
 ## mysql如何保证原子性
 
-
+- undo log
 
 share tablespace或.ibd文件
-
-
 
 实现原子性的关键，是当事务回滚时能够撤销所有已经成功执行的`sql`语句。
 
@@ -225,8 +226,6 @@ InnoDB实现回滚，靠的是`undo log`：当事务对数据库进行修改时�
 
 
 ib_logfileN
-
-
 
 InnoDB作为MySQL的存储引擎，数据是存放在磁盘中的，但如果每次读写数据都需要磁盘IO，效率会很低。为此，InnoDB提供了缓存(Buffer Pool)，Buffer Pool中包含了磁盘中部分数据页的映射，作为访问数据库的缓冲：当从数据库读取数据时，会首先从Buffer Pool中读取，如果Buffer Pool中没有，则从磁盘读取后放入Buffer Pool；当向数据库写入数据时，会首先写入Buffer Pool，Buffer Pool中修改的数据会定期刷新到磁盘中（这一过程称为刷脏）。
 
@@ -310,8 +309,6 @@ InnoDB引擎在启动时不管上次数据库运行时是否正常关闭，都�
 ## mysql如何保证一致性
 
 - 原子性，持久性，隔离性最终保证一致性
-
-
 
 
 
