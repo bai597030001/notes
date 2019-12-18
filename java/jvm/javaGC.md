@@ -338,6 +338,14 @@ Full GC： 针对整个新生代、老生代、元空间（metaspace，java8以�
 
 
 
+#### jvm参数
+
+ `-XX:ParallelGCThreads=n`
+
+ 设置并发收集器年轻代收集方式为并行收集时，使用的CPU数，并行收集线程数
+
+
+
 ### Parallel Scavenge 收集器
 
 `Parallel Scavenge`收集器也是一个**并行**的**多线程新生代**收集器，它也使用**复制算法**。`Parallel Scavenge`收集器的特点是它的关注点与其他收集器不同，`CMS`等收集器的关注点是尽可能缩短垃圾收集时用户线程的停顿时间，而`Parallel Scavenge`收集器的目标是达到一个可控制的**吞吐量（Throughput）**。
@@ -348,7 +356,37 @@ Full GC： 针对整个新生代、老生代、元空间（metaspace，java8以�
 
 
 
-`Parallel Scavenge`收集器除了会显而易见地提供可以精确控制吞吐量的参数，还提供了一个参数**-`XX:+UseAdaptiveSizePolicy`**，这是一个开关参数，打开参数后，就不需要手工指定新生代的大小（-`Xmn`）、`Eden`和`Survivor`区的比例（`-XX:SurvivorRatio`）、晋升老年代对象年龄（`-XX:PretenureSizeThreshold`）等细节参数了，虚拟机会根据当前系统的运行情况收集性能监控信息，动态调整这些参数以提供最合适的停顿时间或者最大的吞吐量，这种方式称为**GC自适应的调节策略（GC Ergonomics）**。自适应调节策略也是`Parallel Scavenge`收集器与`ParNew`收集器的一个重要区别。
+`Parallel Scavenge`收集器提供可以精确控制吞吐量的参数，这是ParNew收集器不具备的（<font color=#dd0000>两者的区别</font>）。
+
+#### jvm参数
+
+`-XX:+UseAdaptiveSizePolicy`
+
+开关参数，打开参数后，就不需要手工指定新生代的大小（-`Xmn`）、`Eden`和`Survivor`区的比例（`-XX:SurvivorRatio`）、晋升老年代对象年龄（`-XX:PretenureSizeThreshold`）等细节参数了，虚拟机会根据当前系统的运行情况收集性能监控信息，动态调整这些参数以提供最合适的停顿时间或者最大的吞吐量，这种方式称为**GC自适应的调节策略（GC Ergonomics）**。自适应调节策略也是`Parallel Scavenge`收集器与`ParNew`收集器的一个重要区别。
+
+
+
+`-XX:MaxGCPauseMills`
+
+设置最大gc停顿时间， 垃圾回收器会尽量控制回收的时间在该值范围内 
+
+
+
+`-XX:GCTimeRatio`
+
+ 设置时间gc时间占比 
+
+
+
+`-XX:GCPauseIntervalMillis`
+
+设置停顿时间间隔 
+
+
+
+`-XX:GCTimeRatio`
+
+设置吞吐量大小，0~100之间的整数。若该值为n，那么jvm将会花费不超过1/(1+n)的时间用于垃圾回收。
 
 
 
@@ -422,25 +460,29 @@ CMS是一款优秀的收集器，它的主要**优点**在名字上已经体现�
 
 - **无法处理浮动垃圾（Floating Garbage）** 可能出现“Concurrent Mode Failure”失败而导致另一次Full GC的产生。**由于CMS并发清理阶段用户线程还在运行着，伴随程序运行自然就还会有新的垃圾不断产生。**这一部分垃圾出现在标记过程之后，CMS无法再当次收集中处理掉它们，只好留待下一次GC时再清理掉。这一部分垃圾就被称为**“浮动垃圾”**。也是由于在垃圾收集阶段用户线程还需要运行，那也就还需要预留有足够的内存空间给用户线程使用，因此CMS收集器不能像其他收集器那样等到老年代几乎完全被填满了再进行收集，需要预留一部分空间提供并发收集时的程序运作使用。
 
-- **标记-清除算法导致的空间碎片** CMS是一款基于“标记-清除”算法实现的收集器，这意味着收集结束时会有大量空间碎片产生。空间碎片过多时，将会给大对象分配带来很大麻烦，往往出现老年代空间剩余，但无法找到足够大连续空间来分配当前对象。
+- **标记-清除算法导致的空间碎片** CMS是一款基于“标记-清除”算法实现的收集器，这意味着收集结束时会有大量空间碎片产生。空间碎片过多时，将会给<font color=#dd0000>大对象分配</font>带来很大麻烦，往往出现老年代空间剩余，但无法找到足够大连续空间来分配当前对象。
 
 - **Concurrent Mode Failure**
 
   由于CMS并发清理阶段，用户程序还在运行，也需要内存空间，因此CMS收集器不能像其他老年代收集器那样，等到老年代空间快满了再执行垃圾收集，而是要预留一部分内存给用户程序使用。CMS的做法是老年代空间占用率达到某个阈值时触发垃圾收集，有一个参数来控制触发百分比： -XX:CMSInitiatingOccupancyFraction=80 （这里配置的是80%）。
 
-  如果预留的老年代空间不够应用程序的使用，就会出现Concurrent Mode Failure，此时会触发一次FullGC，采用标记-清除-整理算法，会发生stop-the-world，耗时相当感人（实际工作中遇到的大部分FGC估计都是这种情况）。Concurrent Mode Failure一般会伴随ParNew promotion failed，晋升担保失败。所谓晋升担保，就是为了应对新生代GC后存活对象过多，Survivor区无法容纳的情况，需要老年代有足够的空间容纳这些对象，如果老年代没有足够的空间，就会产生担保失败，导致一次Full GC。
+  如果<font color=#0000dd>预留的老年代空间不够应用程序的使用</font>，就会出现Concurrent Mode Failure，此时会触发一次FullGC，采用标记-清除-整理算法，会发生stop-the-world，耗时相当感人（实际工作中遇到的大部分FGC估计都是这种情况）。Concurrent Mode Failure一般会伴随**ParNew promotion failed**，晋升担保失败。所谓晋升担保，就是为了应对新生代GC后存活对象过多，Survivor区无法容纳的情况，需要老年代有足够的空间容纳这些对象，如果老年代没有足够的空间，就会产生担保失败，导致一次Full GC。
+
+  
 
   为了避免Concurrent Mode Failure，可以采取的做法是：
-
+  
   1. 调大老年代空间；
   2. 调低CMSInitiatingOccupancyFraction的值，但这样会造成更频繁的CMS GC；
   3. 代码层面优化，控制对象创建频率。
 
 
 
-#### 晋升担保
+- **ParNew promotion failed**
 
- 老年代是否有足够的空间来容纳全部的新生代对象或历史平均晋升到老年代的对象，如果不够的话，就提早进行一次老年代的回收，防止下次进行YGC的时候发生晋升失败。 
+  晋升担保
+
+  老年代是否有足够的空间来容纳全部的新生代对象或历史平均晋升到老年代的对象，如果不够的话，就提早进行一次老年代的回收，防止下次进行YGC的时候发生晋升失败。 
 
 
 
@@ -529,7 +571,7 @@ CMS是一款优秀的收集器，它的主要**优点**在名字上已经体现�
 - **并行与并发** G1 能充分利用多CPU、多核环境下的硬件优势，使用多个CPU来缩短“Stop The World”停顿时间，部分其他收集器原本需要停顿Java线程执行的GC动作，G1收集器仍然可以通过并发的方式让Java程序继续执行。
 - **分代收集** 与其他收集器一样，分代概念在G1中依然得以保留。虽然G1可以不需要其他收集器配合就能独立管理整个GC堆，但它能够采用不同方式去处理新创建的对象和已存活一段时间、熬过多次GC的旧对象来获取更好的收集效果。
 - **空间整合** G1从整体来看是基于**“标记-整理”**算法实现的收集器，从局部（两个Region之间）上来看是基于**“复制”**算法实现的。这意味着G1运行期间不会产生内存空间碎片，收集后能提供规整的可用内存。此特性有利于程序长时间运行，分配大对象时不会因为无法找到连续内存空间而提前触发下一次GC。
-- **可预测的停顿** 这是G1相对CMS的一大优势，降低停顿时间是G1和CMS共同的关注点，但G1除了降低停顿外，还能建立可预测的停顿时间模型，能让使用者明确指定在一个长度为M毫秒的时间片段内，消耗在GC上的时间不得超过N毫秒，这几乎已经是实时Java（RTSJ）的垃圾收集器的特征了。
+- **可预测的停顿** 这是<font color=#00dd00>G1相对CMS的一大优势</font>，降低停顿时间是G1和CMS共同的关注点，但G1除了降低停顿外，还能建立可预测的停顿时间模型，能让使用者明确指定在一个长度为M毫秒的时间片段内，消耗在GC上的时间不得超过N毫秒，这几乎已经是实时Java（RTSJ）的垃圾收集器的特征了。
 
 **横跨整个堆内存**
 
@@ -557,6 +599,90 @@ G1把Java堆分为多个Region，就是“化整为零”。但是Region不可�
 通过下图可以比较清楚地看到G1收集器的运作步骤中并发和需要停顿的阶段（Safepoint处）：
 
 ![](img/jvm-G1.jfif)
+
+
+
+### Young GC
+
+
+
+![](img/jvm-g1GC.png)
+
+
+
+### Old GC
+
+1. 初始标记：stop-the-world，它伴随着一次普通的 Young GC 发生，然后对 Survivor 区（root region）进行标记，因为该区可能存在对老年代的引用。
+
+   > 因为 Young GC 是需要 stop-the-world 的，所以并发周期直接重用这个阶段，虽然会增加 CPU 开销，但是停顿时间只是增加了一小部分。
+
+2. 扫描根引用区：扫描 Survivor 到老年代的引用，该阶段必须在下一次 Young GC 发生前结束。
+
+   > 这个阶段不能发生年轻代收集，如果中途 Eden 区真的满了，也要等待这个阶段结束才能进行 Young GC。
+
+3. 并发标记：寻找整个堆的存活对象，该阶段可以被 Young GC 中断。
+
+   > 这个阶段是并发执行的，中间可以发生多次 Young GC，Young GC 会中断标记过程
+
+4. 重新标记：stop-the-world，完成最后的存活对象标记。使用了比 CMS 收集器更加高效的 snapshot-at-the-beginning (SATB) 算法。
+
+   > Oracel 的资料显示，这个阶段会回收完全空闲的区块
+
+5. 清理：清理阶段真正回收的内存很少。
+
+到这里，G1 的一个并发周期就算结束了，其实就是主要完成了垃圾定位的工作，定位出了哪些分区是垃圾最多的。
+
+
+
+#### 注意
+
+最好不要把上面的 Old GC 当做是一次 GC 来看，而应该当做**并发标记周期**来理解，虽然它确实会释放出一些内存。 
+
+
+
+### 混合垃圾回收周期
+
+并发周期结束后是混合垃圾回收周期，不仅进行年轻代垃圾收集，而且回收之前标记出来的老年代的垃圾最多的部分区块。
+
+混合垃圾回收周期会持续进行，直到几乎所有的被标记出来的分区（垃圾占比大的分区）都得到回收，然后恢复到常规的年轻代垃圾收集，最终再次启动并发周期。
+
+
+
+### Full GC
+
+下面我们来介绍特殊情况，那就是会导致 **Full GC** 的情况，也是我们需要极力避免的：
+
+1. concurrent mode failure：并发模式失败，CMS 收集器也有同样的概念。G1 并发标记期间，如果在标记结束前，老年代被填满，G1 会放弃标记。
+
+   > 这个时候说明
+   >
+   > - 堆需要增加了，
+   > - 或者需要调整并发周期，如增加并发标记的线程数量，让并发标记尽快结束
+   > - 或者就是更早地进行并发周期，默认是整堆内存的 45% 被占用就开始进行并发周期。
+
+2. 晋升失败：并发周期结束后，是混合垃圾回收周期，伴随着年轻代垃圾收集，进行清理老年代空间，如果这个时候清理的速度小于消耗的速度，导致老年代不够用，那么会发生晋升失败。
+
+   > 说明混合垃圾回收需要更迅速完成垃圾收集，也就是说在混合回收阶段，每次年轻代的收集应该处理更多的老年代已标记区块。
+
+3. 疏散失败：年轻代垃圾收集的时候，如果 Survivor 和 Old 区没有足够的空间容纳所有的存活对象。这种情况肯定是非常致命的，因为基本上已经没有多少空间可以用了，这个时候会触发 Full GC 也是很合理的。
+
+   > 最简单的就是增加堆大小
+
+4. 大对象分配失败，我们应该尽可能地不创建大对象，尤其是大于一个区块大小的那种对象。
+
+
+
+### 小结
+
+并发标记结束后，G1 也就知道了哪些区块是最适合被回收的，那些完全空闲的区块会在这这个阶段被回收。如果这个阶段释放了足够的内存出来，其实也就可以认为结束了一次 GC。
+
+我们假设并发标记结束了，那么下次 GC 的时候，还是会先回收年轻代，如果从年轻代中得到了足够的内存，那么结束；过了几次后，年轻代垃圾收集不能满足需要了，那么就需要利用之前并发标记的结果，选择一些活跃度最低的老年代区块进行回收。直到最后，老年代会进入下一个并发周期。
+
+那么什么时候会启动并发标记周期呢？这个是通过参数控制的，下面马上要介绍这个参数了，此参数默认值是 45，也就是说当堆空间使用了 45% 后，G1 就会进入并发标记周期。
+
+
+
+ https://zhuanlan.zhihu.com/p/52841787 
 
 
 
@@ -599,11 +725,20 @@ G1从长期计划来看是以取代CMS为目标。与CMS相比有几个不同点
 
 ### G1中的Region
 
-G1中每个Region大小是固定相等的，Region的大小可以通过参数-XX:G1HeapRegionSize设定，取值范围从1M到32M，且是2的指数。如果不设定，那么G1会根据Heap大小自动决定。
+G1中每个Region大小是固定相等的，Region的大小可以通过参数`-XX:G1HeapRegionSize`设定，取值范围从1M到32M，且是2的指数。如果不设定，那么G1会根据Heap大小自动决定。
 
-决定逻辑:
+逻辑:
 
 size =（堆最小值+堆最大值）/ TARGET_REGION_NUMBER(2048) ，然后size取最靠近2的幂次数值， 并将size控制在[1M,32M]之间。
+
+
+
+### G1中的数据结构
+
+G1 比 ParallelOld 和 CMS 会需要更多的内存消耗，那是因为有部分内存消耗于簿记（accounting）上，如以下两个数据结构： 
+
+- **Remembered Sets**：每个区块都有一个 RSet，用于记录进入该区块的对象引用（如区块 A 中的对象引用了区块 B，区块 B 的 Rset 需要记录这个信息），它用于实现收集过程的并行化以及使得区块能进行独立收集。总体上 Remembered Sets 消耗的内存小于 5%。
+- **Collection Sets**：将要被回收的区块集合。GC 时，在这些区块中的对象会被复制到其他区块中，总体上 Collection Sets 消耗的内存小于 1%。
 
 
 
@@ -671,6 +806,33 @@ Java HotSpot(TM) 64-Bit Server VM (build 25.212-b10, mixed mode)
 
 
 
+## 基本参数设置
+
+| **参数名称**                | **含义**                        | **默认值**            | **说明**                                                     |
+| --------------------------- | ------------------------------- | --------------------- | ------------------------------------------------------------ |
+| -Xms                        | 最小堆大小                      | 物理内存的 1/64(<1GB) | 空闲堆内存小于40%（通过 MinHeapFreeRatio 参数可调整该阈值）时，jvm 会增大堆直到 -Xmx |
+| -Xmx                        | 最大堆大小                      | 物理内存的 1/4(<1GB)  | 空闲堆内存大于70%（通过 MaxHeapFreeRatio 参数可以调整该阈值）时，jvm 会减小堆直到 -Xms |
+| -Xmn                        | 新生代大小                      | 无                    | 指 Eden 与两个 Survivor 空间之和，Sun 官方推荐配置为整个堆的 3/8 |
+| -XX:PermSize                | 方法区（永久代）大小            | 物理内存的 1/64       | -                                                            |
+| -Xss                        | 每个线程的堆栈大小              | 1M                    | -                                                            |
+| -XX:ThreadStackSize         | 线程堆栈大小                    | 1M                    | 主线程以 -Xss 设置为主，其他线程以该设置为主，一般采用默认值即可 |
+| -XX:NewRadio                | 新生代与老年代大小的比值        | 无                    | Xms=Xmx并且设置了Xmn的情况下，该参数不需要进行设置           |
+| -XX:SurvivorRatio           | Eden 区域 Survivor 区大小的比值 | 无                    | -                                                            |
+| -XX:LargePageSizeInBytes    | 内存页大小                      | 128M                  | 不可设置过大                                                 |
+| -XX:+UseFastAccessorMethods | 是否使用原始类型的快速优化      | 无                    | -                                                            |
+| -XX:+DisableExplicitGC      | 是否关闭 System.gc()            | 无                    | -                                                            |
+| -XX:MaxTenuringThreshold    | 垃圾最大年龄                    | 无                    | N 次没有被回收的新生代资源自动放入老年代，只有使用串行GC时才有效 |
+| -XX:MaxGCPauseMillis        | 最大停顿时间                    | -                     | 每次年轻代垃圾收集的最长时间                                 |
+| -Xnoclassgc                 | 金庸垃圾回收                    | 无                    | -                                                            |
+| -XX:SoftRefLRUPolicyMSPerMB | 没M堆内存中软引用存活时间       | 1s                    | -                                                            |
+| -XX:PretenureSizeThreshold  | 对象超过多大自动在老年代分配    | 0                     | 采用 Parallel Scavenge GC 时无效                             |
+| -XX:TLABWasteTargetPercent  | TLAB 占 eden 区的百分比         | 1%                    | -                                                            |
+| -XX:+CollectGen0First       | FullGC时是否先YGC               | false                 | -                                                            |
+
+ 
+
+
+
 ## 与串行回收器相关的参数
 
 `-XX:+UseSerialGC:`在新生代和老年代使用串行回收器。
@@ -685,13 +847,23 @@ Java HotSpot(TM) 64-Bit Server VM (build 25.212-b10, mixed mode)
 
 ## 与并行回收器相关的参数
 
+| **参数名称**               | **含义**                                     | **默认值**        | **说明**                                                |
+| -------------------------- | -------------------------------------------- | ----------------- | ------------------------------------------------------- |
+| -XX:+UseParGC              | 使用 ParNew 收集器进行新生代收集             | false             | 与 -XX:+UseConcMarkSweepGC 相同                         |
+| -XX:ParallelGCThreads      | 并行收集线程数                               | -                 | 指定并行 GC 下的垃圾收集线程数，最好配置为与 CPU 数相等 |
+| -XX:+UseParallelOldGC      | 设置老年代收集器为 Parallel Old              | JDK1.6 起开始提供 | -                                                       |
+| -XX:+UseAdaptiveSizePolicy | 自动选择年轻代大小及 Survivor 比例           | false             | 建议在使用并行收集器一直打开                            |
+| -XX:GCTimeRatio            | 设置垃圾回收时间占用程序运行时间百分比       | 无                | 大于 0 小于 100，使用 Parallel Scavenge 时设置          |
+| -XX:+UseAdaptiveSizePolicy | 是否自动根据当前系统情况决定最大吞吐量的限制 | false             | 使用 Parallel Scavenge 时设置                           |
+| -XX:+ScavengeBeforeFullGC  | Full GC前调用YGC                             | true              | -                                                       |
+
+ 
+
 -`XX:+UseParallelGC`
 
 `-XX:+UseParNewGC:` 在新生代使用并行收集器。
 
 `-XX:+UseParallelOldGC:` 老年代使用并行回收收集器。
-
-`-XX:ParallelGCThreads：`设置用于垃圾回收的线程数。通常情况下可以和 CPU 数量相等。但在 CPU 数量比较多的情况下，设置相对较小的数值也是合理的。
 
 `-XX:MaxGCPauseMills：`设置最大垃圾收集停顿时间。它的值是一个大于 0 的整数。收集器在工作时，会调整 Java 堆大小或者其他一些参数，尽可能地把停顿时间控制在 `MaxGCPauseMills` 以内。
 
@@ -702,6 +874,20 @@ Java HotSpot(TM) 64-Bit Server VM (build 25.212-b10, mixed mode)
 
 
 ## 与 CMS 回收器相关的参数
+
+| **参数名称**                       | **含义**                                     | **默认值**       | **说明**                                                     |
+| ---------------------------------- | -------------------------------------------- | ---------------- | ------------------------------------------------------------ |
+| -XX:+UseConcMarkSweepGC            | 启用 CMS GC                                  | false            | -                                                            |
+| -XX:CMSFullGCsBeforeCompaction     | 运行多少次 GC 后进行一次内存压缩（碎片整理） | -                | -                                                            |
+| -XX:+CMSParallelRemarkEnabled      | 降低标记停顿                                 | false            | -                                                            |
+| -XX+UseCMSCompactAtFullCollection  | 是否启用内存压缩（碎片整理）                 | -                | 建议开启                                                     |
+| -XX:+UseCMSInitiatingOccupancyOnly | 手动触发 CMS                                 | false            | 禁止 HotSpot 自动触发 CMS GC                                 |
+| -XX:CMSInitiatingOccupancyFraction | GC 触发阈值（百分比）                        | 1.5为68，1.6为92 | 内存使用达到阈值则开始 GC，设置过大会有可能造成失败而进行 full GC |
+| -XX:+CMSIncrementalMode            | 设置为增量模式                               | false            | 运用于单CPU下，在 CMS 运行途中暂停，继续运行用户线程，下次增量 GC |
+| -XX:CMSClassUnloadingEnabled       | 垃圾回收清理方法区时移除不再使用的 classes   | -                | -                                                            |
+| -XX:+CMSPermGenSweepingEnabled     | 是否清理方法区（永久代）                     | -                | 默认不清理                                                   |
+
+
 
 `-XX:+UseConcMarkSweepGC:` 新生代使用并行收集器，老年代使用 `CMS+`串行收集器。
 
@@ -741,6 +927,40 @@ Java HotSpot(TM) 64-Bit Server VM (build 25.212-b10, mixed mode)
 
 
 
+# JVM参数设置规则
+
+## 年轻代大小选择
+
+1. 响应时间优先的应用 -- 尽可能增大年轻代大小，这也意味着老年代的大小会相对减少，因此同时要减少到达老年代的对象
+2. 吞吐量优先应用 -- 尽可能增大年轻代，可以选择并行垃圾收集，适合 8 CPU 以上应用
+
+无论如何，谨记不能将新生代设置过小，否则会造成新生代 GC 频繁，甚至让新生代对象直接进入老年代，从而触发 full GC
+
+## 老年代大小选择
+
+1. 响应时间优先的应用 -- 通常老年代使用 CMS 进行并发收集，所以老年代不能设计过小，否则会因为内存过多造成频繁 full GC；如果设计过大，则需要较长的收集，因此需要结合并发收集信息、持久化并发收集次数、传统GC信息、年轻代和老年代的时间比例考虑具体的内存大小
+2. 吞吐量优先应用 -- 这样的应用通常需要大年轻代 + 小老年代，这样可以尽可能回收大部分短期对象，减少中期对象，而老年代存放长期存活对象
+
+## 老年代的内存碎片问题
+
+如果使用 CMS 作为老年代收集器，那么由于他采取的标记清除算法，通常会造成碎片，如果最终空间不足，则会触发一次 full GC
+
+针对这种情况，需要进行如下配置：
+
+1. -XX:+UseCMSCompactAtFullCollection -- 使用并发收集器时，开启对年老代的压缩
+2. -XX:CMSFullGCsBeforeCompaction=0 -- 上面配置开启的情况下，这里设置多少次Full GC后，对年老代进行压缩
+
+## 其他事项
+
+1. linux 64 位操作系统中，jdk 消耗内存更多，执行速度更慢，但吞吐量更大
+2. XMX 和 XMS 设置一样大，MaxPermSize 和 MinPermSize 设置一样大，这样可以减轻伸缩堆大小带来的压力
+3. 使用CMS的好处是用尽量少的新生代，经验值是128M－256M， 然后老生代利用CMS并行收集， 这样能保证系统低延迟的吞吐效率。 实际上cms的收集停顿时间非常的短，2G的内存， 大约20－80ms的应用程序停顿时间
+4. 系统停顿的时候可能是GC的问题也可能是程序的问题，多用jmap和jstack查看，或者killall -3 java，然后查看java控制台日志，能看出很多问题。
+5. 如果用了缓存，那么年老代应该大一些
+6. 采用并发回收时，年轻代小一点，年老代要大，因为年老大用的是并发回收，即使时间长点也不会影响其他程序继续运行，网站不会停顿
+
+
+
 # JVM进行Full GC的情况
 
 
@@ -755,7 +975,7 @@ Java HotSpot(TM) 64-Bit Server VM (build 25.212-b10, mixed mode)
 java.lang.OutOfMemoryError: Java heap space
 为避免以上两种状况引起的Full GC，调优时应尽量做到让对象在Minor GC阶段被回收、让对象在新生代多存活一段时间及不要创建过大的对象及数组。
 
-## 3、永生区空间不足
+## 3、永久代空间不足
 
 JVM规范中运行时数据区域中的方法区，在HotSpot虚拟机中又被习惯称为永生代或者永生区，Permanet Generation中存放的为一些class的信息、常量、静态变量等数据，当系统中要加载的类、反射的类和调用的方法较多时，Permanet Generation可能会被占满，在未配置为采用CMS GC的情况下也会执行Full GC。如果经过Full GC仍然回收不了，那么JVM会抛出如下错误信息：
 java.lang.OutOfMemoryError: PermGen space
@@ -765,12 +985,11 @@ java.lang.OutOfMemoryError: PermGen space
 
 对于采用CMS进行老年代GC的程序而言，尤其要注意GC日志中是否有promotion failed和concurrent mode failure两种状况，当这两种状况出现时可能会触发Full GC。
 
-promotion failed是在进行Minor GC时，survivor space放不下、对象只能放入老年代，而此时老年代也放不下造成的；concurrent mode failure是在
+promotion failed是在进行Minor GC时，survivor space放不下、对象只能放入老年代，而此时老年代也放不下造成的；
 
-执行CMS GC的过程中同时有对象要放入老年代，而此时老年代空间不足造成的（有时候“空间不足”是CMS GC时当前的浮动垃圾过多导致暂时性的空间不足触发Full GC）。
-对措施为：增大survivor space、老年代空间或调低触发并发GC的比率，但在JDK 5.0+、6.0+的版本中有可能会由于JDK的bug29导致CMS在remark完毕
+concurrent mode failure是在执行CMS GC的过程中同时有对象要放入老年代，而此时老年代空间不足造成的（有时候“空间不足”是CMS GC时当前的浮动垃圾过多导致暂时性的空间不足触发Full GC）。
 
-后很久才触发sweeping动作。对于这种状况，可通过设置-XX: CMSMaxAbortablePrecleanTime=5（单位为ms）来避免。
+**应对措施**：增大survivor space、老年代空间或调低触发并发GC的比率，但在JDK 5.0+、6.0+的版本中有可能会由于JDK的bug29导致CMS在remark完毕后很久才触发sweeping动作。对于这种状况，可通过设置`-XX: CMSMaxAbortablePrecleanTime=5`（单位为ms）来避免。
 
 
 
@@ -798,20 +1017,15 @@ minor gc时年轻代的存活区空间不足而晋升老年代，老年代又空
 
 
 
-## 5、统计得到的Minor GC晋升到旧生代的平均大小大于老年代的剩余空间
+## 5、统计得到的Minor GC晋升到老年代的平均大小大于老年代的剩余空间
 
-这是一个较为复杂的触发情况，Hotspot为了避免由于新生代对象晋升到旧生代导致旧生代空间不足的现象，在进行Minor GC时，做了一个判断，如果之
+这是一个较为复杂的触发情况，Hotspot为了避免由于新生代对象晋升到旧生代导致旧生代空间不足的现象，在进行Minor GC时，做了一个判断，如果之前统计所得到的Minor GC晋升到旧生代的平均大小大于旧生代的剩余空间，那么就直接触发Full GC。
 
-前统计所得到的Minor GC晋升到旧生代的平均大小大于旧生代的剩余空间，那么就直接触发Full GC。
-例如程序第一次触发Minor GC后，有6MB的对象晋升到旧生代，那么当下一次Minor GC发生时，首先检查旧生代的剩余空间是否大于6MB，如果小于6MB，
+例如程序第一次触发Minor GC后，有6MB的对象晋升到旧生代，那么当下一次Minor GC发生时，首先检查旧生代的剩余空间是否大于6MB，如果小于6MB，则执行Full GC。
 
-则执行Full GC。
-当新生代采用PS GC时，方式稍有不同，PS GC是在Minor GC后也会检查，例如上面的例子中第一次Minor GC后，PS GC会检查此时旧生代的剩余空间是否
+当新生代采用PS GC时，方式稍有不同，PS GC是在Minor GC后也会检查，例如上面的例子中第一次Minor GC后，PS GC会检查此时旧生代的剩余空间是否大于6MB，如小于，则触发对旧生代的回收。
 
-大于6MB，如小于，则触发对旧生代的回收。
-除了以上4种状况外，对于使用RMI来进行RPC或管理的Sun JDK应用而言，默认情况下会一小时执行一次Full GC。可通过在启动时通过- java -
-
-Dsun.rmi.dgc.client.gcInterval=3600000来设置Full GC执行的间隔时间或通过-XX:+ DisableExplicitGC来禁止RMI调用System.gc。
+除了以上4种状况外，对于使用RMI来进行RPC或管理的Sun JDK应用而言，默认情况下会一小时执行一次Full GC。可通过在启动时通过 `java -Dsun.rmi.dgc.client.gcInterval=3600000`来设置Full GC执行的间隔时间或通过`-XX:+ DisableExplicitGC`来禁止RMI调用System.gc。
 
 ## 6、堆中分配很大的对象
 
@@ -828,15 +1042,37 @@ Dsun.rmi.dgc.client.gcInterval=3600000来设置Full GC执行的间隔时间或�
 
  **-XX:+PrintGCDetails**将细节级别设置为更精细。 
 
-
-
 **`-XX:+PrintGCTimeStamps`** - 显示JVM启动后经过的时间。 
 
  **`-XX:+PrintGCDateStamps`** - 为每个条目添加日期前缀。 
 
-
-
 **-Xloggc:<filename>** 记录gc日志到文件
+
+
+
+```shell
+-XX:+PrintGC：输出GC垃圾回收日志
+
+-verbose:gc：与-XX:+PrintGC相同
+
+-XX:+PrintGCDetail：输出详细的GC垃圾回收日志
+
+-XX:+PrintGCTimeStamps：输出GC回收的时间戳
+
+-XX:+PrintGCApplicationStoppedTIme：输出GC垃圾回收时所占用的停顿时间
+
+-XX:+PrintGCApplicationConcurrentTime：输出GC并行回收时所占用的时间
+
+-XX:+PrintHeapAtGC：输出GC前后详细的堆信息
+
+-Xloggc:filename：把GC日志输出到filename指定的文件
+
+-XX:+PrintClassHistogram：输出类信息
+
+-XX:+PrintTLAB：输出TLAB空间使用情况
+
+-XX:+PrintTenuringDistribution：输出每次minor GC后新的存活对象的年龄阈值
+```
 
 
 
