@@ -1495,7 +1495,7 @@ document.getElementById("p1").innerHTML="新文本!";
 
 如需改变 HTML 元素的属性，请使用这个语法：
 
-document.getElementById(*id*).*attribute=新属性值*
+`document.getElementById(id).attribute=新属性值`
 
 本例改变了 <img> 元素的 src 属性：
 
@@ -2558,12 +2558,6 @@ function loadXMLDoc()
 
 # Jquery
 
-JQuery 是一个 JavaScript 库。 是一种JavaScript的框架。
-
-
-
-## 什么是 jQuery
-
 jQuery是一个非常受欢迎且广泛使用的JavaScript库，它既简化了JavaScript又增加了浏览器与JavaScript的兼容性。 
 
 jQuery库包含以下功能：
@@ -2616,13 +2610,132 @@ https://jquery.com/download/
 
 ## jQuery AJAX
 
+jQuery提供了ajax关于http的请求方法
+
+
+
+## $.ajax()
+
+该方法用于执行Ajax请求，常用于其他jQuery Ajax方法不能完成的请求，也许我们可以把它称为"jQuery中Ajax系列方法之母"。
+
+形式：$.ajax({name:val, name:val,...});
+可选字段：
+1）url：链接地址，字符串表示
+2）data：需发送到服务器的数据，GET与POST都可以，格式为{A: '...', B: '...'}
+3）type："POST" 或 "GET"，请求类型
+4）timeout：请求超时时间，单位为毫秒，数值表示
+5）cache：是否缓存请求结果，bool表示
+6）contentType：内容类型，默认为"application/x-www-form-urlencoded"
+7）dataType：服务器响应的数据类型，字符串表示；当填写为json时，回调函数中无需再对数据反序列化为json
+8）success：请求成功后，服务器回调的函数
+9）error：请求失败后，服务器回调的函数
+10）complete：请求完成后调用的函数，无论请求是成功还是失败，都会调用该函数；如果设置了success与error函数，则该函数在它们之后被调用
+11）async：是否异步处理，bool表示，默认为true；设置该值为false后，JS不会向下执行，而是原地等待服务器返回数据，并完成相应的回调函数后，再向下执行
+12）username：访问认证请求中携带的用户名，字符串表示
+13）password：返回认证请求中携带的密码，字符串表示
+
+```js
+$.ajax({
+    url: "/greet",
+    data: {name: 'jenny'},
+    type: "POST",
+    dataType: "json",
+    success: function(data) {
+        // data = jQuery.parseJSON(data);  //dataType指明了返回数据为json类型，故不需要再反序列化
+        ...
+    }
+});
+```
+
 
 
 ### jQuery load() 方法
 
+该方法将服务器加载的数据直接插入到指定DOM中。
+
+形式：*$.load(url, data, func);*
+
+其中data如果存在则使用POST方式发送请求，不存在则使用GET方式发送请求。
+
+```xml
+<div id="ret"></div>
+<script>
+$('#ret').load(
+    "/ur/to/your/project",
+    {name: 'Brad'}
+);
+</script>
+```
 
 
-### jQuery get/post 方法
+
+### Query get 方法
+
+该方法使用GET方式执行Ajax请求，从服务器加载数据。
+
+形式：*$.get(url, data, func, dataType);*
+其各个参数所示意义与$.post()一致，在此不再列出，唯一区别就是请求类型是GET。
+
+```JS
+$.get(
+    "/greet",
+    {name: 'Brad'},
+    function(data) {
+        ...
+    },
+    "json"
+);
+```
+
+
+
+
+
+### jQuery post 方法
+
+该方法使用POST方式执行Ajax请求，从服务器加载数据。
+
+形式：$.post(url, data, func, dataType);
+可选参数：
+1）url：链接地址，字符串表示
+2）data：需要发送到服务器的数据，格式为{A: '...', B: '...'}
+3）func：请求成功后，服务器回调的函数；function(data, status, xhr)，其中data为服务器回传的数据，status为响应状态，xhr为XMLHttpRequest对象，个人感觉关注data参数即可
+4）dataType：服务器返回数据的格式
+
+```JS
+$.post(
+    "/greet",
+    {name: 'Brad'},
+    function(data) {
+        ...
+    },
+    "json"
+);
+```
+
+
+
+### $.getJSON()
+
+该方法使用GET方式执行Ajax请求，从服务器加载JSON格式数据。
+
+形式：*$.getJSON(url, data, func);*
+
+
+
+因为确定服务器返回json编码的数据，故相较于$.get()不必再指定dataType。
+
+```js
+$.getJSON(
+    "/greet",
+    {name: 'jenny'},
+    function(data) {
+        ...
+    }
+);
+```
+
+
 
 
 
