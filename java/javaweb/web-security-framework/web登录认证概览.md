@@ -16,6 +16,60 @@
 
 
 
+由于HTTP是无状态协议，为了保持浏览器与服务器之间的联系，才有了Session。Session就是用于在服务器端保存用户状态的协议。通常用来保存用户的登录状态。
+
+
+
+### 工作原理
+
+
+
+#### Session是如何实现的
+
+Session内容保存在服务器端的，通常是保存在内存中，当然也可以保存在文件、数据库等等。
+
+客户端跟服务器端通过SessionId来关联，SessionId通常以Cookie的形式存储在客户端。
+
+每次HTTP请求，SessionId都会随着Cookie被传递到服务器端，这行就可以通过SessionId取到对应的信息，来判断这个请求来自于哪个客户端/用户。
+
+
+
+![](img/session1.png)
+
+
+
+| 对象      | 职责                |
+| --------- | ------------------- |
+| SessionId | 负责标识客户端/用户 |
+| HTTP      | 负责传递SessionId   |
+| Cookie    | 负责保存SessionId   |
+| 服务器    | 负责保存Session内容 |
+
+
+
+#### 如果没有Cookie的话Session还能用吗
+
+Cookie可以说是Session技术中至关重要的一环。如果客户端禁用了Cookie，那么Seesion就无法正常工作。
+
+
+
+最后再强调一下，**Session是一种协议，是保持用户状态的协议。**
+也就是说，只要能通过SessionId来识别客户端，并能将客户端对应的用户状态保存在服务器端，都可以认为是Session的实现。不论Session是保存在服务器内存，还是数据库，还是memcached、redis。
+
+另外，各Web开发框架都会有Session的实现，不论是ASP.NET还是Java Servlet。另外，通常Seesion内容都会默认保存在Web应用所在的服务器，SessionId保存在Cookie中。
+
+
+
+### 使用建议
+
+- Session中保存的数据的大小要考虑到存储上线不论是内存还是数据库
+- Session中不要存储不可恢复的内容
+- 依赖Session的关键业务一定要确保客户端开启了Cookie
+- 注意Session的过期时间
+- 在负载均衡的情况下，由于存在Web服务器内存中的Session无法共享，通常需要重写Session的实现。
+
+
+
 ### 存在的问题
 
 1. 对于客户端，每个人只需要保存自己的session id；而服务器要保存所有人的session id ！ 如果访问服务器多了， 就得由成千上万，甚至几十万个。
@@ -74,11 +128,174 @@ Token 中的数据是明文保存的（虽然我会用Base64做下编码， 但�
 
 
 
+---
+
+### 引入目的
+
+Token是在客户端频繁向服务端请求数据，服务端频繁的去数据库查询用户名和密码并进行对比，判断用户名和密码正确与否，并作出相应提示，在这样的背景下，Token便应运而生。
+
+Token的目的是为了减轻服务器的压力，减少频繁的查询数据库，使服务器更加健壮。
+
+
+
+### 组成
+
+token也称作令牌，由**uid+time+sign[+固定参数]**组成:
+
+- uid: 用户唯一身份标识
+- time: 当前时间的时间戳
+- sign: 签名, 使用 hash/encrypt 压缩成定长的十六进制字符串，以防止第三方恶意拼接
+- 固定参数(可选): 将一些常用的固定参数加入到 token 中是为了避免重复查库
+
+
+
+由其组成可以看出, token 的认证方式类似于**临时的证书签名**, 并且是一种服务端无状态的认证方式, 非常适合于 REST API 的场景. 所谓无状态就是服务端并不会保存身份认证相关的数据,
+
+token 只被保存在客户端 中的cookie 或 localstorage(数据库).
+ **因为用户的状态在服务端的内存中是不存储的，所以这是一种无状态的认证机制。**
+
+
+
+### token的认证流程
+
+1. 用户登录校验，校验成功后就返回Token给客户端。
+2. 客户端收到数据后保存在客户端
+3. 客户端每次访问API是携带Token到服务器端。
+4. 服务器端采用filter过滤器校验。校验成功则返回请求数据，校验失败则返回错误码
+
+
+
+ 这个token必须要在每次请求时发送给服务器，它应该保存在请求头中，另外，服务器要支持CORS（跨来源资源共享）策略，一般我们在服务端这么做就可以了 Access-Control-Allow-Origin：*。（spring: @CrossOrigin(allowCredentials = "true")）
+
+
+
+### 优点：
+
+- 无状态、可扩展
+
+- 安全性
+
+  > 请求中发送token而不再是发送cookie能够防止CSRF(跨站请求伪造)。即使在客户端使用cookie存储token，cookie也仅仅是一个存储机制而不是用于认证。不将信息存储在Session中，让我们少了对session操作。 
+  >
+  > token是有时效的，一段时间之后用户需要重新验证。我们也不一定需要等到token自动失效，token有撤回的操作，通过token revocataion可以使一个特定的token或是一组有相同认证的token无效。
+
+- 可扩展性
+
+- 多平台跨域
+
+
+
+### 缺点:
+
+ 因为 token 一般都是 hash/encrypt 的字符串, 所以会额外附加 加密/解密 的性能开销
+ 有些加密方式同样存在安全隐患
+
+
+
+### 适用场景
+
+- 防止表单重复提交
+- anti csrf攻击（跨站点请求伪造）
+- 身份验证（单点登录）
+
+
+
 ## cookie
 
 cookie 是一个非常具体的东西，指的就是浏览器里面能永久存储的一种数据。跟服务器没啥关系，仅仅是浏览器实现的一种数据存储功能。
 
 cookie由服务器生成，发送给浏览器，浏览器把cookie以KV形式存储到某个目录下的文本文件中，下一次请求同一网站时会把该cookie发送给服务器。由于cookie是存在客户端上的，所以浏览器加入了一些限制确保cookie不会被恶意使用，同时不会占据太多磁盘空间。所以每个域的cookie数量是有限制的。
+
+
+
+### 工作原理
+
+在Request的时候，浏览器将Cookie信息放在HTTP-Request Headers中。
+
+在Response的时候，浏览器保存HTTP-Response Headers信息中的Cookie信息。
+
+Cookie的核心信息包含三个部分：Name、Value、过期时间。
+
+Cookie的保存是覆盖式的，所以Cookie的添加、更新、删除对于浏览器来说都是执行设置（set）的动作。
+
+
+
+### 组成
+
+(1)Name/Value：设置Cookie的名称及相对应的值，对于认证Cookie，Value值包括Web服务器所提供的访问令牌
+
+(2)Expires属性：设置Cookie的生存期
+
+(3)Path属性：定义了Web站点上可以访问该Cookie的目录
+
+(4)Domain属性：指定了可以访问该 Cookie 的 Web 站点或域。
+
+(5)Secure属性：指定是否使用HTTPS安全协议发送Cookie
+
+(6)HTTPOnly 属性 ：用于防止客户端脚本通过document.cookie属性访问Cookie
+
+
+
+### 特点
+
+#### 1、存储特点
+
+- （1）存储大小受限，跟浏览器版本有关
+- （2）存储条数受限，跟浏览器版本有关
+- （3）字符编码为Unicode，不支持直接存储中文
+- （4）存储内容可以被轻松查看，不建议存储敏感信息
+- （5）可靠性差，可能随时都会因为各种原因被删除
+- （6）存储属性除了Name、Value、过期时间，还有Domian、Path，当前域可以操作当前域子域、父域名的Cookie，当前Path，可以操作当前Path以及当前Path子、父Path下的Cookie。
+
+> domian：www.ken.io 是ken.io的子域，是test.www.ken.io的父域，同时也是blog.ken.io的同级域名。www.ken.io下的应用可以访问ken.io以及*.www.ken.io下的Cookie，但是不能访问blog.ken.io下的Cookie
+>
+> path:例如页面：http://ken.io/home/about 路径是/home/about，这个路径下可以访问到根路径/以及/home/*路径下的Cookie，当时不能访问到/category下的Cookie
+
+#### 2、传输特点
+
+- （1）每次Request客户端符合domian以及path要求的Cookie都会通过Request Headers传输到服务器端
+- （2）传输的Cookie大小会受到浏览器以及Web服务器的限制
+
+#### 3、安全特点
+
+- Cookie中的信息很容易被查看，建议加密后存储
+- Cookie容易被XSS攻击利用，可以设置HttpOnly=true，不允许客户端读写
+
+> 版本过于老旧的浏览器不支持HttpOnly=true的属性
+
+
+
+### 使用经验/建议
+
+- 不要保存未经加密敏感信息（安全性）
+- 如果不需要在客户端访问，设置HttpOnly=true（安全性）
+- 设置合理的过期时间（传输效率）
+- 不要存储过大的内容（传输效率）
+- 不要存储过多的条目（传输效率）
+- 设置合理的domian、path，减少不必要的Cookie传输（传输效率）
+- 不要存储非Unicode字符（可用性）
+- 不要存储不可恢复的信息（可靠性）
+
+
+
+### Cookie API
+
+- Cookie类用于创建一个Cookie对象
+- response接口中定义了一个addCookie方法，它用于在其响应头中增加一个相应的Set-Cookie头字段
+- request接口中定义了一个getCookies方法，它用于获取客户端提交的Cookie
+
+
+
+常用的Cookie方法：
+
+- public Cookie(String name,String value)
+- setValue与getValue方法
+- setMaxAge与getMaxAge方法
+- setPath与getPath方法
+- setDomain与getDomain方法
+- getName方法
+
+
 
 
 
