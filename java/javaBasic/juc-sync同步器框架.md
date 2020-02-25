@@ -80,6 +80,21 @@ public class CountDownLatchTest {
 
 - 回环栅栏，通过它可以实现让**一组线程等待至某个状态之后再全部同时执行**。叫做回环是因为当所有等待线程都被释放以后，CyclicBarrier可以被重用。我们暂且把这个状态就叫做barrier，当调用await()方法之后，线程就处于barrier了。
 
+
+
+与CountDownLatch对比：
+
+> `CountDownLatch` ： 一个线程 ( 或者多个) 在等待， 等另外N个线程完成某个事情之后，这 **一个线程** 才能执行。
+> `CyclicBarrier`：N个线程相互等待，任何一个线程完成之前，所有的线程都必须等待。
+>
+> 因此，`CountDownLatch` 的重点是那个 **一个线程** ，是它在等待， 而另外那N的线程在把“某个事情”做完之后，这 **一个线程** 可以继续执行，或者终止。
+>
+> 而 `CyclicBarrier` 来说，重点是那 **N个线程** ，他们之间任何一个没有完成，所有的线程都必须等待。
+
+ 
+
+
+
 ```java
 // 参数parties指让多少个线程或者任务等待至barrier状态；参数barrierAction为当这些线程都达到barrier状态时会执行的内容。
 public CyclicBarrier(int parties, Runnable barrierAction) {

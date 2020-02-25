@@ -992,6 +992,12 @@ private void doReleaseShared() {
 
 ## ReentrantReadWriteLock
 
+JUC包里面已经有一个ReentrantLock了，为何还需要一个ReentrantReadWriteLock呢？
+
+> 在实际场景中，一般来说，读数据远比写数据要多。如果我们还是用独占锁去锁线程避免线程不安全的话，是非常低效的，而且同时也会失去它的并发性。多线程也没有意义了。所以ReadWriteLock就是解决这个问题所存在的。
+
+
+
 - 读写锁维护着**一对**锁，一个读锁和一个写锁。
 - **主要特性**：
   - 公平性：支持公平性和非公平性。

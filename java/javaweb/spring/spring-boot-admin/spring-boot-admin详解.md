@@ -1,4 +1,4 @@
-# spring-boot程序监控
+微服务的特点决定了功能模块的部署是分布式的，大部分功能模块都是运行在不同的机器上，彼此通过服务调用进行交互，前后台的业务流会经过很多个微服务的处理和传递。在这种框架下，微服务的监控显得尤为重要
 
 
 
@@ -7,6 +7,8 @@
 Spring Boot 的 Actuator 提供了很多生产级的特性，比如监控和度量Spring Boot 应用程序。Actuator 的这些特性可以通过众多 REST 接口、远程 shell 和 JMX 获得。
 
 
+
+**默认提供的endpoint**
 
 | HTTP 方法 | 路径            | 描述                                                         |
 | --------- | --------------- | ------------------------------------------------------------ |
@@ -26,9 +28,75 @@ Spring Boot 的 Actuator 提供了很多生产级的特性，比如监控和度�
 
 
 
+**自定义endpoint**
+
+
+
+## 快速上手
+
+```xml
+<dependencies>
+  <dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+  </dependency>
+  <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+  </dependency>
+</dependencies>
+```
+
+
+
+```properties
+info.app.name=spring-boot-actuator
+info.app.version= 1.0.0
+info.app.test=test
+
+management.endpoints.web.exposure.include=*
+management.endpoint.health.show-details=always
+#management.endpoints.web.base-path=/monitor
+
+management.endpoint.shutdown.enabled=true
+```
+
+- `management.endpoints.web.base-path=/monitor` 代表启用单独的url地址来监控 Spring Boot 应用，为了安全一般都启用独立的端口来访问后端的监控信息
+- `management.endpoint.shutdown.enabled=true` 启用接口关闭 Spring Boot
+
+
+
+## 详解
+
+在 Spring Boot 2.x 中为了安全期间，Actuator 只开放了两个端点 `/actuator/health` 和 `/actuator/info`。可以在配置文件中设置打开。
+
+可以打开所有的监控点
+
+```properties
+management.endpoints.web.exposure.include=*
+```
+
+也可以选择打开部分
+
+```properties
+management.endpoints.web.exposure.exclude=beans,trace
+```
+
+Actuator 默认所有的监控点路径都在`/actuator/*`，当然如果有需要这个路径也支持定制。
+
+```properties
+management.endpoints.web.base-path=/manage
+```
+
+设置完重启后，再次访问地址就会变成`/manage/*`
+
+
+
 # Spring Boot Admin
 
-Spring Boot Admin是一个开源社区项目，用于管理和监控SpringBoot应用程序。 应用程序作为Spring Boot Admin Client向为Spring Boot Admin Server注册（通过HTTP）或使用SpringCloud注册中心（例如Eureka，Consul）发现。 UI是的Vue.js应用程序，展示Spring Boot Admin Client的Actuator端点上的一些监控。
+Spring Boot Admin是一个开源社区项目，用于管理和监控SpringBoot应用程序。 
+
+应用程序作为Spring Boot Admin Client向为Spring Boot Admin Server注册（通过HTTP）或使用SpringCloud注册中心（例如Eureka，Consul）发现。 UI是的Vue.js应用程序，展示Spring Boot Admin Client的Actuator端点上的一些监控。
 
 
 
@@ -43,56 +111,56 @@ Spring Boot Admin是一个针对spring-boot的actuator接口进行UI美化封装
 ### Admin Server端
 
 ```xml
+<dependencies>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter</artifactId>
+    </dependency>
+
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-test</artifactId>
+        <scope>test</scope>
+        <exclusions>
+            <exclusion>
+                <groupId>org.junit.vintage</groupId>
+                <artifactId>junit-vintage-engine</artifactId>
+            </exclusion>
+        </exclusions>
+    </dependency>
+
+    <dependency>
+        <groupId>de.codecentric</groupId>
+        <artifactId>spring-boot-admin-starter-server</artifactId>
+        <version>2.1.5</version>
+    </dependency>
+    <dependency>
+        <groupId>de.codecentric</groupId>
+        <artifactId>spring-boot-admin-server-ui</artifactId>
+        <version>2.1.5</version>
+    </dependency>
+
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+
+</dependencies>
+
+<dependencyManagement>
     <dependencies>
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.junit.vintage</groupId>
-                    <artifactId>junit-vintage-engine</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
-        <dependency>
             <groupId>de.codecentric</groupId>
-            <artifactId>spring-boot-admin-starter-server</artifactId>
+            <artifactId>spring-boot-admin-dependencies</artifactId>
             <version>2.1.5</version>
         </dependency>
-        <dependency>
-            <groupId>de.codecentric</groupId>
-            <artifactId>spring-boot-admin-server-ui</artifactId>
-            <version>2.1.5</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
-
     </dependencies>
-
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>de.codecentric</groupId>
-                <artifactId>spring-boot-admin-dependencies</artifactId>
-                <version>2.1.5</version>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
+</dependencyManagement>
 
 ```
 
@@ -201,6 +269,14 @@ public class AdminClientApplication {
 
 
 配置完成之后，启动Client端服务，再次访问服务：`http://localhost:8000`可以看到客户端的相关信息。
+
+
+
+### 缺点
+
+每个被监控的服务都必须配置 Spring Boot Admin 的地址，还得引入依赖。
+
+我们可以将 Spring Boot Admin 也注册到 Eureka 中，然后自动获取 Eureka 中注册的服务信息来统一查看。
 
 
 
