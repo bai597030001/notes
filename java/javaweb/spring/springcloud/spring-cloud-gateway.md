@@ -372,7 +372,7 @@ spring:
 
 给请求添加参数的过滤器。
 
-```
+```yaml
 spring:
   cloud:
     gateway:
@@ -383,21 +383,18 @@ spring:
             - AddRequestParameter=username, macro
           predicates:
             - Method=GET
-复制代码
 ```
 
 以上配置会对GET请求添加`username=macro`的请求参数，通过curl工具使用以下命令进行测试。
 
-```
+```http
 curl http://localhost:9201/user/getByUsername
-复制代码
 ```
 
 相当于发起该请求：
 
-```
+```http
 curl http://localhost:8201/user/getByUsername?username=macro
-复制代码
 ```
 
 ### StripPrefix GatewayFilter
@@ -542,7 +539,7 @@ public class RedisRateLimiterConfig {
 
 - 我们使用Redis来进行限流，所以需要添加Redis和RequestRateLimiter的配置，这里对所有的GET请求都进行了按IP来限流的操作；
 
-```java
+```yaml
 server:
   port: 9201
 spring:
@@ -569,6 +566,15 @@ logging:
 ```
 
 - 多次请求该地址：http://localhost:9201/user/1 ，会返回状态码为429的错误；
+
+
+
+> 令牌桶算法描述：
+>  	假如用户配置的平均发送速率为r，则每隔1/r秒一个令牌被加入到桶中
+>  	假设桶中最多可以存放b个令牌。如果令牌到达时令牌桶已经满了，那么这个令牌会被丢弃
+>  	当流量以速率v进入，从桶中以速率v取令牌，拿到令牌的流量通过，拿不到令牌流量不通过，执行熔断逻辑
+
+
 
 ### Retry GatewayFilter
 
@@ -634,12 +640,19 @@ server:
 spring:
   application:
     name: api-gateway
-  cloud:
+    cloud:
     gateway:
       discovery:
         locator:
-          enabled: true #开启从注册中心动态创建路由的功能
-          lower-case-service-id: true #使用小写服务名，默认是大写
+          # 是否与服务注册于发现组件进行结合，通过 serviceId 转发到具体的服务实例。默认为 false，设为 true 便开启通过服务中心的自动根据 serviceId 创建路由的功能。
+          enabled: true
+          # 如果需要小写serviceId,则配置 lower-case-service-id: true
+          # 注意: 不管小写大写,不能使用下划线,否则会报
+          lower-case-service-id: true
+#      routes:
+#        - id: eureka-pri
+#          uri: lb://eureka-pri
+
 eureka:
   client:
     service-url:
@@ -650,6 +663,8 @@ logging:
 ```
 
 - 使用application-eureka.yml配置文件启动api-gateway服务，访问http://localhost:9201/user-service/user/1 ，可以路由到user-service的http://localhost:8201/user/1 处。
+
+> 通过网关访问具体服务的格式：`http://网关IP:网关端口号/serviceId/**`
 
 ### 使用过滤器
 
@@ -667,6 +682,7 @@ spring:
     gateway:
       routes:
         - id: prefixpath_route
+        # lb代表从注册中心获取服务,后面接的就是你需要转发到的服务名称(eureka中的服务名)
           uri: lb://user-service #此处需要使用lb协议
           predicates:
             - Method=GET
@@ -686,3 +702,133 @@ logging:
 
 - 使用application-eureka.yml配置文件启动api-gateway服务，访问http://localhost:9201/1 ，可以路由到user-service的http://localhost:8201/user/1 处。
 
+
+
+## 熔断/限流
+
+
+
+
+
+## 跨域
+
+在 Spring Cloud Gateway 中配置跨域有两种方式，分别是代码配置方式和配置文件方式。
+
+
+
+```java
+@Configuration
+public class CorsConfig {
+
+    @Bean
+    public WebFilter corsFilter() {
+        return (ServerWebExchange ctx, WebFilterChain chain) -> {
+            ServerHttpRequest request = ctx.getRequest();
+            if (CorsUtils.isCorsRequest(request)) {
+                HttpHeaders requestHeaders = request.getHeaders();
+                ServerHttpResponse response = ctx.getResponse();
+                HttpMethod requestMethod = requestHeaders.getAccessControlRequestMethod();
+                HttpHeaders headers = response.getHeaders();
+                headers.add(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, requestHeaders.getOrigin());
+                headers.addAll(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+                        requestHeaders.getAccessControlRequestHeaders());
+                if (requestMethod != null) {
+                    headers.add(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS, requestMethod.name());
+                }
+
+                headers.add(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
+                headers.add(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, "*");
+                if (request.getMethod() == HttpMethod.OPTIONS) {
+                    response.setStatusCode(HttpStatus.OK);
+                    return Mono.empty();
+                }
+            }
+            return chain.filter(ctx);
+        };
+    }
+}
+```
+
+
+
+```yaml
+spring:
+  cloud:
+    gateway:
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins: "*"
+            exposedHeaders:
+              - content-type
+            allowedHeaders:
+              - content-type
+            allowCredentials: true
+              allowedMethods:
+              - GET
+              - OPTIONS
+              - PUT
+              - DELETE
+              - POST
+```
+
+
+
+
+
+## 统一异常处理
+
+Spring Cloud Gateway 中的全局异常处理不能直接使用 `@ControllerAdvice`，可以通过跟踪异常信息的抛出，找到对应的源码，自定义一些处理逻辑来匹配业务的需求。
+
+网关是给接口做代理转发的，后端对应的是 REST API，返回数据格式是 JSON。如果不做处理，当发生异常时，Gateway 默认给出的错误信息是页面，不方便前端进行异常处理。
+
+所以我们需要对异常信息进行处理，并返回 JSON 格式的数据给客户端。
+
+
+
+## 重试机制
+
+RetryGatewayFilter 是 Spring Cloud Gateway 对请求重试提供的一个 GatewayFilter Factory
+
+
+
+```yaml
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: zuul-encrypt-service
+  uri: lb://zuul-encrypt-service
+  predicates:
+    - Path=/data/**
+  filters:
+    - name: Retry
+  args:
+  	# 重试次数，默认值是 3 次
+    retries: 3
+    # 状态码配置（分段），符合某段状态码才会进行重试逻辑，默认值是 SERVER_ERROR，值是 5，也就是 5XX（5 开头的状态码），共有 5 个值
+    series: SERVER_ERROR
+```
+
+```java
+public enum Series {
+    INFORMATIONAL(1), SUCCESSFUL(2), REDIRECTION(3), CLIENT_ERROR(4), SERVER_ERROR(5);
+}
+```
+
+上述代码中具体参数含义如下所示。
+
+- statuses：状态码配置，和 series 不同的是这里是具体状态码的配置，取值请参考 org.springframework.http.HttpStatus。
+- methods：指定哪些方法的请求需要进行重试逻辑，默认值是 GET 方法，取值代码如下所示。
+
+```java
+public enum HttpMethod {
+  GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, TRACE;
+}
+```
+
+上述代码中具体参数含义如下所示。 exceptions：指定哪些异常需要进行重试逻辑。默认值是 java.io.IOException 和 org.springframework.cloud.gateway.support.TimeoutException。
+
+
+
+## 负载均衡

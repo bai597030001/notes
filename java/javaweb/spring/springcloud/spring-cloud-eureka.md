@@ -515,6 +515,49 @@ eureka.server.wait-time-in-ms-when-sync-empty: 1000*60*5
 
 
 
+```yaml
+eureka:
+
+  # 修改Eureka监控页面的System Status Data center
+  datacenter: cloud
+  # 修改Eureka监控页面的System Status Environment
+  environment: test
+
+  server:
+    # 注册中心是否开启服务的自我保护
+    enable-self-preservation: true
+    # 表示 Eureka Server 开启自我保护的系数，默认：0.85
+    renewal-percent-threshold: 0.85
+    # 表示 Eureka Server 清理无效节点的频率，默认 60000 毫秒（60 秒）
+    eviction-interval-timer-in-ms: 60
+    # Eureka Server 参数配置可以看一下这个类：org.springframework.cloud.netflix.eureka.server.EurekaServerConfigBean
+
+  instance:
+    # 表示实例在注册中心注册的唯一ID
+    instance-id: eureka-server
+    # true：实例以 IP 的形式注册; false：实例以机器 HOSTNAME 形式注册
+    prefer-ip-address: true
+    #表示 Eureka Server 在接收到上一个心跳之后等待下一个心跳的秒数（默认 90 秒），若不能在指定时间内收到心跳，则移除此实例，并禁止此实例的流量。
+      #此值设置太长，即使实例不存在，流量也能路由到该实例
+      #此值设置太小，由于网络故障，实例会被取消流量
+    #需要设置为至少高于 lease-renewal-interval-in-seconds 的值，不然会被误移除了。
+    lease-expiration-duration-in-seconds: 90
+    #表示 Eureka Client 向 Eureka Server 发送心跳的频率（默认 30 秒），如果在 lease-expiration-duration-in-seconds 指定的时间内未收到心跳，则移除该实例。
+    lease-renewal-interval-in-seconds: 30
+    # 更多 Eureka Instance 参数配置可以看一下这个类：org.springframework.cloud.netflix.eureka.EurekaInstanceConfigBean
+
+  client:
+    # 表示此实例是否注册到 Eureka Server 以供其他实例发现。
+    register-with-eureka: false
+    # 客户端是否从 Eureka Server 获取实例注册信息。
+    fetch-registry: true
+    # eureka server 端的url
+    serviceUrl.defaultZone:
+    # 更多 Eureka Client 参数配置可以看一下这个类：org.springframework.cloud.netflix.eureka.EurekaClientConfigBean
+```
+
+
+
 
 
 ## 获取Eureka中的注册信息

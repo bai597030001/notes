@@ -233,6 +233,10 @@ management:
 
 
 
+访问：在访问的url路径中加上访问的serviceId（eureka中注册的），并且将port换成zuul模块的。
+
+
+
 ## 常用功能
 
 
@@ -703,4 +707,372 @@ rcmd-service-data:
 - 此外，重试默认都是只支持get请求，如果我把请求方式修改为post重试是不生效的，我们需要设置OkToRetryOnAllOperations为true, 这种情况不太建议，因为post请求大多都是写入请求，如果要支持重试，服务自身的幂等性一定要健壮。
 
   
+
+# zuul限流
+
+- 什么是`RateLimiter`、`Spring Cloud Zuul RateLimiter`
+
+
+
+RateLimiter是Google开源的实现了令牌桶算法的限流工具（速率限制器）。http://ifeve.com/guava-ratelimiter/
+
+Spring Cloud Zuul RateLimiter结合Zuul对RateLimiter进行了封装，通过实现ZuulFilter提供了服务限流功能
+
+
+
+## 原理
+
+基于 zuul 网关的过滤功能，新增 RateLimitPreFilter（order：-1） 以及 RateLimitPostFilter（order：990） 过滤器。
+
+在内存或者缓存或者数据库中维护一个 Map，根据请求以及限流粒度生成 key，接收到新的请求时，value 值加 1。和限流策略中的 limit 或者 quota 对比，如果超出则报错。
+
+
+
+## 限流粒度
+
+| 限流粒度/类型                    | 说明                                                         |
+| :------------------------------- | :----------------------------------------------------------- |
+| Authenticated User               | 使用经过身份验证的用户名或“匿名”                             |
+| Request Origin                   | 使用用户原始请求                                             |
+| URL                              | 使用下游服务的请求路径                                       |
+| ROLE                             | 使用经过身份验证的用户角色                                   |
+| Request method                   | 使用HTTP请求方法                                             |
+| Global configuration per service | 这个不验证请求Origin，Authenticated User或URI，要使用这个，请不要设置type |
+
+
+
+```java
+public enum RateLimitType {
+    /**
+     * Rate limit policy considering the user's origin.
+     */
+    ORIGIN {
+        @Override
+        public boolean apply(HttpServletRequest request, Route route, RateLimitUtils rateLimitUtils, String matcher) {
+            if (matcher.contains("/")) {
+                SubnetUtils subnetUtils = new SubnetUtils(matcher);
+                return subnetUtils.getInfo().isInRange(rateLimitUtils.getRemoteAddress(request));
+            }
+            return matcher.equals(rateLimitUtils.getRemoteAddress(request));
+        }
+
+        @Override
+        public String key(HttpServletRequest request, Route route, RateLimitUtils rateLimitUtils, String matcher) {
+            return rateLimitUtils.getRemoteAddress(request);
+        }
+    },
+
+    /**
+     * Rate limit policy considering the authenticated user.
+     */
+    USER {
+        @Override
+        public boolean apply(HttpServletRequest request, Route route, RateLimitUtils rateLimitUtils, String matcher) {
+            return matcher.equals(rateLimitUtils.getUser(request));
+        }
+
+        @Override
+        public String key(HttpServletRequest request, Route route, RateLimitUtils rateLimitUtils, String matcher) {
+            return rateLimitUtils.getUser(request);
+        }
+    },
+
+    /**
+     * Rate limit policy considering the request path to the downstream service.
+     */
+    URL {
+        @Override
+        public boolean apply(HttpServletRequest request, Route route, RateLimitUtils rateLimitUtils, String matcher) {
+            return route == null || route.getPath().startsWith(matcher);
+        }
+
+        @Override
+        public String key(HttpServletRequest request, Route route, RateLimitUtils rateLimitUtils, String matcher) {
+            return Optional.ofNullable(route).map(Route::getPath).orElse(StringUtils.EMPTY);
+        }
+    },
+
+    /**
+     * Rate limit policy considering the authenticated user's role.
+     */
+    ROLE {
+        @Override
+        public boolean apply(HttpServletRequest request, Route route, RateLimitUtils rateLimitUtils, String matcher) {
+            return rateLimitUtils.getUserRoles().contains(matcher.toUpperCase());
+        }
+
+        @Override
+        public String key(HttpServletRequest request, Route route, RateLimitUtils rateLimitUtils, String matcher) {
+            return matcher;
+        }
+
+        @Override
+        public boolean isValid(String matcher) {
+            return StringUtils.isNotEmpty(matcher);
+        }
+    },
+
+    /**
+     * @deprecated See {@link #HTTP_METHOD}
+     */
+    @Deprecated
+    HTTPMETHOD {
+        @Override
+        public boolean apply(HttpServletRequest request, Route route, RateLimitUtils rateLimitUtils, String matcher) {
+            return HTTP_METHOD.apply(request, route, rateLimitUtils, matcher);
+        }
+
+        @Override
+        public String key(HttpServletRequest request, Route route, RateLimitUtils rateLimitUtils, String matcher) {
+            return HTTP_METHOD.key(request, route, rateLimitUtils, matcher);
+        }
+    },
+
+    /**
+     * Rate limit policy considering the HTTP request method.
+     */
+    HTTP_METHOD {
+        @Override
+        public boolean apply(HttpServletRequest request, Route route, RateLimitUtils rateLimitUtils, String matcher) {
+            return request.getMethod().equalsIgnoreCase(matcher);
+        }
+
+        @Override
+        public String key(HttpServletRequest request, Route route, RateLimitUtils rateLimitUtils, String matcher) {
+            return StringUtils.isEmpty(matcher) ? request.getMethod() : "http-method";
+        }
+    },
+
+    /**
+     * Rate limit policy considering an URL Pattern
+     */
+    URL_PATTERN {
+        @Override
+        public boolean apply(HttpServletRequest request, Route route, RateLimitUtils rateLimitUtils, String matcher) {
+            return new AntPathMatcher().match(matcher.toLowerCase(), request.getRequestURI().toLowerCase());
+        }
+
+        @Override
+        public String key(HttpServletRequest request, Route route, RateLimitUtils rateLimitUtils, String matcher) {
+            return matcher;
+        }
+
+        @Override
+        public boolean isValid(String matcher) {
+            return StringUtils.isNotEmpty(matcher);
+        }
+    };
+
+    public abstract boolean apply(HttpServletRequest request, Route route,
+                                  RateLimitUtils rateLimitUtils, String matcher);
+
+    public abstract String key(HttpServletRequest request, Route route,
+                               RateLimitUtils rateLimitUtils, String matcher);
+
+    /**
+     * Helper method to validate specific cases per type.
+     *
+     * @param matcher The type matcher
+     * @return The default behavior will always return true.
+     */
+    public boolean isValid(String matcher) {
+        return true;
+    }
+}
+```
+
+
+
+默认的key生成策略实现为:`DefaultRateLimitKeyGenerator` 。如果不能满足需求，可以自定义 RateLimitKeyGenerator 实现。
+
+
+
+## 存储方式
+
+RateLimiter的限流数据是默认以ConcurrentHashMap方式存储在内存中的，当我们部署了Zuul集群的时候，就会影响我们的限流策略了。我们可以将限流数据存储在Redis中，这样就可以集中记录各个Zuul节点的限流数据，来保证限流的准确性。
+
+
+
+保存在一个时间窗口内针对（url，user，ip 以及自定义粒度）的调用次数，主要为内存、缓存以及数据库等，具体支持存储方式如下：
+
+```java
+public static enum Repository {
+    REDIS,
+    CONSUL,
+    JPA,
+    BUCKET4J_JCACHE,
+    BUCKET4J_HAZELCAST,
+    BUCKET4J_IGNITE,
+    BUCKET4J_INFINISPAN,
+    IN_MEMORY;
+
+    private Repository() {
+    }
+}
+```
+
+## 限流策略
+
+```yaml
+default-policy:
+  limit: 20             # 单位时间内允许访问的次数，20 次
+  quota: 20             # 单位时间内允许访问的总时间（统计每次请求的时间综合）, 20s
+  refresh-interval: 60  # 单位时间设置，60s
+  type:                 # 限流粒度：url + user 组合形式
+    - url
+    - user
+```
+
+以上配置意思是：在一个时间窗口 60s 内，最多允许 20 次访问，或者总请求时间小于 20s。相关代码参考：
+
+```java
+public Object run() {
+    RequestContext ctx = RequestContext.getCurrentContext();
+    HttpServletResponse response = ctx.getResponse();
+    HttpServletRequest request = ctx.getRequest();
+    Route route = this.route(request);
+    this.policy(route, request).forEach((policy) -> {
+        String key = this.rateLimitKeyGenerator.key(request, route, policy);
+        Rate rate = this.rateLimiter.consume(policy, key, (Long)null);
+        String httpHeaderKey = key.replaceAll("[^A-Za-z0-9-.]", "_").replaceAll("__", "_");
+        Long limit = policy.getLimit();
+        Long remaining = rate.getRemaining();
+        if (limit != null) {
+            response.setHeader("X-RateLimit-Limit-" + httpHeaderKey, String.valueOf(limit));
+            response.setHeader("X-RateLimit-Remaining-" + httpHeaderKey, String.valueOf(Math.max(remaining, 0L)));
+        }
+
+        Long quota = policy.getQuota();
+        Long remainingQuota = rate.getRemainingQuota();
+        if (quota != null) {
+            request.setAttribute("rateLimitRequestStartTime", System.currentTimeMillis());
+            response.setHeader("X-RateLimit-Quota-" + httpHeaderKey, String.valueOf(quota));
+            response.setHeader("X-RateLimit-Remaining-Quota-" + httpHeaderKey, String.valueOf(TimeUnit.MILLISECONDS.toSeconds(Math.max(remainingQuota, 0L))));
+        }
+
+        response.setHeader("X-RateLimit-Reset-" + httpHeaderKey, String.valueOf(rate.getReset()));
+        if (limit != null && remaining < 0L || quota != null && remainingQuota < 0L) {  // limit 和 quota 任意一个不满足就返回报错
+            ctx.setResponseStatusCode(HttpStatus.TOO_MANY_REQUESTS.value());
+            ctx.put("rateLimitExceeded", "true");
+            ctx.setSendZuulResponse(false);
+            throw new RateLimitExceededException();
+        }
+    });
+    return null;
+}
+```
+
+## 配置文件
+
+```yaml
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+server:
+  port: 10001
+
+spring:
+  application:
+    name: cloud-zuul
+  redis:
+    host: localhost
+    port: 6379
+
+zuul:
+  routes:
+    a:
+      path: /a/**
+      serviceId: service-client
+    b:
+      path: /b/**
+      serviceId: service-feign
+  ratelimit:
+    key-prefix: wsk
+    enabled: true
+    repository: REDIS
+    behind-proxy: true
+    default-policy-list: #optional - will apply unless specific policy exists
+      - limit: 1 #optional - request number limit per refresh interval window
+        quota: 1 #optional - request time limit per refresh interval window (in seconds)
+        refresh-interval: 3 #default value (in seconds)
+#        type: #optional
+#          - user
+#          - origin
+#          - url
+    policy-list:
+      a: #需要和服务同名
+        - limit: 10 #optional - request number limit per refresh interval window
+          quota: 100 #optional - request time limit per refresh interval window (in seconds)
+          refresh-interval: 30 #default value (in seconds)
+      b:
+        - limit: 1 #optional - request number limit per refresh interval window
+          quota: 1 #optional - request time limit per refresh interval window (in seconds)
+          refresh-interval: 3 #default value (in seconds)
+#          type: #optional
+#            - user
+#            - origin
+#            - url
+#          type: #optional value for each type
+#            - user=anonymous
+#            - origin=somemachine.com
+#            - url=/api #url prefix
+#            - role=user
+```
+
+限流策略的确定：根据路由寻找限流策略，如果没找到则使用默认策略。
+
+```java
+public abstract class AbstractRateLimitFilter extends ZuulFilter {
+
+    protected List<Policy> policy(Route route, HttpServletRequest request) {
+        // 根据路由查找 route-id，如果有 采用该路由的限流策略，如果没有 采用默认策略
+        String routeId = (String)Optional.ofNullable(route).map(Route::getId).orElse((Object)null);
+        return (List)this.properties.getPolicies(routeId).stream().filter((policy) -> {
+            return this.applyPolicy(request, route, policy);
+        }).collect(Collectors.toList());
+    }
+}
+
+public class RateLimitProperties implements Validator {
+    public List<RateLimitProperties.Policy> getPolicies(String key) {
+        return StringUtils.isEmpty(key) ? this.defaultPolicyList : (List)this.policyList.getOrDefault(key, this.defaultPolicyList);
+    }
+}
+```
+
+
+
+## 参数说明
+
+Property namespace: zuul.ratelimit
+
+| Property name       | Values                                                       | Default Value                                     | 说明                |
+| :------------------ | :----------------------------------------------------------- | :------------------------------------------------ | :------------------ |
+| enabled             | true/false                                                   | false                                             | 是否启用限流        |
+| behind-proxy        | true/false                                                   | false                                             |                     |
+| key-prefix          | String                                                       | ${spring.application.name:rate-limit-application} | 限流key前缀         |
+| repository          | CONSUL, REDIS, JPA, BUCKET4J_JCACHE, BUCKET4J_HAZELCAST, BUCKET4J_INFINISPAN, BUCKET4J_IGNITE | -                                                 | 必填，使用redis即可 |
+| default-policy-list | List of Policy                                               | -                                                 | 默认策略            |
+| policy-list         | Map of Lists of Policy                                       | -                                                 | 自定义策略          |
+| postFilterOrder     | int                                                          | FilterConstants.SEND_RESPONSE_FILTER_ORDER - 10   | postFilter过滤顺序  |
+| preFilterOrder      | int                                                          | FilterConstants.FORM_BODY_WRAPPER_FILTER_ORDER    | preFilter过滤顺序   |
+
+Policy properties:
+
+| Property name    | Values                    | Default Value | 说明                                                         |
+| :--------------- | :------------------------ | :------------ | :----------------------------------------------------------- |
+| limit            | number of calls           | -             | 单位时间内请求次数限制                                       |
+| quota            | time of calls             | -             | 单位时间内累计请求时间限制（秒），非必要参数                 |
+| refresh-interval | seconds                   | 60            | 单位时间（秒），默认60秒                                     |
+| type             | [ORIGIN, USER, URL, ROLE] | []            | 限流方式：ORIGIN, USER, URL（每个Url 在z秒内访问次数不得超过x次且总计访问时间这不得超过y秒） |
+
+
+
+## 对性能的影响
+
+压力测试，如果不设置限流的情况下，TPS 为 2850；如果设置了限流，TPS 骤降到 600。
+
+通过 JProfiler 结合代码分析，发现 AbstractCacheRateLimiter 有一个同步方法 consume，导致了大量线程都处于阻塞状态。
 
