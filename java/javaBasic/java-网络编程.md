@@ -18,11 +18,15 @@ URL: Uniform Resource Locator ,统一资源定位器： Java允许通过Web服�
 
 例如：为了读取一个文件，首先要为文件创建一个URL：
 
+```java
 URL url=new URL(“www.bit.edu.cn/index.html”)
+```
 
 然后，可以使用定义在URL类中的openStream()方法，对文件的URL打开一个输入流：
 
+```java
 InputStream inputStream=url.openStream();
+```
 
 现在可以从输入流中读取数据了
 
@@ -30,7 +34,7 @@ InputStream inputStream=url.openStream();
 
 
 
-## 示例
+## socket示例
 
 server：
 
@@ -211,4 +215,8 @@ public class SocketClient implements Runnable {
     }
 }
 ```
+
+
+
+## socket selector
 

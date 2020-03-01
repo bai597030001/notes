@@ -4,7 +4,7 @@ Servlet（Server Applet），全称Java Servlet。是用Java编写的服务器�
 
 
 
- Servlet运行于支持Java的应用服务器中。从实现上讲，Servlet可以响应任何类型的请求，但绝大多数情况下Servlet只用来扩展基于HTTP协议的Web服务器。 
+Servlet运行于支持Java的应用服务器中。从实现上讲，Servlet可以响应任何类型的请求，但绝大多数情况下Servlet只用来扩展基于HTTP协议的Web服务器。 
 
 
 
@@ -41,6 +41,7 @@ JSP在首次被访问的时候被应用服务器转换为servlet，在以后的�
 
 # Servlet接口
 
+```properties
 Servlet: 这个就不用说了，Servlet的核心，具体Servlet中方法的处理规范可见以上描述的Servlet的生命周期
 
 ServletConfig:  封装了对应的Servlet的相关配置信息，如servlet名字，servlet的初始参数以及Servlet所在的上下文对象，即ServletContext.  ServletConfig中的属性通常在Servlet初始化时进行初始化.
@@ -56,6 +57,9 @@ ServletOutputSteam/PrintWriter:  将资源写入到client的I/O接口. ServletOu
 GenericServlet:  抽象类，它定义了一个Servlet的基本实现，虽然它是Servlet的基本实现，但是它是与协议无关的（即不依赖于http协议，也不依赖于其它应用层协议）.  一般，基于协议的Servlet，如httpservlet，通常会继承该类.
 
 RequestDispatcher: 我们在搭建web应用的过程中，可能会有这样的需求： 在当前servlet中处理完成后，需要导向（forwar）另外一个servlet或静态资源（html或text等），或者 是在当前servlet的处理过程中，需要将其它的资源包含（include）到当前的servlet资源里来。而RequestDisaptcher 接口中的forward和inluce方法就提供了实现以上两个需求的机制.
+```
+
+
 
 
 
@@ -63,7 +67,8 @@ RequestDispatcher: 我们在搭建web应用的过程中，可能会有这样的�
 
 ## ServletConfig
 
-- 为servlet配置一些初始化参数(<init-param>标签).注意(还可以通过注解的方式进行配置)
+- 为servlet配置一些初始化参数(\<init-param>标签).
+- 注意(还可以通过注解的方式进行配置)
 
 
 
@@ -76,11 +81,13 @@ WEB容器在启动时，它会为每个WEB应用程序都创建一个对应的Se
 
 3）通过servletContext对象实现servlet转发
 
-	由于servlet中的java数据不易设置样式，所以serlvet可以将java数据转发到JSP页面中进行处理
-	
-	this.getServletContext().setAttribute("data","serlvet数据转发");
-	RequestDispatcher rd = this.getServletContext().getRequestDispatcher("/viewdata.jsp");
-	rd.forward(request, response);
+```java
+// 由于servlet中的java数据不易设置样式，所以serlvet可以将java数据转发到JSP页面中进行处理
+
+this.getServletContext().setAttribute("data","serlvet数据转发");
+RequestDispatcher rd = this.getServletContext().getRequestDispatcher("/viewdata.jsp");
+rd.forward(request, response);
+```
 
  4）通过servletContext对象读取资源文件
 

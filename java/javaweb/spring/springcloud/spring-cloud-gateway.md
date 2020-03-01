@@ -649,9 +649,31 @@ spring:
           # 如果需要小写serviceId,则配置 lower-case-service-id: true
           # 注意: 不管小写大写,不能使用下划线,否则会报
           lower-case-service-id: true
+	  # 默认filters,用于配置公共的过滤逻辑
+      default-filters:
+        - name: Hystrix
+          args:
+            name: fallback
+            fallbackUri: forward:/fallback
+        # filter的名称，必须是RequestRateLimiter
+        - name: RequestRateLimiter
+          args:
+            # 允许用户每秒处理的请求个数
+            redis-rate-limiter.replenishRate: 1
+            # 令牌桶的容量，允许在一秒内完成的最大请求数
+            redis-rate-limiter.burstCapacity: 1
+            # 使用SpEL名称引用Bean，与配置类中的 KeyResolver 的bean的name相同
+            key-resolver: '#{@ipKeyResolver}'
 #      routes:
 #        - id: eureka-pri
 #          uri: lb://eureka-pri
+#          predicates:
+#            - Path=//eureka-pri/**
+#          filters:
+#            - name: Hystrix
+#              args:
+#                name: fallback
+#                fallbackUri: forward:/fallback
 
 eureka:
   client:
@@ -706,7 +728,9 @@ logging:
 
 ## 熔断/限流
 
+参见 `Hystrix GatewayFilter`
 
+参见 `RequestRateLimiter GatewayFilter`
 
 
 
@@ -774,8 +798,6 @@ spring:
 
 
 
-
-
 ## 统一异常处理
 
 Spring Cloud Gateway 中的全局异常处理不能直接使用 `@ControllerAdvice`，可以通过跟踪异常信息的抛出，找到对应的源码，自定义一些处理逻辑来匹配业务的需求。
@@ -832,3 +854,132 @@ public enum HttpMethod {
 
 
 ## 负载均衡
+
+在微服务开发中，使用Spring Cloud Gateway做为服务的网关，网关后面启动N个业务服务。但是有这样一个需求，同一个用户的操作，有时候需要保证顺序性，如果使用默认负载均衡策略，同一个用户的请求可能会转发到不同的服务实例上面。所以需要实现一个负载均衡规则。
+
+
+
+1.重写`LoadBalancerClientFilter`
+
+```java
+import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_REQUEST_URL_ATTR;
+import java.net.URI;
+import org.springframework.cloud.client.ServiceInstance;
+import org.springframework.cloud.client.loadbalancer.LoadBalancerClient;
+import org.springframework.cloud.gateway.config.LoadBalancerProperties;
+import org.springframework.cloud.gateway.filter.LoadBalancerClientFilter;
+import org.springframework.cloud.netflix.ribbon.RibbonLoadBalancerClient;
+import org.springframework.web.server.ServerWebExchange;
+
+public class UserLoadBalancerClientFilter extends LoadBalancerClientFilter {
+    public UserLoadBalancerClientFilter(LoadBalancerClient loadBalancer, LoadBalancerProperties properties) {
+        super(loadBalancer, properties);
+    }
+    @Override
+    protected ServiceInstance choose(ServerWebExchange exchange) {
+        //这里可以拿到web请求的上下文，可以从header中取出来自己定义的数据。
+        String userId = exchange.getRequest().getHeaders().getFirst("userId");
+         if (userId == null) {
+             return super.choose(exchange);
+         }
+        if (this.loadBalancer instanceof RibbonLoadBalancerClient) {
+            RibbonLoadBalancerClient client = (RibbonLoadBalancerClient) this.loadBalancer;
+            String serviceId = ((URI) exchange.getAttribute(GATEWAY_REQUEST_URL_ATTR)).getHost();
+            //这里使用userId做为选择服务实例的key
+            return client.choose(serviceId, userId);
+        }
+        return super.choose(exchange);
+    }
+}
+```
+
+
+
+2.添加自定义的负载规则
+
+```java
+import java.util.List;
+import org.apache.commons.lang.math.RandomUtils;
+import com.netflix.client.config.IClientConfig;
+import com.netflix.loadbalancer.AbstractLoadBalancerRule;
+import com.netflix.loadbalancer.Server;
+import org.springframework.stereotype.Component;
+/**
+ *
+ * @ClassName: GameCenterBalanceRule
+ * @Description: 根据userId对服务进行负载均衡。同一个用户id的请求，都转发到同一个服务实例上面。
+ */
+
+@Component
+public class GameCenterBalanceRule extends AbstractLoadBalancerRule {
+    @Override
+    public Server choose(Object key) {//这里的key就是过滤器中传过来的userId
+        List<Server> servers = this.getLoadBalancer().getReachableServers();
+        if (servers.isEmpty()) {
+            return null;
+        }
+        if (servers.size() == 1) {
+            return servers.get(0);
+        }
+        if (key == null) {
+            return randomChoose(servers);
+        }
+        return hashKeyChoose(servers, key);
+    }
+    /**
+     *
+     * <p>Description:随机返回一个服务实例 </p>
+     * @param servers
+     * @return
+     *
+     */
+    private Server randomChoose(List<Server> servers) {
+        int randomIndex = RandomUtils.nextInt(servers.size());
+        return servers.get(randomIndex);
+    }
+    /**
+     *
+     * <p>Description:使用key的hash值，和服务实例数量求余，选择一个服务实例 </p>
+     * @param servers
+     * @param key
+     * @return
+     */
+    private Server hashKeyChoose(List<Server> servers, Object key) {
+        int hashCode = Math.abs(key.hashCode());
+        if (hashCode < servers.size()) {
+            return servers.get(hashCode);
+        }
+        int index = hashCode % servers.size();
+        return servers.get(index);
+    }
+    @Override
+    public void initWithNiwsConfig(IClientConfig config) {
+    }
+}
+```
+
+
+
+3. 添加Bean
+
+```java
+import org.springframework.cloud.client.loadbalancer.LoadBalanced;
+import org.springframework.cloud.client.loadbalancer.LoadBalancerClient;
+import org.springframework.cloud.gateway.config.LoadBalancerProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestTemplate;
+@Configuration
+public class LoadBalancedBean {
+    @Bean
+    @LoadBalanced
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
+    }
+    @Bean
+    public UserLoadBalancerClientFilter userLoadBalanceClientFilter(LoadBalancerClient client, LoadBalancerProperties properties) {
+        return new UserLoadBalancerClientFilter(client, properties);
+    }
+}
+```
+

@@ -47,8 +47,12 @@ void init(){
 		exit(-1);
 	}
 	//设置监听
-	// if(listen(sockfd,max_client_size)==-1){//max_client_size表示同一时间能处理的最大连接请求
-	if(listen(sockfd, 2)==-1){//max_client_size表示同一时间能处理的最大连接请求
+	// backlog参数的行为在linux2.2中发生了变化。现在用来表示完成连接的处于established状态等待被accept的socket的队列的大小,
+	//		而不是等待连接的请求队列的大小。
+	// 未完成连接的队列大小可以在/proc/sys/net/ipv4/tcp_max_syn_backlog中被设置。当syncookies生效时，没有逻辑上的该值的最大值，因此该设置无效。
+	// 如果backlog的值比/proc/sys/net/core/somaxconn中的还要大,则会被截断,文件中默认的值的大小是124。
+	// if(listen(sockfd,max_client_size)==-1){
+	if(listen(sockfd, 2)==-1){
 		perror("设置监听失败");
 		exit(-1);
 	}

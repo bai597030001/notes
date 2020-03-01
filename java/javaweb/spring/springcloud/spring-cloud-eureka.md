@@ -297,6 +297,14 @@ eureka.server.enable-self-preservation
 
 
 
+```properties
+Renews threshold：server期望在每分钟中收到的心跳次数
+
+Renews (last min)：上一分钟内收到的心跳次数。
+```
+
+
+
 ## Eureka的核心类
 
 ```properties

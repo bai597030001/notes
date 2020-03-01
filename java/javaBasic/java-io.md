@@ -1057,7 +1057,7 @@ position 和 limit 是变化的，我们分别看下读和写操作下，它们�
 
 ![](img/nio3.jpg)
 
-### 初始化 Buffer 
+#### 初始化 Buffer 
 
 每个 Buffer 实现类都提供了一个静态方法 `allocate(int capacity)` 帮助我们快速实例化一个 Buffer。如：
 
@@ -1076,7 +1076,7 @@ public static ByteBuffer wrap(byte[] array) {
 }
 ```
 
-### 填充 Buffer
+#### 填充 Buffer
 
 各个 Buffer 类都提供了一些 put 方法用于将数据填充到 Buffer 中，如 ByteBuffer 中的几个 put 方法：
 
@@ -1102,7 +1102,7 @@ int num = channel.read(buf);
 
 上述方法会返回从 Channel 中读入到 Buffer 的数据大小。
 
-### 提取 Buffer 中的值
+#### 提取 Buffer 中的值
 
 前面介绍了写操作，每写入一个值，position 的值都需要加 1，所以 position 最后会指向最后一次写入的位置的后面一个，如果 Buffer 写满了，那么 position 等于 capacity（position 从 0 开始）。
 
@@ -1142,14 +1142,17 @@ new String(buffer.array()).trim();
 int num = channel.write(buf);
 ```
 
-### mark() & reset()
+#### mark() & reset()
 
 除了 position、limit、capacity 这三个基本的属性外，还有一个常用的属性就是 mark。
 
 mark 用于临时保存 position 的值，每次调用 mark() 方法都会将 mark 设值为当前的 position，便于后续需要的时候使用。
 
 ```java
-publicfinal Buffer mark() {    mark = position;    return this;}
+public final Buffer mark() {    
+    mark = position;    
+    return this;
+}
 ```
 
 那到底什么时候用呢？考虑以下场景，我们在 position 为 5 的时候，先 mark() 一下，然后继续往下读，读到第 10 的时候，我想重新回到 position 为 5 的地方重新来一遍，那只要调一下 reset() 方法，position 就回到 5 了。
@@ -1164,7 +1167,7 @@ publicfinal Buffer reset() {
 }
 ```
 
-### rewind() & clear() & compact()
+#### rewind() & clear() & compact()
 
 **rewind()**：会重置 position 为 0，通常用于重新从头读写 Buffer。
 
@@ -1351,12 +1354,6 @@ NIO 三大组件就剩 Selector 了，Selector 建立在非阻塞的基础之上
 
    register 方法的第二个 int 型参数（使用二进制的标记位）用于表明需要监听哪些感兴趣的事件，共以下四种事件：
 
-   我们可以同时监听一个 Channel 中的发生的多个事件，比如我们要监听 ACCEPT 和 READ 事件，那么指定参数为二进制的 000**1**000**1** 即十进制数值 17 即可。
-
-   注册方法返回值是 **SelectionKey** 实例，它包含了 Channel 和 Selector 信息，也包括了一个叫做 Interest Set 的信息，即我们设置的我们感兴趣的正在监听的事件集合。
-
-   
-
    - SelectionKey.OP_READ
 
      > 对应 00000001，通道中有数据可以进行读取
@@ -1373,7 +1370,9 @@ NIO 三大组件就剩 Selector 了，Selector 建立在非阻塞的基础之上
 
      > 对应 00010000，接受 TCP 连接
 
-   
+   我们可以同时监听一个 Channel 中发生的多个事件，比如我们要监听 ACCEPT 和 READ 事件，那么指定参数为二进制的 000**1**000**1** 即十进制数值 17 即可。
+
+   注册方法返回值是 **SelectionKey** 实例，它包含了 Channel 和 Selector 信息，也包括了一个叫做 Interest Set 的信息，即我们设置的我们感兴趣的正在监听的事件集合。
 
 3. 调用 select() 方法获取通道信息。用于判断是否有我们感兴趣的事件已经发生了。
 
