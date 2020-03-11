@@ -794,7 +794,7 @@ public class IoTest {
 
 
 
-# BIO/NIO/AIO
+# IO模型
 
 BIO、NIO和 AIO 是 Java 语言对操作系统的各种 IO 模型的封装。程序员在使用这些 API 的时候，不需要关心操作系统层面的知识，也不需要根据不同操作系统编写不同的代码。只需要使用Java的API就可以了。
 
@@ -1227,6 +1227,8 @@ Channel 经常翻译为通道，类似 IO 中的流，用于读取和写入。�
 
 至少读者应该记住一点，这两个方法都是 channel 实例的方法。
 
+
+
 #### FileChannel
 
 我想文件操作对于大家来说应该是最熟悉的，不过我们在说 NIO 的时候，其实 FileChannel 并不是关注的重点。而且后面我们说非阻塞的时候会看到，FileChannel 是不支持非阻塞的。
@@ -1314,6 +1316,8 @@ while (true) {
 
 ServerSocketChannel 不和 Buffer 打交道了，因为它并不实际处理数据，它一旦接收到请求后，实例化 SocketChannel，之后在这个连接通道上的数据传递它就不管了，因为它需要继续监听端口，等待下一个连接。
 
+
+
 #### DatagramChannel
 
 UDP 和 TCP 不一样，DatagramChannel 一个类处理了服务端和客户端。
@@ -1332,6 +1336,8 @@ ByteBuffer buf = ByteBuffer.allocate(48);channel.receive(buf);
 ```java
 String newData = "New String to write to file..."                    + System.currentTimeMillis();ByteBuffer buf = ByteBuffer.allocate(48);buf.put(newData.getBytes());buf.flip();int bytesSent = channel.send(buf, new InetSocketAddress("jenkov.com", 80));
 ```
+
+
 
 ### Selector
 
@@ -1378,6 +1384,12 @@ NIO 三大组件就剩 Selector 了，Selector 建立在非阻塞的基础之上
 
 
 
+总结：
+
+Channel必须注册到Selector上才能用于接收socket数据，在Selector上有数据到达的Channel可以用SelectionKey来表示
+
+
+
 Selector 的操作就是以上 3 步，这里来一个简单的示例，大家看一下就好了。之后在介绍非阻塞 IO 的时候，会演示一份可执行的示例代码。
 
 ```java
@@ -1401,7 +1413,8 @@ while(true) {
             // a channel is ready for reading    
         } else if (key.isWritable()) {        
             // a channel is ready for writing    
-        }    keyIterator.remove();  
+        }    
+        keyIterator.remove();  
     }
 }
 ```
@@ -1410,7 +1423,7 @@ while(true) {
 
 1. **select()**
 
-   调用此方法，会将**上次 select 之后的**准备好的 channel 对应的 SelectionKey 复制到 selected set 中。如果没有任何通道准备好，这个方法会阻塞，直到至少有一个通道准备好。
+   调用此方法，会将**上次 select 之后**准备好的 channel 对应的 SelectionKey 复制到 selected set 中。如果没有任何通道准备好，这个方法会**阻塞**，直到至少有一个通道准备好。
 
 2. **selectNow()**
 
@@ -1424,6 +1437,8 @@ while(true) {
 
    这个方法是用来唤醒等待在 select() 和 select(timeout) 上的线程的。如果 wakeup() 先被调用，此时没有线程在 select 上阻塞，那么之后的一个 select() 或 select(timeout) 会立即返回，而不会阻塞，当然，它只会作用一次。
 
+
+
 ### 小结
 
 到此为止，介绍了 Buffer、Channel 和 Selector 的常见接口。
@@ -1433,6 +1448,35 @@ Buffer 和数组差不多，它有 position、limit、capacity 几个重要属�
 Channel 基本上只和 Buffer 打交道，最重要的接口就是 channel.read(buffer) 和 channel.write(buffer)。
 
 Selector 用于实现非阻塞 IO，这里仅仅介绍接口使用，后续请关注非阻塞 IO 的介绍。
+
+
+
+### 零拷贝
+
+NIO中提供的`FileChannel`拥有`transferTo`和`transferFrom`两个方法，可直接把`FileChannel`中的数据拷贝到另外一个`Channel`，或者直接把另外一个`Channel`中的数据拷贝到`FileChannel`。
+
+该接口常被用于高效的网络/文件的数据传输和大文件拷贝。在操作系统支持的情况下，通过该方法传输数据并不需要将源数据从内核态拷贝到用户态，再从用户态拷贝到目标通道的内核态，同时也避免了两次用户态和内核态间的上下文切换，也即使用了“零拷贝”，所以其性能一般高于Java IO中提供的方法。
+
+```java
+public class NIOClient {
+
+  public static void main(String[] args) throws IOException, InterruptedException {
+    SocketChannel socketChannel = SocketChannel.open();
+    InetSocketAddress address = new InetSocketAddress(1234);
+    socketChannel.connect(address);
+
+    RandomAccessFile file = new RandomAccessFile(
+        NIOClient.class.getClassLoader().getResource("test.txt").getFile(), "rw");
+    FileChannel channel = file.getChannel();
+    channel.transferTo(0, channel.size(), socketChannel);
+    channel.close();
+    file.close();
+    socketChannel.close();
+  }
+}
+```
+
+
 
 
 
@@ -1490,7 +1534,6 @@ public class Nio {
                                     keyIterator.remove();
                                 }
                             }
-
                         }
                     }
                 }

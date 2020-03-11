@@ -1,7 +1,3 @@
- [http://xbynet.top/2018/01/05/tomcat8-5%E5%AE%98%E6%96%87%E7%AC%94%E8%AE%B0/](http://xbynet.top/2018/01/05/tomcat8-5官文笔记/) 
-
- [http://www.itratel.com/2019/05/11/Tomcat%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/](http://www.itratel.com/2019/05/11/Tomcat性能优化/) 
-
 # Tomcat部署
 
 http://tomcat.apache.org/tomcat-8.5-doc/appdev/deployment.html
@@ -12,11 +8,88 @@ http://tomcat.apache.org/tomcat-8.5-doc/appdev/deployment.html
 `/WEB-INF/web.xml`:由Servlet规范定义的。配置文档见：http://tomcat.apache.org/tomcat-8.5-doc/appdev/web.xml.txt
 `/META-INF/context.xml`:Tomcat Context配置文件，该文件以`Context`元素为根，实际运行时文件中的配置会作为Tomcat配置的`Host`元素的子元素。注意：此处/META-INF不是/WEB-INF/META-INF.配置文档见：http://tomcat.apache.org/tomcat-8.5-doc/config/context.html
 
-部署方式:
-1、直接拷贝文件夹到webapps下
-2、拷贝war到webapps下
+
+
+## 部署方式
+
+1、直接拷贝项目文件夹/war包，到webapps下
+
+2、在server.xml中指定
+
+3、在conf目录中，新建 Catalina＼localhost目录，在该目录中新建一个xml文件，名字不可以随意取，要和path后的那个名字一致
+
+```xml
+<Context path="/myHttpServlet" docBase="E:\temp\httpservletDemo" debug="0" privileged="true" reloadable="true"></Context>
+```
+
+注意：`E:\temp\httpservletDemo`中，`httpservletDemo`是web项目文件夹（即war包解压出来的文件夹）
+
 3、使用tomcat /manager应用来部署
-4、其他
+
+
+
+Host配置：
+
+```xml
+<Host name="localhost"  appBase="webapps"
+      unpackWARs="true" autoDeploy="true">
+
+    <Valve className="org.apache.catalina.valves.AccessLogValve" directory="logs"
+           prefix="localhost_access_log" suffix=".txt"
+           pattern="%h %l %u %t &quot;%r&quot; %s %b" />
+
+    <Context Path="" docbase="E:\demo-projects\springmvc\springmvcAbstractController\target\myAbstractController" Debug="0" Privileged="True" Reloadable="True"></Context>
+
+</Host>
+```
+
+
+
+
+
+Context配置
+
+```xml
+<Context path="/hello" docBase="D:\ workspace\hello\WebRoot" debug="0" privileged="true"> 
+</Context>
+```
+
+> path是虚拟路径；
+>
+> docBase 是应用程序的物理路径；
+>
+> workDir 是这个应用的工作目录，存放运行时生成的与这个应用相关的文件；
+>
+> debug 则是设定debug level, 0表示提供最少的信息，9表示提供最多的信息
+>
+> privileged设置为true的时候，才允许Tomcat的Web应用使用容器内的Servlet
+>
+> reloadable 如果为true，则tomcat会自动检测应用程序的/WEB-INF/lib 和/WEB-INF/classes目录的变化，自动装载新的应用程序，可以在不重起tomcat的情况下改变应用程序，实现热部署
+>
+> antiResourceLocking和antiJARLocking 热部署时需要配置的参数，默认false避免更新了某个webapp。
+> 有时候Tomcat并不能把旧的webapp完全删除，通常会留下WEB-INF/lib下的某个jar包，必须关闭Tomcat才能删除，这就导致自动部署失败。设置为true，Tomcat在运行对应的webapp时，会把相应的源文件和jar文件复制到一个临时目录里。
+
+
+
+
+
+## 热加载
+
+一般在开发环境中我们使用的是热加载，因为热加载的实现的方式在Web容器中启动一个后台线程，定期检测相关文件的变化，如果有变化就重新加载类，这个过程不会清空Session。
+
+
+
+
+
+
+
+## 热部署
+
+在生产环境我们一般应用的是热部署，热部署也是在Web应用后台线程定期检测，发现有变化就会重新加载整个Web应用，这种方式更加彻底会清空Session。
+
+
+
+
 
 
 
@@ -138,7 +211,6 @@ tomcat的组件主要包括:
  也可以从 server.xml 的配置结构可以看出 tomcat 整体的内部结构： 
 
 ```xml
-
 <Server port="8005" shutdown="SHUTDOWN">
 
   <Service name="Catalina">
@@ -802,6 +874,8 @@ org.apache.tomcat.util.net.NioEndpoint#startInternal
 
 #### acceptor线程：
 
+
+
 ```java
 protected final void startAcceptorThreads() {
     int count = getAcceptorThreadCount();
@@ -935,7 +1009,7 @@ private void addEvent(PollerEvent event) {
 
 #### pollor线程
 
-接受acceptor线程的请求。
+##### 接受acceptor线程的请求。
 
 
 
@@ -1140,6 +1214,28 @@ public static class PollerEvent implements Runnable {
 
 
 
+##### Poller缓存
+
+在Poller中使用的缓存是Endpoint的缓存。keyCache和eventCache
+
+
+
+**keyCache**
+
+对应的socket信息的缓存，在Poller上注册的时候，从keyCache中取出KeyAttachment对象，重置这个对象，作用附件用于channel到selector上的注册。在Processor处理完数据之后，将这个KeyAttachment对象放回keyCache中。  ----- 避免频繁地创建KeyAttachment对象和GC回收。
+
+
+
+**eventCache**
+
+PollerEvent事件的缓存，在Poller上注册的时候，从eventCache中取出PollerEvent对象，重置这个对象，然后再放入Poller的事件队列中。Poller在处理队列的过程中，每从队列中取出一个要处理的PollerEvent事件，处理完之后，把这个PollerEvent对象放回缓存中。   ---- 避免频繁地创建PollerEvent对象和GC回收。
+
+
+
+**processorCache**
+
+https://tomcat.apache.org/tomcat-8.5-doc/config/http.html
+
 
 
 #### executor线程
@@ -1321,23 +1417,59 @@ public boolean processSocket(SocketWrapperBase<S> socketWrapper,
 
 
 
+#### NioSelectorPool
+
+#### NioBlockingSelector
+
+#### BlockPoller
+
+NioEndpoint对象中维护了一个NioSelecPool对象，这个NioSelectorPool中又维护了一个BlockPoller线程，这个线程就是基于辅Selector进行NIO的逻辑。以执行servlet后，得到response，往socket中写数据为例，最终写的过程调用NioBlockingSelector的write方法。
+
 
 
 ### 请求处理相关组件
 
-在`NioEndpoint` 中有如下组件：
+`NioEndpoint` ：
 
-- `Acceptor` 线程组。 负责从ServerSocket中接收新的连接，并将Socket转交给SocketProcessor处理。 选择一个 `Poller` 将新连接添加到 `Poller` 的事件队列中。
+NioEndpoint的原理还是对于Linux的多路复用器的使用，而在多路复用器中简单来说就两个步骤。
+
+1. 创建一个Selector，在它身上注册各种Channel，然后调用select方法，等待通道中有感兴趣的事件发生。
+2. 如果有感兴趣的事情发生了，例如是读事件，那么就将信息从通道中读取出来。
+
+而NioEndpoint为了实现上面这两步，用了五个组件来。这五个组件是`LimitLatch`、`Acceptor`、`Poller`、`SocketProcessor`、`Executor`
+
+> - LimitLatch：连接控制器，负责控制最大的连接数
+> - Acceptor：负责接收新的连接，然后返回一个Channel对象给Poller
+> - Poller：可以将其看成是NIO中Selector，负责监控Channel的状态
+> - SocketProcessor：可以看成是一个被封装的任务类
+> - Executor：Tomcat自己扩展的线程池，用来执行任务类
+
+
+
+![](img/tomcat19.jpg)
+
+注：图中的第二列`Acceptor`应该为`Poller`
+
+
+
+
+
+- `Acceptor` 线程组。 负责从ServerSocket中接收新的连接。 选择一个 `Poller` 将新连接添加到 `Poller` 的事件队列中。
 
   >  Acceptor线程的默认大小为1，我们可以在server.xml的Connector配置中增加acceptorThreadCount的大小。 
 
-- `Poller` 线程组。用于监听 Socket 事件，当 Socket 可读或可写等等时，将 Socket 封装一下添加到 `worker` 线程池的任务队列中。
+- `PollerEvent`，事件，由Acceptor线程接收到新的连接后new一个pollerEvent放入poller线程的事件队列；由`Poller`线程执行；其实现了Runable，内部逻辑为：将Channel注册进Poller线程的selector中
+
+- `Poller` 线程组。用于监听 Socket 事件，当 Socket 可读或可写等等时，将 Socket 封装成SocketProcessor，交给woker线程执行（或自己执行）添加到 `worker` 线程池的任务队列中。
 
 - `worker` 线程组。用于对请求进行处理，包括分析请求报文并创建 Request 对象，调用容器的 pipeline 进行处理。
 
 - `SocketProcessor`：负责对Acceptor转交的Socket进行处理，包括给Socket设置属性、读取请求行和请求头等，最终将处理交给Engine的Pipeline处理。
+
 - `ThreadPool`：执行SocketProcessor的线程来自线程池，此线程池默认的最小线程数minSpareThreads等于10，最大线程数maxThreads等于200，我们可以在server.xml的Connector配置中调整它们的大小。
+
 - `Pipeline`：SocketProcessor线程最后会将请求进一步交给Engine容器的Pipeline，管道Pipeline包括一系列的valve，如：StandardEngineValve、AccessLogValve、ErrorReportValve、StandardHostValve、 StandardContextValve、 StandardWrapperValve，它们就像地下水管中的一个个阀门，每一个都会对请求数据做不同的处理。
+
 - `FilterChain`：管道Pipeline的最后一个valve是StandardWrapperValve，它会负责生成Servlet和Filter实例，并将它们组织成对请求处理的链条，这里正是Tomcat与J2EE规范相结合的部分。
 
 
@@ -2147,6 +2279,558 @@ public final void invoke(Request request, Response response)
 
 
 
+### 请求Url如何对应的Servlet
+
+#### servlet规范
+
+在`Servlet`中，规定的`Url`组成为：ip:port/context/servlet-path
+
+因此，想要找到对应的`Servlet`,必须首先解析context，然后再找到对应的servlet-path
+
+同时，servlet协议规定，servlet-path有4中不同的匹配规则：
+
+- 精确匹配
+- 路径匹配
+- 扩展匹配
+- 默认匹配
+
+因此，需要不同的匹配方式
+
+
+
+#### tomcat实现
+
+`Tomcat`底层实现确实是上面那样，不过在实际的实现中，更加复杂。在`Servlet`与`Tomcat`配置中，可一个配置多个`Host`，每个`Host`可以配置多个`Context`,每个`Context`可以配置多个`Servlet`，因此单单使用一个`HashMap`是无法满足需求的，因为可能存在`Servlet`名字相同但是`Context`不同的情况。
+
+在`Tomcat`中，最终的实现是一个树结构:
+
+`Host`
+
+|_ `Context`
+
+|_`Context`
+
+ |_`Servlet`
+
+ |_`Servlet`
+
+因此，在`Tomcat`实现中，会一边查找树节点，一边根据不同的规则匹配。
+
+
+
+`Tomcat`的树结构，是通过数组来实现的。比如`MappedHost`中包含`MappedContext[] contexts;`，`MappedContext`包含`MappedWrapper[] exactWrappers`.
+
+对于这些数组，`Tomcat`在每次插入的时候，都会先排序再插入，每次索引的时候，都会通过**二分查找**进行匹配。
+
+扩容方式为：每次增加一个元素都会使用`System.arraycopy()`方法生成一个新的数组。
+
+> 为什么不用`HashMap`？这样实现起来更加简单而且性能应该不会太差。
+>
+> 因为`HashMap`虽然好，但是`HashMap`只能精确匹配，而这里由于很多情况都需要模糊查找，有些时候只能返回最相近的元素，因此这里没有使用`HashMap`，而采用了二分查找最相邻的元素。
+
+
+
+#### 源码探究
+
+在`Tomcat`中，实现此功能的是`org.apache.catalina.mapper.Mapper`类
+
+`Mapper`会作为`Service`模块的组件。
+
+在`Service`启动的时候，会调用`Mapper`的`addHost()`添加`server.xml`中配置的`Host`，默认只有一个`localhost`,这样就创建好了一棵树的最顶端。
+
+当有请求到来的时候，`Connector`会解析`Http`然后在`CoyoteAdapter`中，调用
+
+```java
+connector.getService().getMapper().map(serverName, decodedURI, version, request.getMappingData());
+```
+
+来查找`Servlet`。
+
+
+
+**Mapper#map()**
+
+```java
+public void map(MessageBytes host, MessageBytes uri, String version,
+                MappingData mappingData) throws IOException {
+
+    if (host.isNull()) {
+        String defaultHostName = this.defaultHostName;
+        if (defaultHostName == null) {
+            return;
+        }
+        host.getCharChunk().append(defaultHostName);
+    }
+    host.toChars();
+    uri.toChars();
+    internalMap(host.getCharChunk(), uri.getCharChunk(), version, mappingData);
+}
+```
+
+**Mapper#internalMap()**
+
+```java
+private final void internalMap(CharChunk host, CharChunk uri,
+        String version, MappingData mappingData) throws IOException {
+
+    if (mappingData.host != null) {
+        throw new AssertionError();
+    }
+
+    //首先获取Host,也就是一棵树的头节点
+    MappedHost[] hosts = this.hosts;
+    //需要注意的是，URL是不区分大小写的，因此这里的比较都是通过IgnoreCase比较的
+    MappedHost mappedHost = exactFindIgnoreCase(hosts, host);
+    //如果没有找到匹配的host，则尝试匹配二级域名。比如*.baidu.com
+    if (mappedHost == null) {
+
+        int firstDot = host.indexOf('.');
+        if (firstDot > -1) {
+            int offset = host.getOffset();
+            try {
+                host.setOffset(firstDot + offset);
+                mappedHost = exactFindIgnoreCase(hosts, host);
+
+            } finally {
+                // Make absolutely sure this gets reset
+                host.setOffset(offset);
+            }
+        }
+        //如果依然没有找到，则使用默认的host
+        if (mappedHost == null) {
+            mappedHost = defaultHost;
+            if (mappedHost == null) {
+                return;
+            }
+        }
+    }
+
+    mappingData.host = mappedHost.object;
+
+    if (uri.isNull()) {
+        // Can't map context or wrapper without a uri
+        return;
+    }
+
+    uri.setLimit(-1);
+
+    //匹配Context，Context是在webapp目录下的war或文件夹解压出来对应生成的
+    ContextList contextList = mappedHost.contextList;
+    MappedContext[] contexts = contextList.contexts;
+    //找到最后一个uri大于等于contextName的pos 
+    //注意这里不是等于，属于模糊匹配
+    int pos = find(contexts, uri);
+    if (pos == -1) {
+        return;
+    }
+
+    int lastSlash = -1;
+    int uriEnd = uri.getEnd();
+    int length = -1;
+    boolean found = false;
+    MappedContext context = null;
+    while (pos >= 0) {
+        context = contexts[pos];
+        //首先直接检查url是不是以contextName开始的
+        if (uri.startsWith(context.name)) {
+            length = context.name.length();
+            if (uri.getLength() == length) {
+                found = true;
+                break;
+            } else if (uri.startsWithIgnoreCase("/", length)) {
+                found = true;
+                break;
+            }
+        }
+        //如果不是，则截取第一个/开始的字符进行匹配
+        //比如：ip:port/test/test2
+        //则会截取/test去和缓存contextName匹配
+        if (lastSlash == -1) {
+            lastSlash = nthSlash(uri, contextList.nesting + 1);
+        } else {
+            lastSlash = lastSlash(uri);
+        }
+        uri.setEnd(lastSlash);
+        pos = find(contexts, uri);
+    }
+    uri.setEnd(uriEnd);
+    //如果依然没有查找成功，则看下是否有允许contextName为空的情况
+    if (!found) {
+        if (contexts[0].name.equals("")) {
+            context = contexts[0];
+        } else {
+            context = null;
+        }
+    }
+    if (context == null) {
+        return;
+    }
+    //查找成功
+    mappingData.contextPath.setString(context.name);
+
+    ContextVersion contextVersion = null;
+    ContextVersion[] contextVersions = context.versions;
+    final int versionCount = contextVersions.length;
+    if (versionCount > 1) {
+        Context[] contextObjects = new Context[contextVersions.length];
+        for (int i = 0; i < contextObjects.length; i++) {
+            contextObjects[i] = contextVersions[i].object;
+        }
+        mappingData.contexts = contextObjects;
+        if (version != null) {
+            contextVersion = exactFind(contextVersions, version);
+        }
+    }
+    if (contextVersion == null) {
+        // Return the latest version
+        // The versions array is known to contain at least one element
+        contextVersion = contextVersions[versionCount - 1];
+    }
+    mappingData.context = contextVersion.object;
+    mappingData.contextSlashCount = contextVersion.slashCount;
+
+    //匹配Servlet
+    if (!contextVersion.isPaused()) {
+        internalMapWrapper(contextVersion, uri, mappingData);
+    }
+
+}
+```
+
+在`Mapper`中，会根据启动时`server.xml`中配置的`Host`，以及`webapps`目录下的文件装载`Context`，然后根据`Request`的`uri`一一匹配`Host`和`Context`，如果匹配成功，则进入`internalMapWrapper`
+
+这里可以看到，很多时候ContextName是允许为空的，那应该怎么配置才能让ContextName为空呢？
+
+答案是在server.xml中添加Context配置
+
+```xml
+<Context path="" docBase="F:\tomcat\webapps\study" debug="0"></Context>
+```
+
+最重要的便是将`path`设置为空即可，这里`path`还可以自定义其他名字。
+
+为什么可以这样配置呢？
+
+代码比较多，这里简单说下：`Tomcat`中，负责扫描`Context`的模块为`HostConfig`，`HostConfig`所执行的对象为`ContextName`
+
+
+
+在`Mapper`中，会根据启动时`server.xml`中配置的`Host`，以及`webapps`目录下的文件装载`Context`，然后根据`Request`的`uri`一一匹配`Host`和`Context`，如果匹配成功，则进入`internalMapWrapper`
+
+这里可以看到，很多时候ContextName是允许为空的，那应该怎么配置才能让ContextName为空呢？
+
+答案是在server.xml中添加Context配置
+
+```xml
+<Context path="" docBase="F:\tomcat\webapps\study" debug="0"></Context>
+```
+
+
+
+最重要的便是将`path`设置为空即可，这里`path`还可以自定义其他名字。
+
+为什么可以这样配置呢？
+
+代码比较多，这里简单说下：`Tomcat`中，负责扫描`Context`的模块为`HostConfig`，`HostConfig`所执行的对象为`ContextName`
+
+```java
+public ContextName(String name, boolean stripFileExtension) {
+
+    String tmp1 = name;
+
+    // Convert Context names and display names to base names
+
+    // Strip off any leading "/"
+    if (tmp1.startsWith("/")) {
+        tmp1 = tmp1.substring(1);
+    }
+
+    // Replace any remaining /
+    tmp1 = tmp1.replaceAll("/", FWD_SLASH_REPLACEMENT);
+
+    // Insert the ROOT name if required
+    if (tmp1.startsWith(VERSION_MARKER) || "".equals(tmp1)) {
+        tmp1 = ROOT_NAME + tmp1;
+    }
+
+    // Remove any file extensions
+    if (stripFileExtension &&
+        (tmp1.toLowerCase(Locale.ENGLISH).endsWith(".war") ||
+         tmp1.toLowerCase(Locale.ENGLISH).endsWith(".xml"))) {
+        tmp1 = tmp1.substring(0, tmp1.length() -4);
+    }
+
+    baseName = tmp1;
+
+    String tmp2;
+    // Extract version number
+    int versionIndex = baseName.indexOf(VERSION_MARKER);
+    if (versionIndex > -1) {
+        version = baseName.substring(versionIndex + 2);
+        tmp2 = baseName.substring(0, versionIndex);
+    } else {
+        version = "";
+        tmp2 = baseName;
+    }
+
+    if (ROOT_NAME.equals(tmp2)) {
+        path = "";
+    } else {
+        path = "/" + tmp2.replaceAll(FWD_SLASH_REPLACEMENT, "/");
+    }
+
+    if (versionIndex > -1) {
+        this.name = path + VERSION_MARKER + version;
+    } else {
+        this.name = path;
+    }
+}
+```
+
+在`ContextName`的构造方法中，`path`便是通过获取`war`包名或者文件夹名赋值的，当初始化完成便会加入`Host`的`child`，而如果直接在`server.xml`中指定了`Context`元素，则`Context`会直接读取配置的`path`作为类似`War`包的`Name`初始化，因此想要自己配置`ContextName`，可以在`server.xml`中进行配置
+
+#### Mapper#internalMap()
+
+```java
+/**
+     * Wrapper mapping.
+     * @throws IOException if the buffers are too small to hold the results of
+     *                     the mapping.
+     */
+private final void internalMapWrapper(ContextVersion contextVersion,
+                                      CharChunk path,
+                                      MappingData mappingData) throws IOException {
+
+    int pathOffset = path.getOffset();
+    int pathEnd = path.getEnd();
+    boolean noServletPath = false;
+
+    int length = contextVersion.path.length();
+    if (length == (pathEnd - pathOffset)) {
+        noServletPath = true;
+    }
+    int servletPath = pathOffset + length;
+    path.setOffset(servletPath);
+
+    // Rule 1 -- Exact Match
+    MappedWrapper[] exactWrappers = contextVersion.exactWrappers;
+
+    internalMapExactWrapper(exactWrappers, path, mappingData);
+
+    // Rule 2 -- Prefix Match
+    boolean checkJspWelcomeFiles = false;
+    MappedWrapper[] wildcardWrappers = contextVersion.wildcardWrappers;
+    if (mappingData.wrapper == null) {
+        internalMapWildcardWrapper(wildcardWrappers, contextVersion.nesting,
+                                   path, mappingData);
+        if (mappingData.wrapper != null && mappingData.jspWildCard) {
+            char[] buf = path.getBuffer();
+            if (buf[pathEnd - 1] == '/') {
+                /*
+                     * Path ending in '/' was mapped to JSP servlet based on
+                     * wildcard match (e.g., as specified in url-pattern of a
+                     * jsp-property-group.
+                     * Force the context's welcome files, which are interpreted
+                     * as JSP files (since they match the url-pattern), to be
+                     * considered. See Bugzilla 27664.
+                     */
+                mappingData.wrapper = null;
+                checkJspWelcomeFiles = true;
+            } else {
+                // See Bugzilla 27704
+                mappingData.wrapperPath.setChars(buf, path.getStart(),
+                                                 path.getLength());
+                mappingData.pathInfo.recycle();
+            }
+        }
+    }
+
+    if(mappingData.wrapper == null && noServletPath &&
+       contextVersion.object.getMapperContextRootRedirectEnabled()) {
+        // The path is empty, redirect to "/"
+        path.append('/');
+        pathEnd = path.getEnd();
+        mappingData.redirectPath.setChars
+            (path.getBuffer(), pathOffset, pathEnd - pathOffset);
+        path.setEnd(pathEnd - 1);
+        return;
+    }
+
+    // Rule 3 -- Extension Match
+    MappedWrapper[] extensionWrappers = contextVersion.extensionWrappers;
+    if (mappingData.wrapper == null && !checkJspWelcomeFiles) {
+        internalMapExtensionWrapper(extensionWrappers, path, mappingData,
+                                    true);
+    }
+
+    // Rule 4 -- Welcome resources processing for servlets
+    if (mappingData.wrapper == null) {
+        boolean checkWelcomeFiles = checkJspWelcomeFiles;
+        if (!checkWelcomeFiles) {
+            char[] buf = path.getBuffer();
+            checkWelcomeFiles = (buf[pathEnd - 1] == '/');
+        }
+        if (checkWelcomeFiles) {
+            for (int i = 0; (i < contextVersion.welcomeResources.length)
+                 && (mappingData.wrapper == null); i++) {
+                path.setOffset(pathOffset);
+                path.setEnd(pathEnd);
+                path.append(contextVersion.welcomeResources[i], 0,
+                            contextVersion.welcomeResources[i].length());
+                path.setOffset(servletPath);
+
+                // Rule 4a -- Welcome resources processing for exact macth
+                internalMapExactWrapper(exactWrappers, path, mappingData);
+
+                // Rule 4b -- Welcome resources processing for prefix match
+                if (mappingData.wrapper == null) {
+                    internalMapWildcardWrapper
+                        (wildcardWrappers, contextVersion.nesting,
+                         path, mappingData);
+                }
+
+                // Rule 4c -- Welcome resources processing
+                //            for physical folder
+                if (mappingData.wrapper == null
+                    && contextVersion.resources != null) {
+                    String pathStr = path.toString();
+                    WebResource file =
+                        contextVersion.resources.getResource(pathStr);
+                    if (file != null && file.isFile()) {
+                        internalMapExtensionWrapper(extensionWrappers, path,
+                                                    mappingData, true);
+                        if (mappingData.wrapper == null
+                            && contextVersion.defaultWrapper != null) {
+                            mappingData.wrapper =
+                                contextVersion.defaultWrapper.object;
+                            mappingData.requestPath.setChars
+                                (path.getBuffer(), path.getStart(),
+                                 path.getLength());
+                            mappingData.wrapperPath.setChars
+                                (path.getBuffer(), path.getStart(),
+                                 path.getLength());
+                            mappingData.requestPath.setString(pathStr);
+                            mappingData.wrapperPath.setString(pathStr);
+                        }
+                    }
+                }
+            }
+
+            path.setOffset(servletPath);
+            path.setEnd(pathEnd);
+        }
+
+    }
+
+    /* welcome file processing - take 2
+         * Now that we have looked for welcome files with a physical
+         * backing, now look for an extension mapping listed
+         * but may not have a physical backing to it. This is for
+         * the case of index.jsf, index.do, etc.
+         * A watered down version of rule 4
+         */
+    if (mappingData.wrapper == null) {
+        boolean checkWelcomeFiles = checkJspWelcomeFiles;
+        if (!checkWelcomeFiles) {
+            char[] buf = path.getBuffer();
+            checkWelcomeFiles = (buf[pathEnd - 1] == '/');
+        }
+        if (checkWelcomeFiles) {
+            for (int i = 0; (i < contextVersion.welcomeResources.length)
+                 && (mappingData.wrapper == null); i++) {
+                path.setOffset(pathOffset);
+                path.setEnd(pathEnd);
+                path.append(contextVersion.welcomeResources[i], 0,
+                            contextVersion.welcomeResources[i].length());
+                path.setOffset(servletPath);
+                internalMapExtensionWrapper(extensionWrappers, path,
+                                            mappingData, false);
+            }
+
+            path.setOffset(servletPath);
+            path.setEnd(pathEnd);
+        }
+    }
+
+
+    // Rule 7 -- Default servlet
+    if (mappingData.wrapper == null && !checkJspWelcomeFiles) {
+        if (contextVersion.defaultWrapper != null) {
+            mappingData.wrapper = contextVersion.defaultWrapper.object;
+            mappingData.requestPath.setChars
+                (path.getBuffer(), path.getStart(), path.getLength());
+            mappingData.wrapperPath.setChars
+                (path.getBuffer(), path.getStart(), path.getLength());
+            mappingData.matchType = MappingMatch.DEFAULT;
+        }
+        // Redirection to a folder
+        char[] buf = path.getBuffer();
+        if (contextVersion.resources != null && buf[pathEnd -1 ] != '/') {
+            String pathStr = path.toString();
+            // Note: Check redirect first to save unnecessary getResource()
+            //       call. See BZ 62968.
+            if (contextVersion.object.getMapperDirectoryRedirectEnabled()) {
+                WebResource file;
+                // Handle context root
+                if (pathStr.length() == 0) {
+                    file = contextVersion.resources.getResource("/");
+                } else {
+                    file = contextVersion.resources.getResource(pathStr);
+                }
+                if (file != null && file.isDirectory()) {
+                    // Note: this mutates the path: do not do any processing
+                    // after this (since we set the redirectPath, there
+                    // shouldn't be any)
+                    path.setOffset(pathOffset);
+                    path.append('/');
+                    mappingData.redirectPath.setChars
+                        (path.getBuffer(), path.getStart(), path.getLength());
+                } else {
+                    mappingData.requestPath.setString(pathStr);
+                    mappingData.wrapperPath.setString(pathStr);
+                }
+            } else {
+                mappingData.requestPath.setString(pathStr);
+                mappingData.wrapperPath.setString(pathStr);
+            }
+        }
+    }
+
+    path.setOffset(pathOffset);
+    path.setEnd(pathEnd);
+}
+```
+
+这里可以看到，代码比较长。但是可以直接从注释和方法名就能看出，这是在解析`Servlet`模糊匹配规则：
+
+- 精确匹配：完整的匹配到URL 比如
+
+  ```http
+  /myapp/test.jsp
+  ```
+
+- 路径匹配：匹配前面大部分URL，后面任意:比如：`/myapp/*`
+
+- 扩展名匹配：以扩展名的形式匹配URL，比如：`*.jsp`
+
+- 资源文件处理：也就是看看是否有匹配的默认首页文件
+
+  ```xml
+  <welcome-file-list>
+        <welcome-file>index.jsp</welcome-file>
+  </welcome-file-list>
+  ```
+
+- 默认匹配：当所有都不满足的时候指定的URL:比如：
+
+  ```http
+  /
+  ```
+
+这里可以看出来`/`是比`/*`要弱一级的。`/`的时候，如果存在`welcome-file-list`，则回去找`welcome-file-list`,找不到才会匹配`/`，而`/*`会比`welcome-file-list`优先查找
+
+
+
 # PipeLine Value机制
 
  Tomcat的pipeline value机制保证了请求的处理链逻辑，并且可以通过添加value动态扩展。 
@@ -2181,13 +2865,15 @@ public final void invoke(Request request, Response response)
 >
 > 一类是普通阀（通过addValve、removeValve调用）。
 
-管道都是包含在容器中，所以有getContainer和setContainer方法。
 
-一个管道一般有一个基础阀（通过setBasic添加），可以有0到多个普通阀（通过addValve添加）。 
 
-isAsyncSupported：当管道中的所有阀门都支持异步时返回ture，否则返回false。
+管道都是包含在容器中，所以有`getContainer`和`setContainer`方法。
 
-该接口的标准实现是：org.apache.catalina.core.StandardPipeline 。 
+一个管道一般有一个基础阀（通过`setBasic`添加），可以有0到多个普通阀（通过`addValve`添加）。 
+
+`isAsyncSupported`：当管道中的所有阀门都支持异步时返回ture，否则返回false。
+
+该接口的标准实现是：`org.apache.catalina.core.StandardPipeline` 。 
 
 
 
@@ -2197,9 +2883,9 @@ isAsyncSupported：当管道中的所有阀门都支持异步时返回ture，否
 
 ## Value
 
-通过setNext设置该阀的下一阀，通过getNext返回该阀的下一个阀的引用，invoke方法则执行该阀内部自定义的请求处理代码。 
+通过`setNext`设置该阀的下一阀，通过`getNext`返回该阀的下一个阀的引用，`invoke`方法则执行该阀内部自定义的请求处理代码。 
 
-ValveBase：是Valve接口的基本实现。
+`ValveBase`：是`Valve`接口的基本实现。
 
 四大容器类都有各自缺省的标准valve实现。它们分别是：
 
@@ -2252,11 +2938,79 @@ ValveBase：是Valve接口的基本实现。
 
 
 
-在Http11ConnectionHandler中经过一系列处理，最终由CoyoteAdapter对象调用service方法处理Request。
+在`Http11ConnectionHandler`中经过一系列处理，最终由`CoyoteAdapter`对象调用`service`方法处理`Request`。
 
-在service方法中，获得当前的Connection找到对应的Engine，将Request交给对应的Engine处理。
+在`service`方法中，获得当前的`Connection`找到对应的`Engine`，将`Request`交给对应的Engine处理。
 
-再由Engine根据自己的pipleline将request一层层传递下去，最终在StandardWrapper中获得filterChanin，调用servlet。
+再由`Engine`根据自己的`pipleline`将`request`一层层传递下去，最终在`StandardWrapper`中获得`filterChanin`，调用`servlet`。
+
+
+
+# Tomcat管理servlet
+
+## 创建Servlet
+
+A.先到缓存中寻找有没有这个对象
+
+如果没有：   1、通过反射去创建相应的对象（执行构造方法）
+
+ 					 2、tomcat会把对象存放到缓存中
+
+  					3、执行初始化方法init
+
+如果有该对象，直接获取到这个对象
+
+B. 执行服务方法
+
+C.返回响应的数据到客户端（浏览器）
+
+## Servlet的执行流程
+
+### 从浏览器地址（请求）开始分析
+
+1. http://localhost:80/servlet/hello
+
+2. Localhost:80 -> 找到我们的服务器
+
+  3. 到tomcat的server.xml中找到 Context 这个配置
+
+     ```xml
+     <Context docBase="E:\java\javaee\day13-servlet\webapps" path="servlet" />
+     ```
+
+4. servlet: 这个Servlet找到Context中的path
+
+  5. 通过path找到它对应的docBase,也就是找到我们工程实际地址
+
+6. Hello 就到我们实现的项目中找到相应的web.xml文件中的servlet-mapping中的url-pattern 
+
+### 分析web.xml中的内容
+
+1. 先找到url-pattern
+
+   ```xml
+    <url-pattern>/hello</url-pattern>
+   ```
+
+2. 找到它对应的servlet-name
+3. 通过mapping中servlet-name找到相应的servlet(它们的servet-name是一样的)
+  在servlet标签中找到它的servlet-class，它里面是全限定名称
+
+
+```xml
+<servlet>
+    <servlet-name>hello</servlet-name>
+    <servlet-class>com.mytomcat.demo.MyHttpServlet</servlet-class>
+</servlet>
+<servlet-mapping>
+    <servlet-name>hello</servlet-name>
+    <url-pattern>/hello</url-pattern>
+</servlet-mapping>
+```
+
+
+
+![](img/tomcat-servlet1.png)
 
 
 
@@ -2535,111 +3289,169 @@ protected void initInternal() throws LifecycleException {
 
 # Tomcat调优
 
- [http://www.itratel.com/2019/05/11/Tomcat%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/](http://www.itratel.com/2019/05/11/Tomcat性能优化/) 
-
- https://support.i-search.com.cn/article/1563515058289 
 
 
+## Connector
 
-在使用 Tomcat 时，经常会遇到连接数、线程数之类的配置问题，要真正理解这些概念，必须先了解 Tomcat 的连接器（Connector）。
+### Common Attributes
 
-在前面的文章 详解 Tomcat 配置文件 server.xml 中写到过：Connector 的主要功能，是接收连接请求，创建 Request 和 Response 对象用于和请求端交换数据；然后分配线程让 Engine（也就是 Servlet 容器）来处理这个请求，并把产生的 Request 和 Response 对象传给 Engine。当 Engine 处理完请求后，也会通过 Connector 将响应返回给客户端。
+All implementations of **Connector** support the following attributes:
 
-可以说，Servlet 容器处理请求，是需要 Connector 进行调度和控制的，Connector 是 Tomcat 处理请求的主干，因此 Connector 的配置和使用对 Tomcat 的性能有着重要的影响。这篇文章将从 Connector 入手，讨论一些与 Connector 有关的重要问题，包括 NIO/BIO 模式、线程池、连接数等。
-
-根据协议的不同，Connector 可以分为 HTTP Connector、AJP Connector 等，本文只讨论 HTTP Connector。
-
-一、Nio、Bio、APR
-
-1、Connector 的 protocol
-
-Connector 在处理 HTTP 请求时，会使用不同的 protocol。不同的 Tomcat 版本支持的 protocol 不同，其中最典型的 protocol 包括 BIO、NIO 和 APR（Tomcat7 中支持这 3 种，Tomcat8 增加了对 NIO2 的支持，而到了 Tomcat8.5 和 Tomcat9.0，则去掉了对 BIO 的支持）。
-
-BIO 是 Blocking IO，顾名思义是阻塞的 IO；NIO 是 Non-blocking IO，则是非阻塞的 IO。而 APR 是 Apache Portable Runtime，是 Apache 可移植运行库，利用本地库可以实现高可扩展性、高性能；Apr 是在 Tomcat 上运行高并发应用的首选模式，但是需要安装 apr、apr-utils、tomcat-native 等包。
-
-2、如何指定 protocol
-
-Connector 使用哪种 protocol，可以通过元素中的 protocol 属性进行指定，也可以使用默认值。
-
-指定的 protocol 取值及对应的协议如下：
-
-- HTTP/1.1：默认值，使用的协议与 Tomcat 版本有关
-- org.apache.coyote.http11.Http11Protocol：BIO
-- org.apache.coyote.http11.Http11NioProtocol：NIO
-- org.apache.coyote.http11.Http11Nio2Protocol：NIO2
-- org.apache.coyote.http11.Http11AprProtocol：APR
-
-如果没有指定 protocol，则使用默认值 HTTP/1.1，其含义如下：在 Tomcat7 中，自动选取使用 BIO 或 APR（如果找到 APR 需要的本地库，则使用 APR，否则使用 BIO）；在 Tomcat8 中，自动选取使用 NIO 或 APR（如果找到 APR 需要的本地库，则使用 APR，否则使用 NIO）。
-
-3、BIO/NIO 有何不同
-
-无论是 BIO，还是 NIO，Connector 处理请求的大致流程是一样的：
-
-在 accept 队列中接收连接（当客户端向服务器发送请求时，如果客户端与 OS 完成三次握手建立了连接，则 OS 将该连接放入 accept 队列）；在连接中获取请求的数据，生成 request；调用 servlet 容器处理请求；返回 response。为了便于后面的说明，首先明确一下连接与请求的关系：连接是 TCP 层面的（传输层），对应 socket；请求是 HTTP 层面的（应用层），必须依赖于 TCP 的连接实现；一个 TCP 连接中可能传输多个 HTTP 请求。
-
-在 BIO 实现的 Connector 中，处理请求的主要实体是 JIoEndpoint 对象。JIoEndpoint 维护了 Acceptor 和 Worker：Acceptor 接收 socket，然后从 Worker 线程池中找出空闲的线程处理 socket，如果 worker 线程池没有空闲线程，则 Acceptor 将阻塞。其中 Worker 是 Tomcat 自带的线程池，如果通过配置了其他线程池，原理与 Worker 类似。
-
-在 NIO 实现的 Connector 中，处理请求的主要实体是 NIoEndpoint 对象。NIoEndpoint 中除了包含 Acceptor 和 Worker 外，还是用了 Poller，处理流程如下图所示。
+**port**
 
 
 
-Acceptor 接收 socket 后，不是直接使用 Worker 中的线程处理请求，而是先将请求发送给了 Poller，而 Poller 是实现 NIO 的关键。Acceptor 向 Poller 发送请求通过队列实现，使用了典型的生产者-消费者模式。在 Poller 中，维护了一个 Selector 对象；当 Poller 从队列中取出 socket 后，注册到该 Selector 中；然后通过遍历 Selector，找出其中可读的 socket，并使用 Worker 中的线程处理相应请求。与 BIO 类似，Worker 也可以被自定义的线程池代替。
+**protocol**
 
-通过上述过程可以看出，在 NIoEndpoint 处理请求的过程中，无论是 Acceptor 接收 socket，还是线程处理请求，使用的仍然是阻塞方式；但在“读取 socket 并交给 Worker 中的线程”的这个过程中，使用非阻塞的 NIO 实现，这是 NIO 模式与 BIO 模式的最主要区别（其他区别对性能影响较小，暂时略去不提）。而这个区别，在并发量较大的情形下可以带来 Tomcat 效率的显著提升：
+> `org.apache.coyote.http11.Http11NioProtocol` - non blocking Java NIO connector
+> `org.apache.coyote.http11.Http11Nio2Protocol` - non blocking Java NIO2 connector
+> `org.apache.coyote.http11.Http11AprProtocol` - the APR/native connector.
 
-目前大多数 HTTP 请求使用的是长连接（HTTP/1.1 默认 keep-alive 为 true），而长连接意味着，一个 TCP 的 socket 在当前请求结束后，如果没有新的请求到来，socket 不会立马释放，而是等 timeout 后再释放。如果使用 BIO，“读取 socket 并交给 Worker 中的线程”这个过程是阻塞的，也就意味着在 socket 等待下一个请求或等待释放的过程中，处理这个 socket 的工作线程会一直被占用，无法释放；因此 Tomcat 可以同时处理的 socket 数目不能超过最大线程数，性能受到了极大限制。而使用 NIO，“读取 socket 并交给 Worker 中的线程”这个过程是非阻塞的，当 socket 在等待下一个请求或等待释放时，并不会占用工作线程，因此 Tomcat 可以同时处理的 socket 数目远大于最大线程数，并发性能大大提高。
 
-二、3 个参数：acceptCount、maxConnections、maxThreads
 
-再回顾一下 Tomcat 处理请求的过程：在 accept 队列中接收连接（当客户端向服务器发送请求时，如果客户端与 OS 完成三次握手建立了连接，则 OS 将该连接放入 accept 队列）；在连接中获取请求的数据，生成 request；调用 servlet 容器处理请求；返回 response。
+### Standard Implementation
 
-相对应的，Connector 中的几个参数功能如下：
+The standard HTTP connectors (NIO, NIO2 and APR/native) all support the following attributes in addition to the common Connector attributes listed above.
 
-1、acceptCount
+**acceptCount**
 
-accept 队列的长度；当 accept 队列中连接的个数达到 acceptCount 时，队列满，进来的请求一律被拒绝。默认值是 100。
+> The maximum queue length for incoming connection requests when all possible request processing threads are in use. Any requests received when the queue is full will be refused. The default value is 100.
+>
+> accept队列长度
 
-2、maxConnections
+**acceptorThreadCount**
 
-Tomcat 在任意时刻接收和处理的最大连接数。当 Tomcat 接收的连接数达到 maxConnections 时，Acceptor 线程不会读取 accept 队列中的连接；这时 accept 队列中的线程会一直阻塞着，直到 Tomcat 接收的连接数小于 maxConnections。如果设置为-1，则连接数不受限制。
+>  The number of threads to be used to accept connections. Increase this value on a multi CPU machine, although you would never really need more than `2`. Also, with a lot of non keep alive connections, you might want to increase this value as well. Default value is `1`.
+>
+> 用于接受连接的线程数。在多CPU机器上增加这个值，尽管您实际上永远不会需要超过2个CPU。此外，由于有许多非保持连接，您可能还希望增加此值。默认值是1。
 
-默认值与连接器使用的协议有关：NIO 的默认值是 10000，APR/native 的默认值是 8192，而 BIO 的默认值为 maxThreads（如果配置了 Executor，则默认值是 Executor 的 maxThreads）。
+**connectionTimeout**
 
-在 windows 下，APR/native 的 maxConnections 值会自动调整为设置值以下最大的 1024 的整数倍；如设置为 2000，则最大值实际是 1024。
+> The number of milliseconds this **Connector** will wait, after accepting a connection, for the request URI line to be presented. Use a value of -1 to indicate no (i.e. infinite) timeout. The default value is 60000 (i.e. 60 seconds) but note that the standard server.xml that ships with Tomcat sets this to 20000 (i.e. 20 seconds). Unless **disableUploadTimeout** is set to `false`, this timeout will also be used when reading the request body (if any).
+>
+> 接受连接后，此连接器将等待请求URI线显示的毫秒数。使用-1值表示没有超时(即无限超时)。默认值是60000(即60秒)，但是请注意，Tomcat附带的标准server.xml将其设置为20000(即20秒)。除非disableUploadTimeout设置为false，否则在读取请求主体(如果有的话)时也将使用此超时。
 
-3、maxThreads
+**connectionUploadTimeout**
 
-请求处理线程的最大数量。默认值是 200（Tomcat7 和 8 都是的）。如果该 Connector 绑定了 Executor，这个值会被忽略，因为该 Connector 将使用绑定的 Executor，而不是内置的线程池来执行任务。
+> Specifies the timeout, in milliseconds, to use while a data upload is in progress. This only takes effect if **disableUploadTimeout** is set to `false`.
 
-maxThreads 规定的是最大的线程数目，并不是实际 running 的 CPU 数量；实际上，maxThreads 的大小比 CPU 核心数量要大得多。这是因为，处理请求的线程真正用于计算的时间可能很少，大多数时间可能在阻塞，如等待数据库返回数据、等待硬盘读写数据等。因此，在某一时刻，只有少数的线程真正的在使用物理 CPU，大多数线程都在等待；因此线程数远大于物理核心数才是合理的。
+**keepAliveTimeout**
 
-换句话说，Tomcat 通过使用比 CPU 核心数量多得多的线程数，可以使 CPU 忙碌起来，大大提高 CPU 的利用率。
+> The number of milliseconds this **Connector** will wait for another HTTP request before closing the connection. The default value is to use the value that has been set for the **connectionTimeout** attribute. Use a value of -1 to indicate no (i.e. infinite) timeout.
+>
+> 此连接器将在关闭连接之前等待另一个HTTP请求的毫秒数。默认值是使用为connectionTimeout属性设置的值。使用-1值表示没有超时(即无限超时)。
 
-4、参数设置
+**maxConnections**
 
-（1）maxThreads 的设置既与应用的特点有关，也与服务器的 CPU 核心数量有关。通过前面介绍可以知道，maxThreads 数量应该远大于 CPU 核心数量；而且 CPU 核心数越大，maxThreads 应该越大；应用中 CPU 越不密集（IO 越密集），maxThreads 应该越大，以便能够充分利用 CPU。当然，maxThreads 的值并不是越大越好，如果 maxThreads 过大，那么 CPU 会花费大量的时间用于线程的切换，整体效率会降低。
+> The maximum number of connections that the server will accept and process at any given time. When this number has been reached, the server will accept, but not process, one further connection. This additional connection be blocked until the number of connections being processed falls below **maxConnections** at which point the server will start accepting and processing new connections again. Note that once the limit has been reached, the operating system may still accept connections based on the `acceptCount` setting. The default value varies by connector type. For NIO and NIO2 the default is `10000`. For APR/native, the default is `8192`.
+>
+> For NIO/NIO2 only, setting the value to -1, will disable the maxConnections feature and connections will not be counted.
+>
+> 服务器在任何给定时间将接受和处理的最大连接数。当到达此号码时，服务器将接受(但不处理)另一个连接。此附加连接将被阻塞，直到正在处理的连接数量低于maxConnections，此时服务器将再次开始接受和处理新连接。注意，一旦达到了限制，操作系统仍然可以基于acceptCount设置接受连接。默认值因连接器类型而异。对于NIO和NIO2，缺省值是10000。
 
-（2）maxConnections 的设置与 Tomcat 的运行模式有关。如果 Tomcat 使用的是 BIO，那么 maxConnections 的值应该与 maxThreads 一致；如果 Tomcat 使用的是 NIO，那么类似于 Tomcat 的默认值，maxConnections 值应该远大于 maxThreads。
+**maxKeepAliveRequests**
 
-（3）通过前面的介绍可以知道，虽然 Tomcat 同时可以处理的连接数目是 maxConnections，但服务器中可以同时接收的连接数为 maxConnections+acceptCount 。acceptCount 的设置，与应用在连接过高情况下希望做出什么反应有关系。如果设置过大，后面进入的请求等待时间会很长；如果设置过小，后面进入的请求立马返回 connection refused。
+>  The maximum number of HTTP requests which can be pipelined until the connection is closed by the server. Setting this attribute to 1 will disable HTTP/1.0 keep-alive, as well as HTTP/1.1 keep-alive and pipelining. Setting this to -1 will allow an unlimited amount of pipelined or keep-alive HTTP requests. If not specified, this attribute is set to 100.
+>
+> 在服务器关闭连接之前可以被流水线处理的HTTP请求的最大数量。将此属性设置为1将禁用HTTP/1.0 keep-alive，以及HTTP/1.1 keep-alive和pipelining。将其设置为-1将允许无限数量的管道或保持HTTP请求的活动。如果未指定，则将此属性设置为100。
 
-三、线程池 Executor
+**maxThreads**
 
-Executor 元素代表 Tomcat 中的线程池，可以由其他组件共享使用；要使用该线程池，组件需要通过 executor 属性指定该线程池。
+> The maximum number of request processing threads to be created by this **Connector**, which therefore determines the maximum number of simultaneous requests that can be handled. If not specified, this attribute is set to 200. If an executor is associated with this connector, this attribute is ignored as the connector will execute tasks using the executor rather than an internal thread pool. Note that if an executor is configured any value set for this attribute will be recorded correctly but it will be reported (e.g. via JMX) as `-1` to make clear that it is not used.
 
-Executor 是 Service 元素的内嵌元素。一般来说，使用线程池的是 Connector 组件；为了使 Connector 能使用线程池，Executor 元素应该放在 Connector 前面。Executor 与 Connector 的配置举例如下：
+**minSpareThreads**
 
-Executor 的主要属性包括：
+> The minimum number of threads always kept running. This includes both active and idle threads. If not specified, the default of `10` is used. If an executor is associated with this connector, this attribute is ignored as the connector will execute tasks using the executor rather than an internal thread pool. Note that if an executor is configured any value set for this attribute will be recorded correctly but it will be reported (e.g. via JMX) as `-1` to make clear that it is not used.
 
-- name：该线程池的标记
-- maxThreads：线程池中最大活跃线程数，默认值 200（Tomcat7 和 8 都是）
-- minSpareThreads：线程池中保持的最小线程数，最小值是 25
-- maxIdleTime：线程空闲的最大时间，当空闲超过该值时关闭线程（除非线程数小于 minSpareThreads），单位是 ms，默认值 60000（1 分钟）
-- daemon：是否后台线程，默认值 true
-- threadPriority：线程优先级，默认值 5
-- namePrefix：线程名字的前缀，线程池中线程名字为：namePrefix+ 线程编号
+**processorCache**
 
-四、查看当前状态
+> The protocol handler caches Processor objects to speed up performance. This setting dictates how many of these objects get cached. `-1` means unlimited, default is `200`. If not using Servlet 3.0 asynchronous processing, a good default is to use the same as the maxThreads setting. If using Servlet 3.0 asynchronous processing, a good default is to use the larger of maxThreads and the maximum number of expected concurrent requests (synchronous and asynchronous).
+>
+> 协议处理程序缓存处理器对象以提高性能。此设置指示缓存了多少这些对象。-1表示无限，默认为200。如果不使用Servlet 3.0异步处理，一个好的默认设置是使用与maxThreads设置相同的方法。如果使用Servlet 3.0异步处理，一个好的默认设置是使用较大的maxThreads和最大的预期并发请求数(同步和异步)。
+
+**tcpNoDelay**
+
+> If set to `true`, the TCP_NO_DELAY option will be set on the server socket, which improves performance under most circumstances. This is set to `true` by default.
+
+**useKeepAliveResponseHeader**
+
+> (bool) Use this attribute to enable or disable the addition of the `Keep-Alive` HTTP response header as described in [this Internet-Draft](https://tools.ietf.org/html/draft-thomson-hybi-http-timeout-03). The default value is `true`.
+>
+> 使用此属性来启用或禁用此internet草案中所述的添加Keep-Alive HTTP响应标头。默认值为true。
+
+
+
+### Java TCP socket attributes
+
+The NIO and NIO2 implementation support the following Java TCP socket attributes in addition to the common Connector and HTTP attributes listed above.
+
+
+
+### NIO specific configuration
+
+**pollerThreadCount**
+
+> The number of threads to be used to run for the polling events. Default value is `1` per processor but not more than 2.
+> When accepting a socket, the operating system holds a global lock. So the benefit of going above 2 threads diminishes rapidly. Having more than one thread is for system that need to accept connections very rapidly. However usually just increasing `acceptCount` will solve that problem. Increasing this value may also be beneficial when a large amount of send file operations are going on.
+>
+> 用于运行轮询事件的线程数。默认值为每个处理器1，但不超过2。
+>
+> 当接受一个套接字时，操作系统持有一个全局锁。因此，超过两个线程的好处会迅速减少。如果系统需要非常快速地接受连接，则需要多个线程。然而，通常只要增加 `acceptCount` 就可以解决这个问题。当大量发送文件操作正在进行时，增加这个值也可能是有益的。
+
+**selectorTimeout**
+
+> The time in milliseconds to timeout on a select() for the poller. This value is important, since connection clean up is done on the same thread, so do not set this value to an extremely high one. The default value is `1000` milliseconds.
+>
+> 轮询器在select()上超时的时间(以毫秒为单位)。这个值很重要，因为连接清理是在同一个线程上完成的，所以不要将这个值设置为非常高的值。默认值是1000毫秒。
+
+**useSendfile**
+
+>  (bool)Use this attribute to enable or disable sendfile capability. The default value is `true`. Note that the use of sendfile will disable any compression that Tomcat may otherwise have performed on the response.
+>
+> 使用此属性启用或禁用sendfile功能。默认值为true。注意，使用sendfile将禁用Tomcat可能对响应执行的任何压缩。
+
+
+
+## Executor
+
+执行程序表示可以在Tomcat中的组件之间共享的线程池。历史上，每个创建的连接器都有一个线程池，但这允许您共享一个线程池，在(主要)连接器和其他组件之间共享线程池，当这些组件被配置为支持executor时
+
+执行器必须实现org.apache.catalina。Executor接口。
+
+executor是服务元素的嵌套元素。为了让连接器接收它，**Executor元素必须出现在server.xml中的Connector元素之前**
+
+### Common Attributes
+
+All implementations of **Executor** support the following attributes:
+
+| Attribute   | Description                                                  |
+| :---------- | :----------------------------------------------------------- |
+| `className` | The class of the implementation. The implementation has to implement the `org.apache.catalina.Executor` interface. This interface ensures that the object can be referenced through its `name` attribute and that implements Lifecycle, so that it can be started and stopped with the container. The default value for the className is `org.apache.catalina.core.StandardThreadExecutor` |
+| **`name`**  | The name used to reference this pool in other places in server.xml. The name is required and must be unique. |
+
+### Standard Implementation
+
+The default implementation supports the following attributes:
+
+| Attribute                 | Description                                                  |
+| :------------------------ | :----------------------------------------------------------- |
+| `threadPriority`          | (int) The thread priority for threads in the executor, the default is `5` (the value of the `Thread.NORM_PRIORITY` constant) |
+| `daemon`                  | (boolean) Whether the threads should be daemon threads or not, the default is `true` |
+| `namePrefix`              | (String) The name prefix for each thread created by the executor. The thread name for an individual thread will be `namePrefix+threadNumber` |
+| `maxThreads`              | (int) The max number of active threads in this pool, default is `200` |
+| `minSpareThreads`         | (int) The minimum number of threads (idle and active) always kept alive, default is `25` |
+| `maxIdleTime`             | (int) The number of milliseconds before an idle thread shutsdown, unless the number of active threads are less or equal to minSpareThreads. Default value is `60000`(1 minute) |
+| `maxQueueSize`            | (int) The maximum number of runnable tasks that can queue up awaiting execution before we reject them. Default value is `Integer.MAX_VALUE` |
+| `prestartminSpareThreads` | (boolean) Whether minSpareThreads should be started when starting the Executor or not, the default is `false` |
+| `threadRenewalDelay`      | (long) If a [ThreadLocalLeakPreventionListener](https://tomcat.apache.org/tomcat-8.5-doc/config/listeners.html) is configured, it will notify this executor about stopped contexts. After a context is stopped, threads in the pool are renewed. To avoid renewing all threads at the same time, this option sets a delay between renewal of any 2 threads. The value is in ms, default value is `1000` ms. If value is negative, threads are not renewed. |
+
+
+
+
+
+
+
+## 查看当前状态
 
 上面介绍了 Tomcat 连接数、线程数的概念以及如何设置，下面说明如何查看服务器中的连接数和线程数。
 
@@ -2720,25 +3532,25 @@ maxThreads 连接数限制修改配置
 Connector 参数优化配置:
 
 <Connector
- executor="tomcatThreadPool"
- port="8080"
- protocol="org.apache.coyote.http11.Http11Nio2Protocol"
- connectionTimeout="60000"
- maxConnections="10000"
- redirectPort="8443"
- enableLookups="false"
- acceptCount="100"
- maxPostSize="10485760"
- maxHttpHeaderSize="8192"
- disableUploadTimeout="true"
- compressionMinSize="2048"
- acceptorThreadCount="2"
- compressableMimeType="text/html,text/plain,text/css,application/javascript,application/json,application/x-font-ttf,application/x-font-otf,image/svg+xml,image/jpeg,image/png,image/gif,audio/mpeg,video/mp4"
- URIEncoding="utf-8"
- processorCache="20000"
- tcpNoDelay="true"
- connectionLinger="5"
- server="Server Version 11.0"
+           executor="tomcatThreadPool"
+           port="8080"
+           protocol="org.apache.coyote.http11.Http11Nio2Protocol"
+           connectionTimeout="60000"
+           maxConnections="10000"
+           redirectPort="8443"
+           enableLookups="false"
+           acceptCount="100"
+           maxPostSize="10485760"
+           maxHttpHeaderSize="8192"
+           disableUploadTimeout="true"
+           compressionMinSize="2048"
+           acceptorThreadCount="2"
+           		compressableMimeType="text/html,text/plain,text/css,application/javascript,application/json,application/x-font-ttf,application/x-font-otf,image/svg+xml,image/jpeg,image/png,image/gif,audio/mpeg,video/mp4"
+           URIEncoding="utf-8"
+           processorCache="20000"
+           tcpNoDelay="true"
+           connectionLinger="5"
+           server="Server Version 11.0"
  />
 ```
 
@@ -3061,6 +3873,7 @@ vi /etc/security/limits.conf
 
  *   soft noproc  20480
  *   hard noproc  20480  
+ 
  *   soft nofile  100000  
  *   hard nofile  100000
  

@@ -225,15 +225,36 @@ int listen(int sockfd, int backlog)
 
 
 
-首先客户端发起syn包时，服务端会回复syn-ack包，此时链接处于未完成状态。服务端内存中会创建一个状态为**SYN_RCVD** 的连接,放入**未完成队列**,这个队列的大小可通过<font color=#dd0000>`/proc/sys/net/ipv4/tcp_max_syn_backlog`</font>设置。**未完成队列**中每个链接都维护有一个定时器，如果网络超时没有在时限内收到相应的ack，会重发syn-ack包，如果多次无效则停止，并从**未完成队列**中取消该连接。（次数在这里指定<font color=#dd0000>`/proc/sys/net/ipv4/tcp_synack_retries` </font>）
+首先客户端发起syn包时，服务端会回复syn-ack包，此时链接处于未完成状态。服务端内存中会创建一个状态为**SYN_RCVD** 的连接,放入**未完成队列**，这个队列的大小可通过<font color=#dd0000>`/proc/sys/net/ipv4/tcp_max_syn_backlog`</font>设置。注意，当<font color=#dd0000>`/proc/sys/net/ipv4/tcp_syncookies`</font>生效(=1)时，没有逻辑上的该值的最大值，因此该设置无效。**未完成队列**中每个链接都维护有一个定时器，如果网络超时没有在时限内收到相应的ack，会重发syn-ack包，如果多次无效则停止，并从**未完成队列**中取消该连接。（次数在这里指定<font color=#dd0000>`/proc/sys/net/ipv4/tcp_synack_retries` </font>）
 
 
 
-当客户端收到服务端的syn-ack包后，会发出ack包进行确认，服务端接收ack确认，此时tcp三次握手完成。服务端中该链接的状态会变成**ESTABLISHED**，同时该链接会移交到内存的**已完成队列**中。这个队列的最大容量就是通过**backlog**参数指定的。该队列会随着越来越多的客户端与服务器完成tcp三次握手而增长。直到达到backlog指定的上限。如果**已完成队列**满了，系统收到新的ack包时，协议栈的行为取决于 <font color=#dd0000>`/proc/sys/net/ipv4/tcp_abort_on_overflow`</font>的设置。如若为1，直接回rst包，结束链接，否则忽视ack包。
+当客户端收到服务端的syn-ack包后，会发出ack包进行确认，服务端接收ack确认，此时tcp三次握手完成。服务端中该链接的状态会变成**ESTABLISHED**，同时该链接会移交到内存的**已完成队列**中。这个队列的最大容量就是通过**backlog**参数指定的。如果backlog的值比<font color=#dd0000>`/proc/sys/net/core/somaxconn`</font>中的还要大,则会被截断,文件中默认的值的大小是124。该队列会随着越来越多的客户端与服务器完成tcp三次握手而增长。直到达到backlog指定的上限。如果**已完成队列**满了，系统收到新的ack包时，协议栈的行为取决于 <font color=#dd0000>`/proc/sys/net/ipv4/tcp_abort_on_overflow`</font>的设置。如若为1，直接回rst包，结束链接，否则忽视ack包。
 
 
 
 此时，服务端应用层一般可以使用accept函数（该函数是一个阻塞函数），从**已完成队列**中获取一个tcp链接并返回一个**套接字的文件描述符**，与此同时**已完成队列**会空出一个位置，从而内核协议栈又可以接受新的已完成三次握手的tcp链接。
+
+
+
+附: linux进程文件描述符最大值
+
+```shell
+$ ulimit -SHn 102400 // 只对当前的session有效
+```
+
+
+
+永久修改：
+
+```shell
+$ vim /etc/security/limits.conf 
+
+* hard nofile 65536
+* soft nofile 65536
+```
+
+
 
 
 
