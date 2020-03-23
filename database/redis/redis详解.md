@@ -393,16 +393,6 @@ $ zsocre key member:获取该元素的score
 
 
 
-
-
-# redis-replication
-
-
-
-
-
-
-
 # transactions
 
 `Redis` 事务可以一次执行多个命令， 并且带有以下两个重要的保证：
@@ -486,20 +476,6 @@ $ SAVE
 
 
 
-- 相关配置
-
-```shell
-appendonly yes # 打开aof配置
-
-save 60 1000 # 在满足“ 60 秒内有至少有 1000 个键被改动”这一条件时， 自动保存一次数据集
-save 900 1
-save 300 10
-save 60 10000
-# 几个条件之间是 "或" 的关系
-```
-
-
-
 ## RDB
 
 在默认情况下， `Redis` 将数据库快照保存在名字为 `dump.rdb`的二进制文件中。你可以对 `Redis` 进行设置， 让它在“ N 秒内数据集至少有 M 个改动”这一条件被满足时， 自动保存一次数据集。你也可以通过调用 `SAVE`或者 `BGSAVE` ， 手动让 `Redis` 进行数据集保存操作。
@@ -507,7 +483,11 @@ save 60 10000
 比如说， 以下设置会让 `Redis` 在满足“ 60 秒内有至少有 1000 个键被改动”这一条件时， 自动保存一次数据集:
 
 ```shell
-# save 60 1000
+save 60 1000 # 在满足“ 60 秒内有至少有 1000 个键被改动”这一条件时， 自动保存一次数据集
+save 900 1
+save 300 10
+save 60 10000
+# 几个条件之间是 "或" 的关系
 ```
 
 这种持久化方式被称为快照 `snapshotting`.
@@ -518,7 +498,7 @@ save 60 10000
 
 当 `Redis` 需要保存 `dump.rdb` 文件时， 服务器执行以下操作:
 
-- `Redis` 调用`forks`. 同时拥有父进程和子进程。
+- `Redis` 调用`fork`. 同时拥有父进程和子进程。
 - 子进程将数据集写入到一个临时 `RDB` 文件中。
 - 当子进程完成对新 `RDB` 文件的写入时，`Redis` 用新 `RDB` 文件替换原来的 `RDB` 文件，并删除旧的 `RDB` 文件。
 
@@ -533,7 +513,43 @@ save 60 10000
 你可以在配置文件中打开`AOF`方式:
 
 ```shell
-appendonly yes
+appendonly yes # 打开aof配置
+appendfilename "appendonly.aof"
+
+# The fsync() call tells the Operating System to actually write data on disk
+# instead of waiting for more data in the output buffer. Some OS will really flush
+# data on disk, some other OS will just try to do it ASAP.
+#
+# Redis supports three different modes:
+#
+# no: don't fsync, just let the OS flush the data when it wants. Faster.
+# always: fsync after every write to the append only log. Slow, Safest.
+# everysec: fsync only one time every second. Compromise.
+appendfsync everysec/always/no
+
+# Automatic rewrite of the append only file.
+# Redis is able to automatically rewrite the log file implicitly calling
+# BGREWRITEAOF when the AOF log size grows by the specified percentage.
+#
+# This is how it works: Redis remembers the size of the AOF file after the
+# latest rewrite (if no rewrite has happened since the restart, the size of
+# the AOF at startup is used).
+#
+# This base size is compared to the current size. If the current size is
+# bigger than the specified percentage, the rewrite is triggered. Also
+# you need to specify a minimal size for the AOF file to be rewritten, this
+# is useful to avoid rewriting the AOF file even if the percentage increase
+# is reached but it is still pretty small.
+#
+# Specify a percentage of zero in order to disable the automatic AOF
+# rewrite feature.
+auto-aof-rewrite-percentage 100 #文件大小百分比
+auto-aof-rewrite-min-size 64mb	#文件大小
+
+# 如果将AOF -load-truncated设置为yes，则加载截断的AOF文件并Redis服务器开始发出日志通知用户事件。
+# 否则，如果该选项设置为no，服务器将中止，并出现错误拒绝开始。
+# 当该选项设置为no时，用户需要在重新启动之前使用“redis-check-aof”工具修复AOF文件
+aof-load-truncated yes
 ```
 
 从现在开始， 每当 `Redis` 执行一个改变数据集的命令时（比如 `SET`）， 这个命令就会被追加到 `AOF` 文件的末尾。这样的话， 当 `Redis` 重新启时， 程序就可以通过重新执行 `AOF` 文件中的命令来达到重建数据集的目的。
@@ -562,7 +578,6 @@ appendonly yes
 
 ```shell
 # 三种配置
-
 appendfsync no # don't fsync, just let the OS flush the data when it wants. Faster.
 appendfsync always # fsync after every write to the append only log. Slow, Safest.
 appendfsync everysec # fsync only one time every second. Compromise.
@@ -623,7 +638,7 @@ appendfsync everysec # fsync only one time every second. Compromise.
 
 ## AOF和RDB之间的相互作用
 
-在版本号大于等于 2.4 的 `Redis` 中， `BGSAVE` 执行的过程中， 不可以执行 `BGREWRITEAOF` 。 反过来说， 在 `BGREWRITEAOF` 执行的过程中， 也不可以执行 `BGSAVE`。这可以防止两个 `Redis` 后台进程同时对磁盘进行大量的 I/O 操作。
+在版本号大于等于 2.4 的 `Redis` 中， `BGSAVE` 执行的过程中， 不可以执行 `BGREWRITEAOF` 。 反过来说， 在 `BGREWRITEAOF` 执行的过程中， 也不可以执行 `BGSAVE`。这可以<font color=#dd0000>防止两个 `Redis` 后台进程同时对磁盘进行大量的 I/O 操作。</font>
 
 如果 `BGSAVE` 正在执行， 并且用户显示地调用 `BGREWRITEAOF` 命令， 那么服务器将向用户回复一个 `OK` 状态， 并告知用户， `BGREWRITEAOF` 已经被预定执行： 一旦 `BGSAVE` 执行完毕， `BGREWRITEAOF` 就会正式开始。 当 `Redis` 启动时， 如果 `RDB` 持久化和 `AOF` 持久化都被打开了， 那么程序会优先使用 `AOF` 文件来恢复数据集， 因为 `AOF` 文件所保存的数据通常是最完整的。
 
@@ -641,20 +656,58 @@ appendfsync everysec # fsync only one time every second. Compromise.
 
 
 
+# replication
+
+
+
+![](img/redis-replication1.png)
+
+
+
+## 主从复制原理
+
+- 从服务器连接主服务器，发送SYNC命令；
+- 主服务器接收到SYNC命名后，开始执行`BGSAVE`命令生成`RDB`文件并使用**缓冲区**记录此后执行的所有写命令；
+- 主服务器`BGSAVE`执行完后，向所有从服务器**发送快照文件**，并在发送期间继续记录被执行的写命令；
+- 从服务器收到快照文件后丢弃所有旧数据，载入收到的快照；
+- 主服务器快照发送完毕后开始向从服务器**发送缓冲区中的写命令**；
+- 从服务器完成对快照的载入，开始接收命令请求，并执行来自主服务器缓冲区的写命令；（从服务器初始化完成）
+- 主服务器每执行一个写命令就会向从服务器发送相同的写命令，从服务器接收并执行收到的写命令（从服务器初始化完成后的操作）
+- 一个master可以拥有多个slave，但是一个slave只能对应一个master
+
+## 优点
+
+- 支持主从复制，主机会自动将数据同步到从机，可以进行读写分离
+- 为了分载Master的读操作压力，Slave服务器可以为客户端提供只读操作的服务，写服务仍然必须由Master来完成
+- Slave同样可以接受其它Slaves的连接和同步请求，这样可以有效的分载Master的同步压力。
+- Master Server是以非阻塞的方式为Slaves提供服务。所以在Master-Slave同步期间，客户端仍然可以提交查询或修改请求。
+- Slave Server同样是以非阻塞的方式完成数据同步。在同步期间，如果有客户端提交查询请求，Redis则返回同步之前的数据
+
+## 缺点
+
+- Redis不具备自动容错和恢复功能，主机从机的宕机都会导致前端部分读写请求失败，需要等待机器重启或者手动切换前端的IP才能恢复。
+- 主机宕机，宕机前有部分数据未能及时同步到从机，切换IP后还会引入数据不一致的问题，降低了系统的可用性。
+- Redis较难支持在线扩容，在集群容量达到上限时在线扩容会变得很复杂。
+
+
+
 # sentinel
 
- `Sentinel` 是一个管理多个 `Redis` 实例的工具，它可以实现对 `Redis` 的 **监控**、**通知**、**自动故障转移**和**配置中心**。 
+## 作用
+
+ `Sentinel` 是一个管理多个 `Redis` 实例的工具，它可以实现对 `Redis` 的 <font color=#dd0000>监控、通知、自动故障转移和配置中心。 </font>
 
 - **（1）集群监控**：负责监控Redis master和slave进程是否正常工作
-- **（2）消息通知**：如果某个Redis实例有故障，那么哨兵负责发送消息作为报警通知给管理员
 
-- **（3）故障转移**：如果master node挂掉了，会自动转移到slave node上
+- **（2）消息通知**：如果某个Redis实例有故障，Sentinel可以通过API通知系统管理员或其他计算机程序
+
+- **（3）自动故障转移**：如果master node挂掉了，会自动转移到slave node上
+
+  > 如果主服务器未按预期工作，则Sentinel可以启动故障转移过程，在该过程中将副本升级为主服务器，将其他附加副本重新配置为使用新的主服务器，并通知使用Redis服务器的应用程序要使用的新地址。
 
 - **（4）配置中心**：如果故障转移发生了，通知client客户端新的master地址
 
 
-
-## Sentinel 命令
 
 ```shell
 $ PING ：# 返回 PONG 。
@@ -701,6 +754,82 @@ $ sentinel set<master name> # 动态修改Sentinel节点配置选项
 
 
 
+**1.主观下线：**一个哨兵节点判定主节点down掉是主观下线。
+
+**2.客观下线：**只有半数哨兵节点都主观判定主节点down掉，此时多个哨兵节点交换主观判定结果，才会判定主节点客观下线。
+
+**3.原理：**基本上哪个哨兵节点最先判断出这个主节点客观下线，就会在各个哨兵节点中发起投票机制Raft算法（选举算法），最终被投为领导者的哨兵节点完成主从自动化切换的过程。
+
+
+
+## 工作方式
+
+- 每个Sentinel（哨兵）进程以每秒钟一次的频率向整个集群中的Master主服务器，Slave从服务器以及其他Sentinel（哨兵）进程发送一个 `PING` 命令。
+- 如果一个实例（instance）距离最后一次有效回复 PING 命令的时间超过 `down-after-milliseconds` 选项所指定的值， 则这个实例会被 Sentinel（哨兵）进程标记为主观下线（`SDOWN`）
+- 如果一个Master主服务器被标记为主观下线（`SDOWN`），则正在监视这个Master主服务器的所有 `Sentinel`（哨兵）进程要以每秒一次的频率确认`Master`主服务器的确进入了主观下线状态
+- 当有足够数量的 Sentinel（哨兵）进程（大于等于配置文件指定的值）在指定的时间范围内确认Master主服务器进入了主观下线状态（`SDOWN`）， 则Master主服务器会被标记为客观下线（`ODOWN`）
+- 在一般情况下， 每个 Sentinel（哨兵）进程会以每 10 秒一次的频率向集群中的所有Master主服务器、Slave从服务器发送 INFO 命令。
+- 当Master主服务器被 Sentinel（哨兵）进程标记为客观下线（ODOWN）时，Sentinel（哨兵）进程向下线的 Master主服务器的所有 Slave从服务器发送 INFO 命令的频率会从 10 秒一次改为每秒一次。
+- 若没有足够数量的 Sentinel（哨兵）进程同意 Master主服务器下线， Master主服务器的客观下线状态就会被移除。若 Master主服务器重新向 Sentinel（哨兵）进程发送 PING 命令返回有效回复，Master主服务器的主观下线状态就会被移除。
+
+优点：
+
+- 哨兵模式是基于主从模式的，所有主从的优点，哨兵模式都具有。
+- 主从可以自动切换，系统更健壮，可用性更高。
+
+缺点：
+
+- Redis较难支持在线扩容，在集群容量达到上限时在线扩容会变得很复杂。
+
+
+
+## 哨兵集群的自动发现机制
+
+哨兵互相之间的发现，是通过 redis 的 `pub/sub` 系统实现的，每个哨兵都会往 `__sentinel__:hello` 这个 channel 里发送一个消息，这时候所有其他哨兵都可以消费到这个消息，并感知到其他的哨兵的存在。
+
+每隔两秒钟，每个哨兵都会往自己监控的某个 master+slaves 对应的 `__sentinel__:hello` channel 里**发送一个消息**，内容是自己的 host、ip 和 runid 还有对这个 master 的监控配置。
+
+每个哨兵也会去**监听**自己监控的每个 master+slaves 对应的 `__sentinel__:hello` channel，然后去感知到同样在监听这个 master+slaves 的其他哨兵的存在。
+
+每个哨兵还会跟其他哨兵交换对 `master` 的监控配置，互相进行监控配置的同步。
+
+
+
+## quorum 和 majority
+
+每次一个哨兵要做主备切换，首先需要 quorum 数量的哨兵认为 odown，然后选举出一个哨兵来做切换，这个哨兵还需要得到 majority 哨兵的授权，才能正式执行切换。
+
+如果 quorum < majority，比如 5 个哨兵，majority 就是 3，quorum 设置为 2，那么就 3 个哨兵授权就可以执行切换。
+
+但是如果 quorum >= majority，那么必须 quorum 数量的哨兵都授权，比如 5 个哨兵，quorum 是 5，那么必须 5 个哨兵都同意授权，才能执行切换。
+
+
+
+## 配置
+
+```properties
+port 26379
+daemonize yes
+bind 0.0.0.0
+protected-mode no
+pidfile /var/run/sentinel-26379.pid
+logfile "/data/redis/sentinel-26379.log"
+dir /data/redis
+sentinel monitor mymaster 192.168.199.171 7001 2
+sentinel down-after-milliseconds mymaster 30000
+sentinel parallel-syncs mymaster 1
+sentinel failover-timeoutmymaster 180000
+```
+
+`down-after-milliseconds`
+	定了Sentinel认为被监控的Redis服务已经断线的总毫秒数。如果在指定的毫秒数之内，被监控的Redis服务没有向Sentinel回复PING信息或者回复了Error信息，那么Sentinel会开始认为被监控的Redis服务下线（其实这里是主观下线（subjectively down，简称SDOWN）。
+
+`parallel-syncs`
+	指定了在执行故障转移时，最多可以有多少Slave实例同时对新的Master实例进行同步，这个数字越小，完成故障转移所需的时间就越长。这里建议参考样板配置中的值，设置为1。
+
+`failover-timeout`
+	故障转移超时时间，单位为毫秒。
+
 
 
 # cluster
@@ -746,7 +875,7 @@ Redis 集群有16384个哈希槽,每个key通过CRC16校验后对16384取模来�
 
 Redis 并不能保证数据的**强一致性**. 这意味这在实际中集群在特定的条件下可能会丢失写操作.
 
-第一个原因是因为集群是用了**异步复制**. 写操作过程:
+第一个原因是因为集群使用**异步复制**. 写操作过程:
 
 - 客户端向主节点B写入一条命令.
 - 主节点B向客户端回复命令状态.
@@ -846,7 +975,7 @@ Error: Server closed the connection
 
  从 consistency-test 的这段输出可以看到， 集群在执行故障转移期间， 总共丢失了 578 个读命令和 577 个写命令， 但是并没有产生任何数据不一致。
 
-这听上去可能有点奇怪， 因为在教程的开头我们提到过， Redis 使用的是异步复制， 在执行故障转移期间， 集群可能会丢失写命令。但是在实际上， 丢失命令的情况并不常见， 因为 Redis **几乎是同时**执行将命令回复发送给客户端， 以及将命令复制给从节点这两个操作， 所以实际上造成命令丢失的时间窗口是非常小的。不过， 尽管出现的几率不高， 但丢失命令的情况还是有可能会出现的， 所以我们对 Redis 集群不能提供强一致性的这一描述仍然是正确的。现在， 让我们使用 cluster nodes 命令,查看集群在执行故障转移操作之后， 主从节点的布局情况： 
+这听上去可能有点奇怪， 因为在教程的开头我们提到过， Redis 使用的是异步复制， 在执行故障转移期间， 集群可能会丢失写命令。但是在实际上， 丢失命令的情况并不常见， 因为 Redis **几乎是同时**执行将命令回复发送给客户端， 以及将命令复制给从节点这两个操作， 所以实际上造成命令丢失的时间窗口是非常小的。不过， 尽管出现的几率不高， 但丢失命令的情况还是有可能会出现的， 所以我们对 <font color=#dd0000>Redis 集群不能提供强一致性</font>的这一描述仍然是正确的。现在， 让我们使用 cluster nodes 命令,查看集群在执行故障转移操作之后， 主从节点的布局情况： 
 
 
 
@@ -982,10 +1111,135 @@ $ /opt/redis-5.0.4/src/redis-cli  --cluster fix 172.16.0.200:7001
 
 
 
+# redis 4种模式
+
+## 单点(Standalone)
+
+最简单的方式，同时也是风险最高的方式，相比其他几种方式做不到HA、Failover、，也不能读写分离，也不能对应高吞吐量。
+
+## 主从复制(Master Slave)
+
+![](img/redis-master-slave1.png)
+
+主从模式同样不具备HA、Failover、等，但可用于读写分离的场景，备份数据、负载均衡。写操作走Master节点，读操作走Slave节点，能在一定程度提高读写的吞吐量。
+
+```shell
+vim redis.conf
+# 以守护进程的方式运行
+daemonize yes
+port 6379
+# 绑定的主机地址
+bind 0.0.0.0
+# 指定当本机为slave服务时，设置master服务的IP地址及端口，在redis启动的时候他会自动跟master进行数据同步
+slaveof <masterip> <masterport>
+# 当master设置了密码保护时，slave服务连接master的密码
+masterauth <master-password>
+# 设置redis连接密码，如果配置了连接密码，客户端在连接redis是需要通过AUTH<password>命令提供密码，默认关闭
+requirepass footbared
+```
+
+
+
+## 哨兵模式(Sentinel)
+
+- 哨兵模式集成了主从模式的有点，同时有了哨兵监控节点还<font color=#dd0000>能保证HA</font>，当 `Master` 节点离线后，哨兵监控节点会把 `Slave` 节点切换为 `Master` 节点，保证服务可用
+- 哨兵模式是在主从模式的基础上增加了哨兵监控节点，最简单的哨兵模式需要一个 `Master`、一个 `Slave` 、三个哨兵监控节点。
+
+![](img/redis-sentinel1.png)
+
+
+
+```shell
+vim sentinel-26379.conf
+pidfile /home/xxx/Documents/company/redis-sentinel/26379/redis-sentinel.pid
+logfile /home/xxx/Documents/company/redis-sentinel/26379/redis-sentinel.log
+bind 0.0.0.0
+port 26379
+# 哨兵 sentinel 监控的 redis 主节点的 
+# sentinel monitor <master-name> <ip> <redis-port> <quorum>
+# 这个2代表，当集群中有2个sentinel认为master死了时，才能真正认为该master已经不可用了。
+sentinel monitor mymaster 10.201.12.66 6380 2
+# 当在Redis实例中开启了requirepass <foobared>，所有连接Redis实例的客户端都要提供密码。
+sentinel auth-pass mymaster test@123456
+# 指定主节点应答哨兵sentinel的最大时间间隔，超过这个时间，哨兵主观上认为主节点下线，默认30秒 
+# Default is 30 seconds.
+sentinel down-after-milliseconds mymaster 30000
+# 指定了在发生failover主备切换时，最多可以有多少个slave同时对新的master进行同步。这个数字越小，完成failover所需的时间就越长；反之，但是如果这个数字越大，就意味着越多的slave因为replication而不可用。可以通过将这个值设为1，来保证每次只有一个slave，处于不能处理命令请求的状态。
+# sentinel parallel-syncs <master-name> <numslaves>
+sentinel parallel-syncs mymaster 1
+# 故障转移的超时时间failover-timeout，默认三分钟，可以用在以下这些方面：
+## 1. 同一个sentinel对同一个master两次failover之间的间隔时间。  
+## 2. 当一个slave从一个错误的master那里同步数据时开始，直到slave被纠正为从正确的master那里同步数据时结束。  
+## 3. 当想要取消一个正在进行的failover时所需要的时间。
+## 4.当进行failover时，配置所有slaves指向新的master所需的最大时间。不过，即使过了这个超时，slaves依然会被正确配置为指向master，但是就不按parallel-syncs所配置的规则来同步数据了
+# sentinel failover-timeout <master-name> <milliseconds>  
+sentinel failover-timeout mymaster 180000
+```
+
+
+
+- 优点：实现了数据备份，读负载均衡，自动化故障恢复，高可用。
+- 缺点：没有伸缩性，数据存储的限制受到单机内存大小的限制，没发通过增加主机来增加存储空间。
+
+
+
+## Cluster Mode
+
+cluster是为了解决单机Redis容量有限的问题，将数据按一定的规则分配到多台机器。
+
+
+
+集群模式有多种实现方法，比如：
+
+- 客户端分区方案
+- 代理分区方案
+- Twemproxy
+- Codis
+- 查询路由方案
+
+
+
+```shell
+vim redis-01.conf
+# 更改以下配置
+bind 0.0.0.0
+port 16001
+daemonize yes
+cluster-enabled yes
+cluster-config-file  nodes-16001.conf
+cluster-node-timeout 15000
+appendonly yes
+logfile /home/aozhang/Documents/company/redis-cluster/16001/redis-server-01.log
+
+# 类似的配置配置其他两个节点，更改对应的 port、logfile、cluster-config-file
+```
+
+
+
+## 总结
+
+1.主从复制
+缺点
+不能自动故障恢复
+
+2.哨兵机制
+优点
+解决自动故障恢复的问题。
+
+缺点
+不能解决负载均衡的问题。
+
+3.cluster
+优点
+解决负载均衡的问题。具体解决方案是分片/虚拟槽slot。
+
+
+
 # redis-api
 
 - jedis
 - redisson
+- lecotter
 
 
 
@@ -1070,24 +1324,98 @@ LRU（ Least Recently Used ）
 
 以下的策略是可用的:
 
-- **noeviction**:返回错误。当内存限制达到并且客户端尝试执行会让更多内存被使用的命令（大部分的写入指令，但DEL和几个例外）
-- **allkeys-lru**: 尝试回收最少使用的键（LRU），使得新添加的数据有空间存放。
-- **volatile-lru**: 尝试回收最少使用的键（LRU），但仅限于在过期集合的键,使得新添加的数据有空间存放。
-- **allkeys-random**: 回收随机的键使得新添加的数据有空间存放。
-- **volatile-random**: 回收随机的键使得新添加的数据有空间存放，但仅限于在过期集合的键。
-- **volatile-ttl**: 回收在过期集合的键，并且优先回收存活时间（TTL）较短的键,使得新添加的数据有空间存放。
+```shell
+# volatile-lru 
+#	->  Evict using approximated LRU among the keys with an expire set. 
+#		尝试回收最少使用的键（LRU），但仅限于在过期集合的键
+
+# allkeys-lru 
+#	->  Evict any key using approximated LRU. 
+#		尝试回收最少使用的键
+
+# volatile-lfu 
+#	->  Evict using approximated LFU among the keys with an expire set.
+#		从已设置过期时间的数据集挑选使用频率最低的数据淘汰
+
+# allkeys-lfu 
+#	->  Evict any key using approximated LFU.
+#		从数据集中挑选使用频率最低的数据淘汰
+
+# volatile-random 
+#	->  Remove a random key among the ones with an expire set.
+#		回收随机的键，但仅限于在过期集合的键
+
+# allkeys-random 
+#	->  Remove a random key, any key.
+#		回收随机的键
+
+# volatile-ttl 
+#	->  Remove the key with the nearest expire time (minor TTL)
+#		回收在过期集合的键，并且优先回收存活时间（TTL）较短的键
+
+# noeviction 
+#	->  Don't evict anything, just return an error on write operations.
+#		返回错误, 默认策略
+
+
+# LRU means Least Recently Used, 最近最少使用
+# LFU means Least Frequently Used, 最不经常使用的
+# random
+# ttl
+#
+# Both LRU, LFU and volatile-ttl are implemented using approximated randomized algorithms. LRU、LFU和volatile-ttl都是使用近似随机算法实现的。
+
+
+# The default is:
+#
+# maxmemory-policy noeviction
+
+
+# LRU, LFU and minimal TTL algorithms are not precise algorithms but approximated
+# algorithms (in order to save memory), so you can tune it for speed or
+# accuracy. For default Redis will check five keys and pick the one that was
+# used less recently, you can change the sample size using the following
+# configuration directive.
+# 默认情况下，Redis会检查五个键并选择其中一个最近使用较少，您可以使用以下方法更改样本大小
+#
+# The default of 5 produces good enough results. 10 Approximates very closely
+# true LRU but costs more CPU. 3 is faster but not very accurate.
+#
+# maxmemory-samples 5
+
+
+# Starting from Redis 5, by default a replica will ignore its maxmemory setting
+# (unless it is promoted to master after a failover or manually). It means
+# that the eviction of keys will be just handled by the master, sending the
+# DEL commands to the replica as keys evict in the master side.
+#
+# This behavior ensures that masters and replicas stay consistent, and is usually
+# what you want, however if your replica is writable, or you want the replica to have
+# a different memory setting, and you are sure all the writes performed to the
+# replica are idempotent, then you may change this default (but be sure to understand
+# what you are doing).
+#
+# Note that since the replica by default does not evict, it may end using more
+# memory than the one set via maxmemory (there are certain buffers that may
+# be larger on the replica, or data structures may sometimes take more memory and so
+# forth). So make sure you monitor your replicas and make sure they have enough
+# memory to never hit a real out-of-memory condition before the master hits
+# the configured maxmemory setting.
+#
+# replica-ignore-maxmemory yes
+```
 
 
 
 一般的经验规则:
 
-- 使用**allkeys-lru**策略：当你希望你的请求符合一个幂定律分布，也就是说，你希望部分的子集元素将比其它其它元素被访问的更多。如果你不确定选择什么，这是个很好的选择。.
+- 使用**allkeys-lru**策略：如果我们的应用对缓存的访问符合幂律分布(也就是<font color=#dd0000>存在相对热点数据</font>),或者我们<font color=#dd0000>不太清楚我们应用的缓存访问分布状况</font>,我们可以选择allkeys-lru策略
 - 使用**allkeys-random**：如果你是循环访问，所有的键被连续的扫描，或者你希望请求分布正常（所有元素被访问的概率都差不多）。
 - 使用**volatile-ttl**：如果你想要通过创建缓存对象时设置TTL值，来决定哪些对象应该被过期。
 
 **allkeys-lru** 和 **volatile-random**策略对于当你想要单一的实例实现缓存及持久化一些键时很有用。不过一般运行两个实例是解决这个问题的更好方法。
 
-为了键设置过期时间也是需要消耗内存的，所以使用**allkeys-lru**这种策略更加高效，因为没有必要为键取设置过期时间当内存有压力时。
+为键设置过期时间也是需要消耗内存的，所以使用**allkeys-lru**这种策略更加高效，因为没有必要为键取设置过期时间当内存有压力时。
 
 
 
@@ -1118,11 +1446,19 @@ maxmemory-samples 5
 
 
 
+## 近似LFU算法
+
+LFU算法是Redis4.0里面新加的一种淘汰策略。它的全称是Least Frequently Used，它的核心思想是根据key的最近被访问的频率进行淘汰，很少被访问的优先被淘汰，被访问的多的则被留下来。
+
+LFU算法能更好的表示一个key被访问的热度。假如你使用的是LRU算法，一个key很久没有被访问到，只刚刚是偶尔被访问了一次，那么它就被认为是热点数据，不会被淘汰，而有些key将来是很有可能被访问到的则被淘汰了。如果使用LFU算法则不会出现这种情况，因为使用一次并不会使一个key成为热点数据。
+
+
+
 # redis相关问题
 
 
 
-## redis热点key
+## 热点key
 
 ### 热点key产生原因
 
@@ -1160,8 +1496,6 @@ maxmemory-samples 5
 
 ## 大key大value
 
-https://blog.csdn.net/Androilly/article/details/101624196
-
 ### 问题
 
 由于Redis主线程为单线程模型，大key也会带来一些问题，如：
@@ -1177,13 +1511,15 @@ https://blog.csdn.net/Androilly/article/details/101624196
 
 Redis 4.0之前的大key的发现与删除方法
 
-​	1、redis-rdb-tools工具。redis实例上执行bgsave，然后对dump出来的rdb文件进行分析，找到其中的大KEY。
+- `redis-rdb-tools`工具。`redis`实例上执行`bgsave`，然后对`dump`出来的`rdb`文件进行分析，找到其中的大KEY。
 
-​	2、redis-cli --bigkeys命令。可以找到某个实例5种数据类型(String、hash、list、set、zset)的最大key。
+- `redis-cli --bigkeys`命令。可以找到某个实例5种数据类型(`String、hash、list、set、zset`)的最大key。
 
-​	3、自定义的扫描脚本，以Python脚本居多，方法与redis-cli --bigkeys类似。
+  > 原理比较简单,使用scan命令去遍历所有的键，对每个键根据其类型执行"STRLEN","LLEN","SCARD","HLEN","ZCARD"这些命令获取其长度或者元素个数。
 
-​	4、debug object key命令。可以查看某个key序列化后的长度，每次只能查找单个key的信息。官方不推荐。
+- 自定义的扫描脚本，以Python脚本居多，方法与`redis-cli --bigkeys`类似。
+
+- `debug object key`命令。可以查看某个key序列化后的长度，每次只能查找单个key的信息。官方不推荐。
 
 #### Redis 4.0之后 
 
@@ -1203,7 +1539,9 @@ memory usage默认抽样5个field来循环累加计算整个key的内存大小�
 
 -  源码bio.h38⾏ 
 
-Lazyfree的原理是在删除的时候只进行逻辑删除，把key释放操作放在bio(Background I/O)单独的子线程处理中，减少删除大key对redis主线程的阻塞，有效地避免因删除大key带来的性能问题。在此提一下bio线程，很多人把Redis通常理解为单线程内存数据库, 其实不然。Redis将最主要的网络收发和执行命令等操作都放在了主工作线程，然而除此之外还有几个bio后台线程，从源码中可以看到有处理关闭文件和刷盘的后台线程，以及Redis4.0新增加的lazyfree线程。
+Lazyfree的原理是在删除的时候只进行逻辑删除，把key释放操作放在bio(Background I/O)单独的子线程处理中，减少删除大key对redis主线程的阻塞，有效地避免因删除大key带来的性能问题。
+
+在此提一下bio线程，很多人把Redis通常理解为单线程内存数据库, 其实不然。Redis将最主要的网络收发和执行命令等操作都放在了主工作线程，然而除此之外还有几个bio后台线程，从源码中可以看到有处理关闭文件和刷盘的后台线程，以及Redis4.0新增加的lazyfree线程。
 
 unlink命令
 
@@ -1211,17 +1549,17 @@ unlink命令
 
 ### 解决办法
 
-**1：单个简单的key存储的value很大** 
+**1：单个key存储的value很大** 
 
 i： 该对象需要每次都整存整取 
 
-可以尝试将对象分拆成几个key-value， 使用multiGet获取值，这样分拆的意义在于分拆单次操作的压力，将操作压力平摊到多个redis实例中，降低对单个redis的IO影响；    
+可以尝试将对象分拆成几个key-value， 使用`multi get`获取值，这样分拆的意义在于分拆单次操作的压力，将操作压力平摊到多个redis实例中，降低对单个redis的IO影响；    
 
 ii： 该对象每次只需要存取部分数据
 
-可以像第一种做法一样，分拆成几个key-value，  也可以将这个存储在一个hash中，每个field代表一个具体的属性，
+可以像第一种做法一样，拆分成几个key-value，  也可以将这个存储在一个hash中，每个field代表一个具体的属性，
 
-使用hget,hmget来获取部分的value，使用hset，hmset来更新部分属性   
+使用`hget,hmget`来获取部分的value，使用`hset，hmset`来更新部分属性   
 
 
 
@@ -1229,13 +1567,11 @@ ii： 该对象每次只需要存取部分数据
 
 类似于场景一种的第一个做法，可以将这些元素分拆。 
 
-以hash为例，原先的正常存取流程是  hget(hashKey, field) ; hset(hashKey, field, value)
+以hash为例，原先的正常存取流程是  `hget(hashKey, field) ; hset(hashKey, field, value)`
 
 现在，固定一个桶的数量，比如 10000， 每次存取的时候，先在本地计算field的hash值，模除 10000， 确定了该field落在哪个key上。
 
-newHashKey  =  hashKey + ( set, zset, list 也可以类似上述做法
-
-但有些不适合的场景，比如，要保证 lpop 的数据的确是最早push到list中去的，这个就需要一些附加的属性，或者是在 key的拼接上做一些工作（比如list按照时间来分拆）。
+newHashKey  =  hashKey + ( set, zset, list 也可以类似上述做法但有些不适合的场景，比如，要保证 lpop 的数据的确是最早push到list中去的，这个就需要一些附加的属性，或者是在 key的拼接上做一些工作（比如list按照时间来分拆）。
 
 
 
@@ -1245,17 +1581,17 @@ newHashKey  =  hashKey + ( set, zset, list 也可以类似上述做法
 
 ​      i：key本身的占用（每个key 都会有一个Category前缀）
 
-​      ii：集群模式中，服务端需要建立一些slot2key的映射关系，这其中的指针占用在key多的情况下也是浪费巨大空间
+​      ii：集群模式中，服务端需要建立一些`slot-to-key`的映射关系，这其中的指针占用在key多的情况下也是浪费巨大空间
 
 ​      这两个方面在key个数上亿的时候消耗内存十分明显（Redis 3.2及以下版本均存在这个问题，4.0有优化）；
 
-所以减少key的个数可以减少内存消耗，可以参考的方案是转Hash结构存储，即原先是直接使用Redis String 的结构存储，现在将多个key存储在一个Hash结构中，具体场景参考如下：
-
-​       一： key 本身就有很强的相关性，比如多个key 代表一个对象，每个key是对象的一个属性，这种可直接按照特定对象的特征来设置一个新Key——Hash结构， 原先的key则作为这个新Hash 的field。
+所以减少key的个数可以减少内存消耗，可以参考的方案是<font color=#dd0000>转Hash结构存储</font>，即原先是直接使用`String` 的结构存储，现在将多个key存储在一个Hash结构中
 
 
 
 ## redis实现分布式锁
+
+[https://juejin.im/post/5bbb0d8df265da0abd3533a5](https://juejin.im/post/5bbb0d8df265da0abd3533a5)
 
 在多线程操作中，对于共享数据的访问修改，可以通过java提供的线程同步手段（synchorized，lock等）实现。但是在分布式环境中，访问共享数据的进程运行在不同的jvm上，所以只能通过分布式锁来保证共享数据访问的一致性。
 
@@ -1277,7 +1613,7 @@ newHashKey  =  hashKey + ( set, zset, list 也可以类似上述做法
 
   ```shell
   # redis2.8之后redis支持nx和ex操作是同一原子操作
-  $ set key value ex 5 nx
+  $ set key value ex/px 5 nx
   ```
 
 - 加锁和解锁必须是同一个客户端，客户端自己不能把别人加的锁给释放了。 -> **set的值包含当前客户端的唯一标识（用UUID生成）**
@@ -1300,8 +1636,6 @@ newHashKey  =  hashKey + ( set, zset, list 也可以类似上述做法
 
 单机版的redis想要实现分布式锁，需要注意上述分布式锁实现需求/注意事项的前三点。
 
-示例：[ https://wudashan.cn/2017/10/23/Redis-Distributed-Lock-Implement/ ]( https://wudashan.cn/2017/10/23/Redis-Distributed-Lock-Implement/ )
-
 
 
 ### 集群
@@ -1312,11 +1646,15 @@ newHashKey  =  hashKey + ( set, zset, list 也可以类似上述做法
 
  我们考虑如下场景: 
 
-```
+```properties
 1.客户端1从Master获取了锁。
+
 2.Master宕机了，存储锁的key还没有来得及同步到Slave上。
+
 3.Slave升级为Master。
+
 4.客户端2从新的Master获取到了对应同一个资源的锁。
+
 5.客户端1和客户端2同时持有了同一个资源的锁，锁不再具有安全性。
 ```
 
@@ -1348,18 +1686,17 @@ newHashKey  =  hashKey + ( set, zset, list 也可以类似上述做法
 
 #### RedLock存在的问题
 
-
-
-1. 如果有节点发生崩溃重启 
-
-
+- 1、如果有节点发生崩溃重启 
 
 假设一共有5个Redis节点：A, B, C, D, E。设想发生了如下的事件序列：
 
-```
+```properties
 客户端1成功锁住了A, B, C，获取锁成功（但D和E没有锁住）。
+
 节点C崩溃重启了，但客户端1在C上加的锁没有持久化下来，丢失了。
+
 节点C重启后，客户端2锁住了C, D, E，获取锁成功。
+
 客户端1和客户端2同时获得了锁。
 ```
 
@@ -1367,7 +1704,7 @@ newHashKey  =  hashKey + ( set, zset, list 也可以类似上述做法
 
 
 
-2. 如果客户端长期阻塞导致锁过期 
+- 2、如果客户端长期阻塞导致锁过期 
 
 
 
@@ -1397,11 +1734,15 @@ newHashKey  =  hashKey + ( set, zset, list 也可以类似上述做法
 
 假设有5个Redis节点A, B, C, D, E。
 
-```
+```properties
 客户端1从Redis节点A, B, C成功获取了锁（多数节点）。由于网络问题，与D和E通信失败。
+
 节点C上的时钟发生了向前跳跃，导致它上面维护的锁快速过期。
+
 客户端2从Redis节点C, D, E成功获取了同一个资源的锁（多数节点）。
+
 客户端1和客户端2现在都认为自己持有了锁。
+
 这个问题用Redis实现分布式锁暂时无解。而生产环境这种情况是存在的。
 ```
 
@@ -1411,29 +1752,131 @@ newHashKey  =  hashKey + ( set, zset, list 也可以类似上述做法
 
  实现原理：
 
-[ https://juejin.im/post/5bf3f15851882526a643e207 ]( https://juejin.im/post/5bf3f15851882526a643e207 )
-
-[ https://juejin.im/post/5bbb0d8df265da0abd3533a5 ]( https://juejin.im/post/5bbb0d8df265da0abd3533a5 )
-
 
 
 ![](img/redis-redisson1.png)
 
+#### 加锁
+
+某个客户端要加锁。如果该客户端面对的是一个redis cluster集群，他首先会根据hash节点选择一台机器。**这里注意**，仅仅只是选择一台机器！这点很关键！紧接着，就会发送一段lua脚本到redis上，那段lua脚本如下所示：
+
+```java
+// Redission内部源码
+<T> RFuture<T> tryLockInnerAsync(long leaseTime, TimeUnit unit, long threadId, RedisStrictCommand<T> command) {
+    internalLockLeaseTime = unit.toMillis(leaseTime);
+
+    return commandExecutor.evalWriteAsync(getName(), LongCodec.INSTANCE, command,
+              // 检查key是否已被占用，如果没有则设置超时时间及唯一标识，初始化value=1
+              "if (redis.call('exists', KEYS[1]) == 0) then " +
+                  "redis.call('hset', KEYS[1], ARGV[2], 1); " +
+                  "redis.call('pexpire', KEYS[1], ARGV[1]); " +
+                  "return nil; " +
+              "end; " +
+              // 锁重入的情况，判断锁的key field，一致的话，value加1
+              "if (redis.call('hexists', KEYS[1], ARGV[2]) == 1) then " +
+                  "redis.call('hincrby', KEYS[1], ARGV[2], 1); " +
+                  "redis.call('pexpire', KEYS[1], ARGV[1]); " +
+                  "return nil; " +
+              "end; " +
+              // 返回剩余的过期时间
+              "return redis.call('pttl', KEYS[1]);",
+                Collections.<Object>singletonList(getName()), internalLockLeaseTime, getLockName(threadId));
+}
+```
+
+注意，为什么用lua脚本呢？因为通过封装在lua脚本中发送给redis，保证这段复杂业务逻辑执行的**原子性**。
+
+**KEYS[1]**代表的是你加锁的那个key，比如说：`RLock lock = redisson.getLock("myLock");`这里你自己设置了加锁的那个锁key就是“myLock”。
+
+**ARGV[1]**代表的就是锁key的默认生存时间，默认30秒。**ARGV[2]**代表的是加锁的客户端的ID，类似于下面这样：8743c9c0-0795-4907-87fd-6c719a6b4586:1
+
+这里解释一下，第一段if判断语句，就是用“**exists myLock**”命令判断一下，如果你要加锁的那个锁key不存在的话，你就进行加锁。如何加锁呢？很简单，**用下面的命令**：`hset myLock`
+
+`8743c9c0-0795-4907-87fd-6c719a6b4586:1 1`，通过这个命令设置一个hash数据结构，这行命令执行后，会出现一个类似下面的数据结构：
+
+```java
+myLock
+{
+    "8743c9c0-0795-4907-87fd-6c719a6b4586:1": 1
+}
+```
+
+上述就代表“8743c9c0-0795-4907-87fd-6c719a6b4586:1”这个客户端对“myLock”这个锁key完成了加锁。接着会执行“**pexpire myLock 30000**”命令，设置myLock这个锁key的**生存时间是30秒**。好了，到此为止，ok，加锁完成了。
 
 
-### Redisson使用及分布式锁实现
 
- [http://wuwenliang.net/2019/07/23/%E5%86%8D%E8%B0%88%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81%E4%B9%8B%E5%89%96%E6%9E%90Redis%E5%AE%9E%E7%8E%B0/?utm_source=tuicool&utm_medium=referral](http://wuwenliang.net/2019/07/23/再谈分布式锁之剖析Redis实现/?utm_source=tuicool&utm_medium=referral) 
+#### 锁互斥机制
+
+这个时候，如果客户端2来尝试加锁，执行了同样的一段lua脚本，会咋样呢？很简单，第一个if判断会执行“**exists myLock**”，发现myLock这个锁key已经存在了。接着第二个if判断，判断一下，myLock锁key的hash数据结构中，是否包含客户端2的ID，但是明显不是的，因为那里包含的是客户端1的ID。
+
+所以，客户端2会获取到**pttl myLock**返回的一个数字，这个数字代表了myLock这个锁key的**剩余生存时间。**比如还剩15000毫秒的生存时间。此时客户端2会进入一个while循环，不停的尝试加锁。
+
+
+
+#### watch dog自动延期机制
+
+客户端1加锁的锁key默认生存时间才30秒，如果超过了30秒，客户端1还想一直持有这把锁，怎么办呢？
+
+简单！只要客户端1一旦加锁成功，就会启动一个watch dog看门狗，**他是一个后台线程，会每隔10秒检查一下**，如果客户端1还持有锁key，那么就会不断的延长锁key的生存时间。
+
+
+
+#### 可重入加锁机制
+
+如果客户端1都已经持有了这把锁了，结果可重入的加锁会怎么样呢？比如下面这种代码：
+
+```java
+RLock lock = redission.getLock("mylock");
+
+lock.lock()
+    
+ // ...
+ // 业务代码
+    
+lock.lock()
+
+lock.unlock()
+lock.unlock()
+```
+
+
+
+我们来分析一下上面那段lua脚本。**第一个if判断肯定不成立**，“exists myLock”会显示锁key已经存在了。**第二个if判断会成立**，因为myLock的hash数据结构中包含的那个ID，就是客户端1的那个ID，也就是“8743c9c0-0795-4907-87fd-6c719a6b4586:1”
+
+此时就会执行可重入加锁的逻辑，他会用：
+
+incrby myLock 8743c9c0-0795-4907-87fd-6c71a6b4586:1 1 ，通过这个命令，对客户端1的加锁次数，累加1。此时myLock数据结构变为下面这样：
+
+```java
+myLock
+{
+    "8743c9c0-0795-4907-87fd-6c719a6b4586:1": 2
+}
+```
+
+看到了吧，那个myLock的hash数据结构中的那个客户端ID，就对应着加锁的次数
+
+
+
+#### 释放锁机制
+
+如果执行lock.unlock()，就可以释放分布式锁，此时的业务逻辑也是非常简单的。其实说白了，就是每次都对myLock数据结构中的那个加锁次数减1。如果发现加锁次数是0了，说明这个客户端已经不再持有锁了，此时就会用：**“del myLock”命令**，从redis里删除这个key。然后呢，另外的客户端2就可以尝试完成加锁了。这就是所谓的**分布式锁的开源Redisson框架的实现机制。**
+
+
+
+#### 缺点
+
+如果你对某个redis master实例，写入了myLock这种锁key的value，此时会异步复制给对应的master slave实例。但是这个过程中一旦发生redis master宕机，主备切换，redis slave变为了redis master。
+
+接着就会导致，客户端2来尝试加锁的时候，在新的redis master上完成了加锁，而客户端1也以为自己成功加了锁。此时就会导致多个客户端对一个分布式锁完成了加锁。这时系统在业务语义上一定会出现问题，**导致各种脏数据的产生**。
+
+所以这个就是redis cluster，或者是redis master-slave架构的主从异步复制导致的redis分布式锁的最大缺陷：**在redis master实例宕机的时候，可能导致多个客户端同时完成加锁**。
 
 
 
 ## 为什么Redis是单线程的
 
-
-
  因为Redis是基于内存的操作，CPU不是Redis的瓶颈，Redis的瓶颈最有可能是机器内存的大小或者网络带宽。 
-
-
 
  我们使用单线程的方式是无法发挥多核CPU 性能，不过我们可以通过在单机开多个Redis 实例来完善，比如组成master-master或者master-slave的形式，耗时的读命令可以完全在slave进行。 
 
@@ -1543,3 +1986,114 @@ typedef struct aeTimeEvent {
 Redis 将所有时间事件都放在一个无序链表中，每次 Redis 会遍历整个链表，查找所有已经到达的时间事件，并且调用相应的事件处理器。
 
 介绍完文件事件和时间事件，我们接下来看一下 `aeEventLoop`的具体实现。
+
+
+
+## redis 性能监控和排查
+
+
+
+### 1.通过slow log查看
+
+通过SLOWLOG可以读取慢查询日志。
+
+```shell
+################################## SLOW LOG ###################################
+
+# The Redis Slow Log is a system to log queries that exceeded a specified
+# execution time. The execution time does not include the I/O operations
+# like talking with the client, sending the reply and so forth,
+# but just the time needed to actually execute the command (this is the only
+# stage of command execution where the thread is blocked and can not serve
+# other requests in the meantime).
+# 
+# Redis慢日志是一个记录超过指定查询的系统执行时间。
+# 执行时间不包括I/O操作比如与客户交谈，发送回复等等，但只是实际执行命令所需的时间(这是惟一的命令执行的阶段，线程被阻塞，不能执行同时还有其他请求)。
+#
+# You can configure the slow log with two parameters: one tells Redis
+# what is the execution time, in microseconds, to exceed in order for the
+# command to get logged, and the other parameter is the length of the
+# slow log. When a new command is logged the oldest one is removed from the
+# queue of logged commands.
+#
+#您可以使用两个参数配置慢速日志:一个参数告诉Redis要超出的执行时间(以微秒为单位)是多少的长度，而另一个参数是慢日志中删除最旧的命令日志命令队列。
+#
+# The following time is expressed in microseconds, so 1000000 is equivalent
+# to one second. Note that a negative number disables the slow log, while
+# a value of zero forces the logging of every command.
+#
+#下面的时间用微秒表示，所以1000000是等价的一秒钟。注意，负数禁用慢日志，而0的值强制记录每个命令。
+slowlog-log-slower-than 10000
+
+# There is no limit to this length. Just be aware that it will consume memory.
+# You can reclaim memory used by the slow log with SLOWLOG RESET.
+slowlog-max-len 128
+```
+
+
+
+```shell
+# 获取当前慢日志长度
+127.0.0.1:6379> slowlog len
+(integer) 28
+
+# 获取所有慢日志
+127.0.0.1:6379> slowlog get 
+ 1) 1) (integer) 27
+    2) (integer) 1417531320
+    3) (integer) 24623
+    4) 1) "info"
+
+# 获取最近N条慢日志
+127.0.0.1:6379> SLOWLOG GET N
+```
+
+
+
+
+
+### 2.通过info 查看
+
+### 3.通过benchmark测试下当前服务器的性能 
+
+Redis自带的性能检测工具redis-benchmark, 该工具可以模拟 N 个客户端同时发出 Y 个请求。
+
+
+
+![](img/redis-benchmark1.png)
+
+
+
+```shell
+/opt/redis-5.0.4/src/redis-benchmark -p 7001 -c 10 -n 100000 -q
+```
+
+
+
+### 4.通过MONITOR测算一次请求对redis操作的次数
+
+调试命令，返回服务器处理的每一个命令，它能帮助我们了解在数据库上发生了什么操作.
+
+由于MONITOR命令返回服务器处理的所有的命令, 所以在性能上会有一些消耗。
+
+
+
+### 5.redis延迟时间排查
+
+数据量越来越多，并发写操作很多的情况下，Redis出现响应慢的情况
+
+可以使用 Redis命令来测试一下redis的响应速度
+
+```shell
+ /opt/redis-5.0.4/src/redis-cli --latency -h 192.168.199.171 -p 7001 -c
+min: 0, max: 3, avg: 0.10 (10836 samples)
+```
+
+这条命令会向Redis插入示例数据来检查平均延时。
+
+
+
+出现延时的可能
+
+- 一些时间复杂度比较高的命令，如 lrem，sort，sunion等命令会花比较长时间；另外，大量的重复连接也会造成延时，重用连接是一种很好的品质；如果有大量写操作，可以使用 `pipeline` 管道的方式（类似mysql事务），一次性提交，这样数据量也少了，连接次数也少了，不用每次都返回数据，速度自然会快很多；
+- Redis持久化需要fork出一个进程来进行持久化操作，这本身就会引发延时，如果数据变化大，RDB配置时间短，那这个代价还是挺大的；再加上，硬盘这东西真有点不靠谱，如果还是虚拟机上的虚拟硬盘，如果还是NFS共享目录，那这延时会让你崩溃

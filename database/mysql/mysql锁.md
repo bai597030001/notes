@@ -1,7 +1,5 @@
 # MySQL中的锁
 
-[链接](https://blog.csdn.net/bruceleenumberone/article/details/81865045)
-
 - MySQL中有着Lock和Latch的概念，在数据库中，这两者都可以被称为“锁”，但是两者有着截然不同的含义。
 
 ![](img/mysqlLock1.png)
@@ -125,17 +123,17 @@ InnoDB存储引擎有3种行锁的算法，其分别是：
 	
 	Next-Key Lock：范维锁，Gap Lock + Record Lock，锁定一个范围，并且锁定记录本身。（InnoDB默认的行锁算法）
 
-- Record Lock总是会去<font color=#dd0000>锁住索引</font>记录，如果InnoDB存储引擎表在建立的时候没有设置任何一个索引，那么这时InnoDB存储引擎会使用隐式的主键来进行锁定。
+- `Record Lock`总是会去<font color=#dd0000>锁住索引</font>记录，如果InnoDB存储引擎表在建立的时候没有设置任何一个索引，那么这时InnoDB存储引擎会使用隐式的主键来进行锁定。
 
-- Next-Key Lock是结合了Gap Lock和Record Lock的一种锁定算法，在Next-Key Lock算法下，InnoDB对于行的查询都是采用这种锁定算法。例如有一个索引有10，11，13和20这4个值，那么该索引可能被Next-Key Locking的区间为：
+- `Next-Key Lock`是结合了`Gap Lock`和`Record Lock`的一种锁定算法，在`Next-Key Lock`算法下，InnoDB对于行的查询都是采用这种锁定算法。例如有一个索引有10，11，13和20这4个值，那么该索引可能被`Next-Key Locking`的区间为：
 
 ![](img/mysqlLock5.png)
 
-- 除了Next-Key Locking，还有Previous-Key Locking技术。同样上述的值，使用Previous-Key Locking技术，那么可锁定的区间为：
+- 除了`Next-Key Locking`，还有`Previous-Key Locking`技术。同样上述的值，使用`Previous-Key Locking`技术，那么可锁定的区间为：
 
 ![](img/mysqlLock6.png)
 
-- 但是不是所有索引都会加上Next-key Lock的，**在查询的列是唯一性索引（包含主键索引）的情况下，Next-key Lock会降级为Record Lock。**
+- 但是不是所有索引都会加上`Next-key Lock`的，**在查询的列是唯一性索引（包含主键索引）的情况下，Next-key Lock会降级为Record Lock。**
 
 - 接下来，我们来通过一个例子解释一下。
 
@@ -200,7 +198,7 @@ INSERT INTO z SELECT 6, 5;
 
 - 可以看到，第1步和第2步是非常容易理解的，而在第3步事务B插入一条新的数据后，在第4步事务A还是查不到，也就是利用了MVCC的特性来实现。当事务B提交后，第5步的查询在RC和RR隔离级别下的输出是不同的，这个的原因在另一篇博客中也说到了，是因为他们创建ReadView的时机不同。
 
-- 但是很诡异的是在第6步的时候，事务A更新了一条它看不见的记录，然后查询就能够查询出来了。这里很多人容易迷惑，不可见不代表记录不存在，它只是利用了可见性判断忽略了而已。更新成功之后，事务A顺其自然的记录了这条记录的Undo log，在随后的查询中，因为它能够看见自己的改动这一个可见性的判断，自然就能够查询出来了。这里很多名词需要去深入读一下此文：[谈谈MySQL InnoDB存储引擎事务的ACID特性](http://benjaminwhx.com/2018/04/25/%E8%B0%88%E8%B0%88MySQL-InnoDB%E5%AD%98%E5%82%A8%E5%BC%95%E6%93%8E%E4%BA%8B%E5%8A%A1%E7%9A%84ACID%E7%89%B9%E6%80%A7/)
+- 但是很诡异的是在第6步的时候，事务A更新了一条它看不见的记录，然后查询就能够查询出来了。这里很多人容易迷惑，不可见不代表记录不存在，它只是利用了可见性判断忽略了而已。更新成功之后，事务A顺其自然的记录了这条记录的Undo log，在随后的查询中，因为它能够看见自己的改动这一个可见性的判断，自然就能够查询出来了。
 
 ### 一致性锁定读
 

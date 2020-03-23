@@ -137,6 +137,26 @@ $ git rebase -i [SHA] # SHA 是上一次提交之前的那次提交的
 $ git rebase -i HEAD~4 # 最后一个数字4代表压缩最后四次提交。
 ```
 
+里边的提示：
+
+```properties
+pick：保留该commit（缩写:p）
+reword：保留该commit，但我需要修改该commit的注释（缩写:r）
+edit：保留该commit, 但我要停下来修改该提交(不仅仅修改注释)（缩写:e）
+squash：将该commit和前一个commit合并（缩写:s）
+fixup：将该commit和前一个commit合并，但我不要保留该提交的注释信息（缩写:f）
+exec：执行shell命令（缩写:x）
+drop：我要丢弃该commit（缩写:d）
+```
+
+示例：
+
+```properties
+
+```
+
+
+
 
 
 # git远程操作
@@ -159,8 +179,9 @@ license: 证书类型，对应生成文件LICENSE
 
 点击 Clone or dowload 会出现一个地址, copy 这个地址备用。
 
-```
+```http
 https://github.com/bai597030001/network_optimize.git
+
 git@github.com:bai597030001/network_optimize.git
 ```
 
@@ -337,9 +358,9 @@ $ git config --global core.autocrlf false  //禁用自动转换
 
 # git/github 删除
 
-git rm		删除文件
+`git rm`		删除文件
 
-git checkout --fileName  从本地/远程仓库恢复文件到本地
+`git checkout --fileName`  从本地/远程仓库恢复文件到本地
 
 
 github -> settings -> 底部 Delete this repository

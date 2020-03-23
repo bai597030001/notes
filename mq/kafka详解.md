@@ -1,5 +1,3 @@
-[Kafka 入门介绍-博客链接](<https://lotabout.me/2018/kafka-introduction/>)
-
 [kafka官网](<https://kafka.apache.org/>)
 
 [confluent](<https://www.confluent.io/>)
@@ -30,11 +28,11 @@
 
 `offset`： 一个连续的用于定位被追加到分区的每一个消息的序列号，最大值为64位的long大小，19位数字字符长度。
 
-- topic、partition、segment、offset的关系：
+- `topic、partition、segment、offset`的关系：
 
 ![](img/kafka1.webp)
 
-- 每个topic可以分为多个partition，一个partition相当于一个大目录，每个partition下面有多个**大小相等**的segment文件，这个segment是由message组成的，而每一个的segment不一定由大小相等的message组成。segment大小及生命周期在server.properties文件中配置。offset用于定位位于段里的唯一消息。
+- 每个`topic`可以分为多个`partition`，一个`partition`相当于一个大目录，每个`partition`下面有多个**大小相等**的`segment`文件，这个`segment`是由`message`组成的，而每一个的`segment`不一定由大小相等的`message`组成。`segment`大小及生命周期在`server.properties`文件中配置。`offset`用于定位位于段里的唯一消息。
 
   ```properties
   # 以下配置控制日志段 segments 的处理。策略可以将其设置为在一段时间之后，或在给定大小累积之后删除段。
@@ -57,17 +55,18 @@
 
   
 
-- segment
-  - segment由index和data文件组成，两个文件成对出现，分别存储索引和数据。
-  - segment文件命名规则：对于所有的partition来说，segment名称从0开始，之后的每一个segment名称为上一个segment文件最后一条消息的offset值。
+- `segment`
+  
+  - `segment`由`index`和`data`文件组成，两个文件成对出现，分别存储索引和数据。
+- `segment`文件命名规则：对于所有的`partition`来说，`segment`名称从0开始，之后的每一个`segment`名称为上一个`segment`文件最后一条消息的offset值。
+  
+- `offset`
 
-- offset
+  对于分区中的一个`offset`例如等于345552怎么去查找相应的`message`呢？
 
-对于分区中的一个offset例如等于345552怎么去查找相应的message呢？
+  > 先找到该message所在的segment文件，通过二分查找的方式寻找小于等于345552的offset，假如叫S的segment符合要求，如果S等于345552则S上一个segment的最后一个message即为所求；如果S小于345552则依次遍历当前segment即可找到。
 
-> 先找到该message所在的segment文件，通过二分查找的方式寻找小于等于345552的offset，假如叫S的segment符合要求，如果S等于345552则S上一个segment的最后一个message即为所求；如果S小于345552则依次遍历当前segment即可找到。
-
-- topic 和 partition
+- `topic` 和 `partition`
 
 ![](img/kafka2.png)
 
@@ -83,9 +82,11 @@ Exactly once 每条消息肯定会被传输一次且仅传输一次，很多时候这是用户所想要的。
 - offset更新的方式
 
 ```properties
-自动提交，设置enable.auto.commit=true，更新的频率根据参数【auto.commit.interval.ms】来定。这种方式也被称为【at most once】，fetch到消息后就可以更新offset，无论是否消费成功。
+自动提交，设置enable.auto.commit=true
+# 更新的频率根据参数【auto.commit.interval.ms】来定。这种方式也被称为【at most once】，fetch 到消息后就可以更新offset，无论是否消费成功。
 
-手动提交，设置enable.auto.commit=false，这种方式称为【at least once】。fetch到消息后，等消费完成再调用方法【consumer.commitSync()】，手动更新offset；如果消费失败，则offset也不会更新，此条消息会被重复消费一次。
+手动提交，设置enable.auto.commit=false
+# 这种方式称为【at least once】。fetch到消息后，等消费完成再调用方法【consumer.commitSync()】，手动更新offset；如果消费失败，则offset也不会更新，此条消息会被重复消费一次。
 ```
 
 - 消息分发
@@ -880,7 +881,7 @@ Kafka支持的三种消息投递语义:
 
 **producer-broker**: 当`producer`向`broker`发送消息时，一旦这条消息`commit`了，由于`broker`有`replication`的存在，这条消息就不会丢失，这样就可以在`producer-broker`端保证`at least once`消息语义。当然，也可以通过设置`Producer`异步发送来实现`at most once`语义。
 
-**broker-consumer**: `consumer`在消费消息时，每个`consumer`都会在保存`offset`来记录自己消费的位置(从`__consumer_offsets`这个`topic`中取，老版本存储在zk中)。当`consumer`挂了的时候，就会发生负载均衡，需要`consumer group`中另外的`consumer`来接管并继续消费。`consumer`在处理消息和修改`offset`时也有两种处理方式:
+**broker-consumer**: `consumer`在消费消息时，每个`consumer`都会在保存`offset`来记录自己消费的位置(从`__consumer_offsets`这个`topic`中取，老版本存储在`zk`中)。当`consumer`挂了的时候，就会发生负载均衡，需要`consumer group`中另外的`consumer`来接管并继续消费。`consumer`在处理消息和修改`offset`时也有两种处理方式:
 
 - `consumer`读取消息后，先修改`offset`，然后处理消息。
 - `consumer`读取消息后，先处理消息，然后修改`offset`。
@@ -893,11 +894,11 @@ Kafka支持的三种消息投递语义:
 
 ## 幂等
 
-对于producer，如果broker配置了`enable.idempotence = true`,每个producer在初始化的时候都会被分配一个唯一的`Producer ID`，producer向指定topic的partition发送消息时，携带一个自己维护的自增的`Sequence Number`。broker会维护一个<pid,topic,partition>对应的seqNum。 每次broker接收到producer发来的消息，会和之前的seqNum做比对，如果刚好大一，则接受;如果相等，说明消息重复;如果相差大于一，则说明中间存在丢消息，拒绝接受。
+对于`producer`，如果`broker`配置了`enable.idempotence = true`,每个`producer`在初始化的时候都会被分配一个唯一的`Producer ID`，`producer`向指定`topic`的`partition`发送消息时，携带一个自己维护的自增的`Sequence Number`。`broker`会维护一个`<pid,topic,partition>`对应的`seqNum`。 每次`broker`接收到`producer`发来的消息，会和之前的`seqNum`做比对，如果刚好大一，则接受;如果相等，说明消息重复;如果相差大于一，则说明中间存在丢消息，拒绝接受。
 
 这个设计解决了两个问题:
 
-- broker保存消息后，发送ACK前宕机，producer认为没有发送成功并重试，造成消息重复
+- `broker`保存消息后，发送`ACK`前宕机，`producer`认为没有发送成功并重试，造成消息重复
 - 前一条消息发送失败，后一条成功，前一条消息重试后成功，造成消息乱序
 
 ## 事务性保证
@@ -1118,7 +1119,13 @@ confluent.support.customer.id=anonymous
 
 ## 顺序读写
 
-Kafka 的消息是不断追加到文件中的，这个特性使它可以充分利用磁盘的顺序读写能力。
+磁盘大多数都还是机械结构（SSD不在讨论的范围内），如果将消息以随机写的方式存入磁盘，就需要按柱面、磁头、扇区的方式寻址，寻址是一个“机械动作”也最耗时。为了提高读写硬盘的速度，**Kafka就是使用顺序I/O**。
+
+顺序I/O就是不断追加数据到文件中的，这个特性使它可以充分利用磁盘的顺序读写能力。
+
+![](img/kafka-io1.jpeg)
+
+> 每个partition就是一个文件，每条消息都被append 到该 partition 中，属于顺序写磁盘，因此效率非常高。这种方法有一个缺陷—— 没有办法删除数据 ，所以Kafka是不会删除数据的，它会把所有的数据都保留下来，每个消费者（Consumer）对每个Topic都有一个offset用来表示读取到了第几条数据 。
 
 
 
@@ -1162,27 +1169,28 @@ Kafka提供了一个参数——producer.type来控制是不是主动flush，如果Kafka写入到mmap之
 
 [https://www.ibm.com/developerworks/cn/linux/l-cn-zerocopy2/](https://www.ibm.com/developerworks/cn/linux/l-cn-zerocopy2/)
 
+零拷贝（Zero-copy）技术指在计算机执行操作时，CPU 不需要先将数据从一个内存区域复制到另一个内存区域，从而可以减少上下文切换以及 CPU 的拷贝时间。
+
+它的作用是在数据报从网络设备到用户程序空间传递的过程中，减少数据拷贝次数，减少系统调用，实现 CPU 的零参与，彻底消除 CPU 在这方面的负载。
+
+
+
+实现零拷贝用到的最主要技术是 DMA 数据传输技术和内存区域映射技术：
+
+- 零拷贝机制可以减少数据在内核缓冲区和用户进程缓冲区之间反复的 I/O 拷贝操作。
+- 零拷贝机制可以减少用户进程地址空间和内核地址空间之间因为上下文切换而带来的 CPU 开销。
+
+
+
 ### 传统文件IO
 
- 传统模式下，文件传输的操作流程，例如一个程序要把文件内容发送到网络。这个过程发生在用户空间，文件和网络socket属于硬件资源，两者之间有一个内核空间，在操作系统内部，整个过程为:
+ 传统模式下，文件传输的操作流程，例如一个程序要<font color=#dd0000>把文件内容发送到网络</font>。这个过程发生在用户空间，文件和网络socket属于硬件资源，两者之间有一个内核空间，在操作系统内部，整个过程为:
 
 
 
-> 1、基于sendfile实现Zero Copy调用read函数，文件数据被copy到内核缓冲区
->
-> 2、read函数返回，文件数据从内核缓冲区copy到用户缓冲区
->
-> 3、write函数调用，将文件数据从用户缓冲区copy到内核与socket相关的缓冲区。
->
-> 4、数据从socket缓冲区copy到相关协议引擎。
+![](img/kafka2.webp.)
 
-
-
-![](img/kafka2.webp)
-
-以上细节是传统read/write方式进行网络文件传输的方式，我们可以看到，在这个过程当中，文件数据实际上是经过了四次copy操作：
-
-> 硬盘—>内核buf—>用户buf—>socket相关缓冲区—>协议引擎
+从上图中可以看出，共产生了四次数据拷贝，即使使用了`DMA`来处理了与硬件的通讯，CPU仍然需要处理两次数据拷贝，与此同时，在用户态与内核态也发生了多次上下文切换，无疑也加重了CPU负担。
 
 
 
@@ -1192,25 +1200,135 @@ Kafka提供了一个参数——producer.type来控制是不是主动flush，如果Kafka写入到mmap之
 
 
 
-### sendfile
+### mmap
 
-而kafka所用的“**零拷贝(zero-copy)**”系统调用机制，就是跳过“用户缓冲区”的拷贝，建立一个磁盘空间和内存空间的直接映射，数据不再复制到“用户态缓冲区”系统上下文切换减少2次，可以提升一倍性能
+```c
+#include <sys/mman.h>
 
-![](img/kafka3.webp)
+void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 
- sendfile系统调用，以简化网络上和两个本地文件之间的数据传输。sendfile的引入不仅减少了数据复制，还减少了上下文切换。 
-
-```c++
-sendfile(socket, file, len);
+int munmap(void *addr, size_t length);
 ```
 
-运行流程如下：
 
-> 1、sendfile系统调用，文件数据被copy至内核缓冲区
+
+
+
+我们减少拷贝次数的一种方法是调用mmap()来代替read调用
+
+```c
+buf = mmap(diskfd, len);
+write(sockfd, buf, len);
+```
+
+应用程序调用`mmap()`，磁盘上的数据会通过`DMA`被拷贝的内核缓冲区，接着操作系统会把这段内核缓冲区与应用程序共享，这样就不需要把内核缓冲区的内容往用户空间拷贝。应用程序再调用`write()`,操作系统直接将内核缓冲区的内容拷贝到`socket`缓冲区中，这一切都发生在内核态，最后，`socket`缓冲区再把数据发到网卡去。
+
+![](img/kafka-io1.webp)
+
+使用mmap替代read很明显减少了一次拷贝，当拷贝数据量很大时，无疑提升了效率。
+
+
+
+**问题**
+
+当使用`mmap`时，可能会遇到一些隐藏的陷阱。例如，当程序`map`了一个文件，但是当这个文件被另一个进程截断(`truncate`)时, `write`系统调用会因为访问非法地址而被`SIGBUS`信号终止。`SIGBUS`信号默认会杀死你的进程并产生一个`coredump`,这样，服务会被终止。
+
+
+
+**解决方法**
+
+1、为SIGBUS信号建立信号处理程序
+
+> 当遇到`SIGBUS`信号时，信号处理程序简单地返回，`write`系统调用在被中断之前会返回已经写入的字节数，并且`errno`会被设置成success,但是这是一种糟糕的处理办法，因为你并没有解决问题的实质核心。
+
+2、使用文件租借锁
+
+> 通常我们使用这种方法，在文件描述符上使用租借锁，我们为文件向内核申请一个租借锁，当其它进程想要截断这个文件时，内核会向我们发送一个实时的`RT_SIGNAL_LEASE`信号，告诉我们内核正在破坏你加持在文件上的读写锁。这样在程序访问非法内存并且被`SIGBUS`杀死之前，你的`write`系统调用会被中断。`write`会返回已经写入的字节数，并且置`errno`为success。
+
+
+
+我们应该在`mmap`文件之前加锁，并且在操作完文件后解锁：
+
+```c
+if(fcntl(diskfd, F_SETSIG, RT_SIGNAL_LEASE) == -1) {
+    perror("kernel lease set signal");
+    return -1;
+}
+/* l_type can be F_RDLCK F_WRLCK  加锁*/
+/* l_type can be  F_UNLCK 解锁*/
+if(fcntl(diskfd, F_SETLEASE, l_type)){
+    perror("kernel lease set type");
+    return -1;
+}
+```
+
+
+
+
+
+### sendfile
+
+```c
+#include<sys/sendfile.h>
+
+ssize_t sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
+```
+
+系统调用`sendfile()`在代表输入文件的描述符`in_fd`和代表输出文件的描述符`out_fd`之间传送文件内容（字节）。<font color=#dd0000>描述符`out_fd`必须指向一个套接字（只是文件到 socket 进行数据传输。），而`in_fd`指向的文件必须是可以`mmap`的。</font>这些局限限制了`sendfile`的使用，使`sendfile`只能将数据从文件传递到套接字上，反之则不行。
+ 使用`sendfile`不仅减少了数据拷贝的次数，还减少了上下文切换，数据传送始终只发生在`kernel space`。
+
+
+
+![](img/kafka3.webp.)
+
+> 在我们调用`sendfile`时，如果有其它进程截断了文件会发生什么呢？假设我们没有设置任何信号处理程序，`sendfile`调用仅仅返回它在被中断之前已经传输的字节数，`errno`会被置为success。如果我们在调用sendfile之前给文件加了锁，`sendfile`的行为仍然和之前相同，我们还会收到RT_SIGNAL_LEASE的信号。
+
+
+
+### 带有 DMA 收集拷贝功能的 sendfile
+
+
+
+目前为止，我们已经减少了数据拷贝的次数了，但是仍然存在一次拷贝，就是<font color=#dd0000>页缓存到socket缓存的拷贝</font>。那么能不能把这个拷贝也省略呢？
+
+借助于硬件上的帮助，我们是可以办到的。之前我们是把页缓存的数据拷贝到socket缓存中，实际上，我们仅仅需要把缓冲区描述符传到`socket`缓冲区，再把数据长度传过去，这样`DMA`控制器直接将页缓存中的数据打包发送到网络中就可以了。
+
+总结一下，`sendfile`系统调用利用`DMA`引擎将文件内容拷贝到内核缓冲区去，然后将带有文件位置和长度信息的缓冲区描述符添加socket缓冲区去，这一步不会将内核中的数据拷贝到socket缓冲区中，`DMA`引擎会将内核缓冲区的数据拷贝到协议引擎中去，避免了最后一次拷贝。
+
+不过这一种收集拷贝功能是需要硬件以及驱动程序支持的。
+
+
+
+![](img/kafka-io2.webp)
+
+
+
+### splice
+
+`sendfile`只适用于将数据从文件拷贝到套接字上，限定了它的使用范围。Linux在`2.6.17`版本引入`splice`系统调用，用于在两个文件描述符中移动数据：
+
+```c
+#define _GNU_SOURCE         /* See feature_test_macros(7) */
+#include <fcntl.h>
+
+ssize_t splice(int fd_in, loff_t *off_in, int fd_out, loff_t *off_out, size_t len, unsigned int flags);
+```
+
+`splice`调用在两个文件描述符之间移动数据，而不需要数据在内核空间和用户空间来回拷贝。他从`fd_in`拷贝`len`长度的数据到`fd_out`，但是<font color=#dd0000>有一方必须是管道设备，这也是目前`splice`的一些局限性。</font>
+
+
+
+`flags`参数：
+
+> **SPLICE_F_MOVE** ：尝试去移动数据而不是拷贝数据。这仅仅是对内核的一个小提示：如果内核不能从`pipe`移动数据或者`pipe`的缓存不是一个整页面，仍然需要拷贝数据。Linux最初的实现有些问题，所以从`2.6.21`开始这个选项不起作用，后面的Linux版本应该会实现。
 >
-> 2、再从内核缓冲区copy至内核中socket相关的缓冲区
+> **SPLICE_F_NONBLOCK** ：`splice` 操作不会被阻塞。然而，如果文件描述符没有被设置为不可被阻塞方式的 I/O ，那么调用 splice 有可能仍然被阻塞。
 >
-> 3、最后再socket相关的缓冲区copy到协议引擎
+> **SPLICE_F_MORE**： 后面的`splice`调用会有更多的数据。
+
+
+
+splice调用利用了Linux提出的管道缓冲区机制， 所以至少一个描述符要为管道。
 
 
 

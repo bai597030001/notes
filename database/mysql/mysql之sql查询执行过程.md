@@ -369,7 +369,7 @@ explain select * from user_info where name = 'c' or name is null;
 
 ### ref
 
-- 如果连接查询只使用键的最左端前缀，或者键不是主键或惟一索引(换句话说，如果连接不能根据键值选择单个行)，则使用ref。如果使用的键只匹配几行，这是一个很好的连接类型。
+- 如果**连接查询**只使用键的最左端前缀，或者键不是主键或惟一索引(换句话说，如果连接不能根据键值选择单个行)，则使用ref。如果使用的键只匹配几行，这是一个很好的连接类型。
 
 ```mysql
 SELECT * FROM ref_table WHERE key_column=expr;

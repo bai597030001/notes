@@ -1605,7 +1605,7 @@ public class ScheduledThreadPoolDemo {
 ## CompletionService
 
 - 我们可以通过线程池的`submit`方法提交一个`Callable`任务，利用返回的`Future`的`get`方法来获取任务运行的结果，但是这种方法需要自己循环获取`task`，而且`get`方法会阻塞。
-- 针对上述情况，可以用`CompletionService`来实现，`CompletionService`维护一个保存`Future`对象的`BlockQueue`，当`Future`对象状态是结束的时候，会加入到队列中，可以通过take`方法`，取出`Future`对象。
+- 针对上述情况，可以用`CompletionService`来实现，`CompletionService`维护一个保存`Future`对象的`BlockQueue`，当`Future`对象状态是结束的时候，会加入到队列中，可以通过`take`方法，取出`Future`对象。
 
 ```java
 //提供一种分离任务提交和获取执行结果的服务

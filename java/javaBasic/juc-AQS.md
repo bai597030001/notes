@@ -1466,13 +1466,3 @@ rtLock.readLock().unlock();
 2. 当RRW的等待队列队首结点是独占结点，说明当前读锁被使用，当读锁释放归零后，会唤醒队首的独占结点。
 
 
-
-
-
-## CountDownLaunch
-
-## Semaphore
-
-## ArrayBlockingQueue
-
-## LinkedBlockingQueue

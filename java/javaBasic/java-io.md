@@ -1108,7 +1108,7 @@ int num = channel.read(buf);
 
 如果要读 Buffer 中的值，需要切换模式，从写入模式切换到读出模式。注意，通常在说 NIO 的读操作的时候，我们说的是从 Channel 中读数据到 Buffer 中，对应的是对 Buffer 的写入操作，初学者需要理清楚这个。
 
-调用 Buffer 的 **flip()** 方法，可以从写入模式切换到读取模式。其实这个方法也就是设置了一下 position 和 limit 值罢了。
+调用 Buffer 的 <font color=#dd0000>`flip()` 方法</font>，可以从写入模式切换到读取模式。其实这个方法也就是设置了一下 position 和 limit 值罢了。
 
 ```java
 publicfinal Buffer flip() {    
@@ -1144,9 +1144,9 @@ int num = channel.write(buf);
 
 #### mark() & reset()
 
-除了 position、limit、capacity 这三个基本的属性外，还有一个常用的属性就是 mark。
+除了 `position、limit、capacity` 这三个基本的属性外，还有一个常用的属性就是 `mark`。
 
-mark 用于临时保存 position 的值，每次调用 mark() 方法都会将 mark 设值为当前的 position，便于后续需要的时候使用。
+<font color=#dd0000>`mark` 用于临时保存 `position` 的值，每次调用 `mark()` 方法都会将 `mark` 设值为当前的 `position`，便于后续需要的时候使用。</font>
 
 ```java
 public final Buffer mark() {    
@@ -1155,7 +1155,7 @@ public final Buffer mark() {
 }
 ```
 
-那到底什么时候用呢？考虑以下场景，我们在 position 为 5 的时候，先 mark() 一下，然后继续往下读，读到第 10 的时候，我想重新回到 position 为 5 的地方重新来一遍，那只要调一下 reset() 方法，position 就回到 5 了。
+那到底什么时候用呢？考虑以下场景，我们在 position 为 5 的时候，先 mark() 一下，然后继续往下读，读到第 10 的时候，我想重新回到 position 为 5 的地方重新来一遍，那只要调一下 `reset()` 方法，position 就回到 5 了。
 
 ```java
 publicfinal Buffer reset() {    
@@ -1169,7 +1169,7 @@ publicfinal Buffer reset() {
 
 #### rewind() & clear() & compact()
 
-**rewind()**：会重置 position 为 0，通常用于重新从头读写 Buffer。
+`rewind()`：会重置 `position` 为 0，通常用于重新从头读写 Buffer。
 
 ```java
 publicfinal Buffer rewind() {    
@@ -1179,7 +1179,7 @@ publicfinal Buffer rewind() {
 }
 ```
 
-**clear()**：有点重置 Buffer 的意思，相当于重新实例化了一样。
+`clear()`：有点重置 Buffer 的意思，相当于重新实例化了一样。
 
 通常，我们会先填充 Buffer，然后从 Buffer 读取数据，之后我们再重新往里填充新的数据，我们一般在重新填充之前先调用 clear()。
 
@@ -1192,7 +1192,7 @@ publicfinal Buffer clear() {
 }
 ```
 
-**compact()**：和 clear() 一样的是，它们都是在准备往 Buffer 填充新的数据之前调用。
+`compact()`：和 clear() 一样的是，它们都是在准备往 Buffer 填充新的数据之前调用。
 
 前面说的 clear() 方法会重置几个属性，但是我们要看到，clear() 方法并不会将 Buffer 中的数据清空，只不过后续的写入会覆盖掉原来的数据，也就相当于清空了数据了。
 
@@ -1254,7 +1254,8 @@ ByteBuffer buffer = ByteBuffer.allocate(1024);int num = fileChannel.read(buffer)
 **写入文件内容：**
 
 ```java
-ByteBuffer buffer = ByteBuffer.allocate(1024);buffer.put("随机写入一些内容到 Buffer 中".getBytes());
+ByteBuffer buffer = ByteBuffer.allocate(1024);
+buffer.put("随机写入一些内容到 Buffer 中".getBytes());
 // Buffer 切换为读模式
 buffer.flip();
 while(buffer.hasRemaining()) {    

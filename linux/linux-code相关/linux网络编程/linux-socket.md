@@ -784,8 +784,7 @@ EPOLLONESHOT：只监听一次事件，当监听完这次事件之后，如果�
 
 
 ```c
-typedef union epoll_data
-{
+typedef union epoll_data {
   void *ptr;
   int fd;
   uint32_t u32;

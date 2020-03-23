@@ -1,8 +1,9 @@
 # 1.mysql中的键
 
-- mysql建表时的**4种KEY**
+mysql建表时的**4种KEY**
 
----
+
+
 ## 1.1 主键(primary key)
 
 - 能够**唯一标识**表中某一行的属性或属性组，**不能有重复**的，**不允许为空**，用来保证数据完整性。
@@ -133,43 +134,42 @@ NO ACTION：什么都不做。
 	Records: 1  Duplicates: 0  Warnings: 0
 ```
 
-## 1.3 普通键（KEY）
+## 1.4 普通键（KEY）
 
 - 建立索引
 
 ```sql
-
-	CREATE TABLE `C3TimeOut_AlarmInfo` (
-		`AffairID` bigint(20) NOT NULL AUTO_INCREMENT,
-		`LineID` int(11) DEFAULT NULL,
-		`EngineID` int(11) NOT NULL,
-		`TrainNum` varchar(255) COLLATE utf8_bin DEFAULT NULL,
-		`EngineBureauID` int(11) DEFAULT NULL,
-		`MsIsdn` bigint(20) NOT NULL,
-		`CTCS_ID` int(11) NOT NULL,
-		`CalledNum` bigint(20) DEFAULT NULL,
-		`StartTime` varchar(255) COLLATE utf8_bin NOT NULL,
-		`StopTime` varchar(255) COLLATE utf8_bin DEFAULT NULL,
-		`DiscBtsName` varchar(255) COLLATE utf8_bin DEFAULT NULL,
-		`FindType` smallint(6) NOT NULL,
-		`Fcod` varchar(255) COLLATE utf8_bin DEFAULT NULL,
-		`CauseCategory` varchar(255) COLLATE utf8_bin DEFAULT NULL,
-		`PriData` varchar(1024) COLLATE utf8_bin DEFAULT NULL,
-		`AData` varchar(512) COLLATE utf8_bin DEFAULT NULL,
-		`AbisData` varchar(2048) COLLATE utf8_bin DEFAULT NULL,
-		`AnalyseSynth` varchar(512) COLLATE utf8_bin DEFAULT NULL,
-		`TimeoutAck` smallint(6) DEFAULT NULL,
-		`IsGuessValue` smallint(6) DEFAULT NULL,
-		PRIMARY KEY (`AffairID`),
-		KEY `MsIsdn` (`MsIsdn`),
-		KEY `Fcod` (`Fcod`),
-		KEY `StartTime` (`StartTime`,`StopTime`),
-		KEY `EngineBureauID` (`EngineBureauID`),
-		KEY `LineID` (`LineID`),
-		CONSTRAINT `EngineBureauID` FOREIGN KEY (`EngineBureauID`) REFERENCES `GBIAP_common_config`.`BureauInfoTable` (`BureauNum`) ON UPDATE CASCADE,
-		CONSTRAINT `Fcod` FOREIGN KEY (`Fcod`) REFERENCES `GBIAP_common_config`.`FcodInfo` (`Fcod`) ON UPDATE CASCADE,
-		CONSTRAINT `LineID` FOREIGN KEY (`LineID`) REFERENCES `GBIAP_common_config`.`LineInfoTable` (`LineID`) ON UPDATE CASCADE
-	) ENGINE=InnoDB AUTO_INCREMENT=51 DEFAULT CHARSET=utf8 COLLATE=utf8_bin ROW_FORMAT=DYNAMIC;
+CREATE TABLE `C3TimeOut_AlarmInfo` (
+    `AffairID` bigint(20) NOT NULL AUTO_INCREMENT,
+    `LineID` int(11) DEFAULT NULL,
+    `EngineID` int(11) NOT NULL,
+    `TrainNum` varchar(255) COLLATE utf8_bin DEFAULT NULL,
+    `EngineBureauID` int(11) DEFAULT NULL,
+    `MsIsdn` bigint(20) NOT NULL,
+    `CTCS_ID` int(11) NOT NULL,
+    `CalledNum` bigint(20) DEFAULT NULL,
+    `StartTime` varchar(255) COLLATE utf8_bin NOT NULL,
+    `StopTime` varchar(255) COLLATE utf8_bin DEFAULT NULL,
+    `DiscBtsName` varchar(255) COLLATE utf8_bin DEFAULT NULL,
+    `FindType` smallint(6) NOT NULL,
+    `Fcod` varchar(255) COLLATE utf8_bin DEFAULT NULL,
+    `CauseCategory` varchar(255) COLLATE utf8_bin DEFAULT NULL,
+    `PriData` varchar(1024) COLLATE utf8_bin DEFAULT NULL,
+    `AData` varchar(512) COLLATE utf8_bin DEFAULT NULL,
+    `AbisData` varchar(2048) COLLATE utf8_bin DEFAULT NULL,
+    `AnalyseSynth` varchar(512) COLLATE utf8_bin DEFAULT NULL,
+    `TimeoutAck` smallint(6) DEFAULT NULL,
+    `IsGuessValue` smallint(6) DEFAULT NULL,
+    PRIMARY KEY (`AffairID`),
+    KEY `MsIsdn` (`MsIsdn`),
+    KEY `Fcod` (`Fcod`),
+    KEY `StartTime` (`StartTime`,`StopTime`),
+    KEY `EngineBureauID` (`EngineBureauID`),
+    KEY `LineID` (`LineID`),
+    CONSTRAINT `EngineBureauID` FOREIGN KEY (`EngineBureauID`) REFERENCES `GBIAP_common_config`.`BureauInfoTable` (`BureauNum`) ON UPDATE CASCADE,
+    CONSTRAINT `Fcod` FOREIGN KEY (`Fcod`) REFERENCES `GBIAP_common_config`.`FcodInfo` (`Fcod`) ON UPDATE CASCADE,
+    CONSTRAINT `LineID` FOREIGN KEY (`LineID`) REFERENCES `GBIAP_common_config`.`LineInfoTable` (`LineID`) ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=51 DEFAULT CHARSET=utf8 COLLATE=utf8_bin ROW_FORMAT=DYNAMIC;
 ```
 
 # 2.mysql 的索引
@@ -201,13 +201,12 @@ CREATE TABLE tablename ( [...], INDEX [索引的名字] (列的列表) )
 
 - 这种索引和前面的“普通索引”基本相同，但有一个区别：索引列的所有值都只能出现一次，即必须唯一。
 
-```
+```sql
+CREATE UNIQUE INDEX <索引的名字> ON tablename (列的列表)
 
-	CREATE UNIQUE INDEX <索引的名字> ON tablename (列的列表)
+ALTER TABLE tablename ADD UNIQUE [索引的名字] (列的列表)
 
-	ALTER TABLE tablename ADD UNIQUE [索引的名字] (列的列表)
-
-	CREATE TABLE tablename ( [...], UNIQUE [索引的名字] (列的列表) )
+CREATE TABLE tablename ( [...], UNIQUE [索引的名字] (列的列表) )
 ```
 
 ## 2.3 全文索引
@@ -253,9 +252,11 @@ CREATE TABLE index5(
 
 注意：索引的字段可以是任意顺序的，如：
 
-	SELECT * FROM test WHERE col1=“1” AND clo2=“2”
-	
-	SELECT * FROM test WHERE col2=“2” AND clo1=“1”
+```sql
+SELECT * FROM test WHERE col1=“1” AND clo2=“2”
+
+SELECT * FROM test WHERE col2=“2” AND clo1=“1”
+```
 
 # 3.主键与索引对比
 
@@ -315,3 +316,11 @@ table.myd记录了数据，table.myi记录了索引的数据。在用到索引�
 - 图示
 
 ![](img/index1.png)
+
+## 覆盖索引
+
+覆盖索引（covering index ，或称为索引覆盖）指一个查询语句的执行只用从索引中就能够取得，不必从数据表中读取。也可以称之为实现了索引覆盖。
+
+**如果一个索引包含了（或覆盖了）满足查询语句中字段与条件的数据就叫做覆盖索引。**
+
+> 当发起一个索引覆盖查询时，在explain的extra列可以看到using index的信息，此时可以确定数据库使用了覆盖索引。

@@ -306,7 +306,7 @@ static final int tableSizeFor(int cap) {
 
 在扩容的时候，如果数组`table`长度是2的次幂，那么扩容后元素的位置要么是在原位置，要么是在原位置再移动2次幂的位置。
 
-看下图可以明白这句话的意思，n为`table`的长度，图（a）表示扩容前的`key1`和`key2`两种`key`确定索引位置的示例，图（b）表示扩容后`key1`和`key2`两种`key`确定索引位置的示例，其中`hash1`是key1对应的哈希与高位运算结果。
+看下图可以明白这句话的意思，n为`table`的长度，图（a）表示扩容前的`key1`和`key2`两种`key`确定索引位置的示例，图（b）表示扩容后`key1`和`key2`两种`key`确定索引位置的示例，其中`hash1`是`key1`对应的哈希与高位运算结果。
 
 ![](E:/notes/java/javaBasic/img/hashMap2.webp)
 
@@ -2098,9 +2098,7 @@ public interface NavigableSet<E> extends SortedSet<E> {
 
 ### TreeSet
 
-```
-TreeSet类型是J2SE中唯一可实现自动排序的类型
-```
+`TreeSet`类型是`J2SE`中唯一可实现自动排序的类型
 
 - TreeSet是SortedSet接口的唯一实现类，TreeSet可以确保集合元素处于排序状态。
 - TreeSet支持两种排序方式，自然排序 和定制排序，其中自然排序为默认的排序方式。  

@@ -89,7 +89,7 @@
 
 
 
-# 内存分区
+# 堆内存分区
 
  内存主要被分为三块：**新生代、老年代、持久代**。三代的特点不同，造就了他们使用的GC算法不同：
 
@@ -189,7 +189,7 @@ jvm 可配置的参数选项可以参考 Oracle 官方网站给出的相关信�
 
 [java8 linux Oracle官网示例](https://docs.oracle.com/javase/8/docs/technotes/tools/unix/java.html)
 
-[java8 linux Oracle官网示例](https://docs.oracle.com/javase/8/docs/technotes/tools/windows/java.html)
+[java8 windows Oracle官网示例](https://docs.oracle.com/javase/8/docs/technotes/tools/windows/java.html)
 
 下面只列举其中的几个常用和容易掌握的配置选项
 
@@ -823,8 +823,8 @@ Java HotSpot(TM) 64-Bit Server VM (build 25.212-b10, mixed mode)
 | -XX:+DisableExplicitGC      | 是否关闭 System.gc()            | 无                    | -                                                            |
 | -XX:MaxTenuringThreshold    | 垃圾最大年龄                    | 无                    | N 次没有被回收的新生代资源自动放入老年代，只有使用串行GC时才有效 |
 | -XX:MaxGCPauseMillis        | 最大停顿时间                    | -                     | 每次年轻代垃圾收集的最长时间                                 |
-| -Xnoclassgc                 | 金庸垃圾回收                    | 无                    | -                                                            |
-| -XX:SoftRefLRUPolicyMSPerMB | 没M堆内存中软引用存活时间       | 1s                    | -                                                            |
+| -Xnoclassgc                 | 禁用垃圾回收                    | 无                    | -                                                            |
+| -XX:SoftRefLRUPolicyMSPerMB | 堆内存中软引用存活时间          | 1s                    | -                                                            |
 | -XX:PretenureSizeThreshold  | 对象超过多大自动在老年代分配    | 0                     | 采用 Parallel Scavenge GC 时无效                             |
 | -XX:TLABWasteTargetPercent  | TLAB 占 eden 区的百分比         | 1%                    | -                                                            |
 | -XX:+CollectGen0First       | FullGC时是否先YGC               | false                 | -                                                            |

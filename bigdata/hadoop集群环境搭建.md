@@ -1301,6 +1301,8 @@ redis5 提供了关闭集群的工具，在如下目录：
 /opt/redis-5.0.5/src/redis-server  /opt/redis-cluster-conf/7006/redis.conf
 
 /opt/redis-5.0.5/src/redis-cli --cluster create 172.16.1.131:7001 172.16.1.132:7002 172.16.1.133:7003 172.16.1.134:7004 172.16.1.135:7005 172.16.1.136:7006 --cluster-replicas 1
+
+/opt/redis-5.0.4/src/redis-cli --cluster create 192.168.199.170:7001 192.168.199.170:7002 192.168.199.170:7003 192.168.199.170:7004 192.168.199.170:7005 192.168.199.170:7006  --cluster-replicas 1
 ```
 
 - 查看主从节点
