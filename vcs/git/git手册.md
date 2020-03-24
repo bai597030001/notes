@@ -152,7 +152,39 @@ drop：我要丢弃该commit（缩写:d）
 示例：
 
 ```properties
+pick fb29a79 新增dubbo,spring cloud等相关笔记
+pick a8fe28b 新增spring cloud笔记
+pick 242230e 更新spring cloud gateway
+pick 10d24ff 更新网络相关 cloud相关
+pick 81707ee 更新tomcat, io等
+pick c0af253 更新部分笔记
+squash f28e89e 修改git手册
 
+# Rebase f7b3dda..f28e89e onto 10d24ff (7 commands)
+#
+# Commands:
+# p, pick <commit> = use commit
+# r, reword <commit> = use commit, but edit the commit message
+# e, edit <commit> = use commit, but stop for amending
+# s, squash <commit> = use commit, but meld into previous commit
+# f, fixup <commit> = like "squash", but discard this commit's log message
+# x, exec <command> = run command (the rest of the line) using shell
+# b, break = stop here (continue rebase later with 'git rebase --continue')
+# d, drop <commit> = remove commit
+# l, label <label> = label current HEAD with a name
+# t, reset <label> = reset HEAD to a label
+# m, merge [-C <commit> | -c <commit>] <label> [# <oneline>]
+# .       create a merge commit using the original merge commit's
+# .       message (or the oneline, if no original merge commit was
+# .       specified). Use -c <commit> to reword the commit message.
+#
+# These lines can be re-ordered; they are executed from top to bottom.
+#
+# If you remove a line here THAT COMMIT WILL BE LOST.
+#
+# However, if you remove everything, the rebase will be aborted.
+#
+# Note that empty commits are commented out
 ```
 
 

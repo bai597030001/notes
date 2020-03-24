@@ -1116,17 +1116,7 @@ XX:+PrintGCTimeStamps -XX:+PrintGCDetails -Xloggc:<filename>
 
 
 
-使用： https://blog.csdn.net/CoderBruis/article/details/101234738 
-
-
-
-### 分析结果
-
-gc easy分析完成后，可以查看其分析结果。
-
-
-
-#### JVM Heap Size
+### JVM Heap Size
 
  这一部分分别使用了表格和图形界面来展示了JVM堆内存大小。 
 
@@ -1141,7 +1131,7 @@ gc easy分析完成后，可以查看其分析结果。
 值得注意的是，每一代的最大内存利用率都会超过分配的大小。
 
 
-#### Key Performance Indicators
+### Key Performance Indicators
 
  这一部分是关键的性能指标 
 
@@ -1156,13 +1146,13 @@ gc easy分析完成后，可以查看其分析结果。
 
 
 
-#### Interactive Graphs
+### Interactive Graphs
 
 
 
 
 
-#### GC Statistics
+### GC Statistics
 
 
 
@@ -1176,7 +1166,7 @@ gc easy分析完成后，可以查看其分析结果。
 
 
 
-#### Object Stats
+### Object Stats
 
 
 
@@ -1194,7 +1184,7 @@ Avg promotion rate表示平均的晋升率。
 
 
 
-#### Memory Leak
+### Memory Leak
 
 检测程序没有内存泄漏。
 
@@ -1204,7 +1194,7 @@ Avg promotion rate表示平均的晋升率。
 
 
 
-#### GC Causes
+### GC Causes
 
 
 
@@ -1217,6 +1207,26 @@ CG原因，以及所花费的时间，也就是停顿线程的时间。
 
 
 除了上面介绍的以外，还有`System.gc() calls`，`Consecutive Full GC`、`Safe Point Duration`、`Tenuring Summary`以及`command Line Flags`等等 
+
+
+
+`Ergonomics`
+
+`Allocation Failure`
+
+`Metadata GC Threashold`
+
+`System.gc() calls`
+
+`Consecutive Full GC`
+
+`Safe Point Duration`
+
+`Tenuring Summary`
+
+`command Line Flags`
+
+
 
 
 
@@ -1372,6 +1382,8 @@ cost time=1530
 
 
 # GC常见问题
+
+## GC触发时机
 
 
 

@@ -252,7 +252,7 @@ $ jmap [ option ] [server-id@]remote-hostname-or-IP
 
 jvm堆快照分析工具。用来分析jmap生成的dump。
 
-jhat内置了一个微型的HTTP/HTML服务器，生成dump的分析结果后， 可以在浏览器中查看。在此要注意，一般不会直接在服务器上进行分析，因为jhat是一个耗时并且耗费硬件资源的过程，一般把服务器生成的dump文件复制 到本地或其他机器上，通过本地可视化工具来分析（**MAT/jprofile/visualVm**）。
+jhat内置了一个微型的HTTP/HTML服务器，生成dump的分析结果后， 可以在浏览器中查看。在此要注意，一般不会直接在服务器上进行分析，因为jhat是一个耗时并且耗费硬件资源的过程，一般把服务器生成的dump文件复制 到本地或其他机器上，通过本地可视化工具来分析（**MAT/jprofile/jvisualVm**）。
 
 
 
