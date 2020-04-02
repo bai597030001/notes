@@ -1,13 +1,9 @@
 # zuul
 
+`Zuul`支持`Ribbon`和`Hystrix`，也能够实现客户端的负载均衡。我们的`Feign`不也是实现客户端的负载均衡和`Hystrix`的吗？既然`Zuul`已经能够实现了，那我们的`Feign`还有必要吗
 
-
-Zuul支持Ribbon和Hystrix，也能够实现客户端的负载均衡。我们的Feign不也是实现客户端的负载均衡和Hystrix的吗？既然Zuul已经能够实现了，那我们的Feign还有必要吗
-
-
-
-> - zuul是对外暴露的唯一接口相当于路由的是controller的请求，而Ribbon和Fegin路由了service的请求
-> - zuul做最外层请求的负载均衡 ，而Ribbon和Fegin做的是系统内部各个微服务的service的调用的负载均衡
+> - `zuul`是对外暴露的唯一接口，相当于路由的是controller的请求，而`Ribbon`和`Fegin`路由了`service`的请求
+> - `zuul`做最外层请求的负载均衡 ，而`Ribbon`和`Fegin`做的是系统内部各个微服务的`service`的调用的负载均衡
 
 
 
@@ -233,7 +229,7 @@ management:
 
 
 
-访问：在访问的url路径中加上访问的serviceId（eureka中注册的），并且将port换成zuul模块的。
+访问：在访问的`url`路径中加上访问的`serviceId`（`eureka`中注册的），并且将`port`换成`zuul`模块的。
 
 
 
@@ -243,7 +239,7 @@ management:
 
 ### 配置路由规则
 
-- 我们可以通过修改application.yml中的配置来配置路由规则，这里我们将匹配`/userService/**`的请求路由到user-service服务上去，匹配`/feignService/**`的请求路由到feign-service上去。
+- 我们可以通过修改`application.yml`中的配置来配置路由规则，这里我们将匹配`/userService/**`的请求路由到`user-service`服务上去，匹配`/feignService/**`的请求路由到`feign-service`上去。
 
 ```yaml
 zuul:
@@ -254,15 +250,15 @@ zuul:
       path: /feignService/**
 ```
 
-访问http://localhost:8801/userService/user/1可以发现请求路由到了user-service上了；
+访问http://localhost:8801/userService/user/1可以发现请求路由到了`user-service`上了；
 
-访问http://localhost:8801/feignService/user/1可以发现请求路由到了feign-service上了。
+访问http://localhost:8801/feignService/user/1可以发现请求路由到了`feign-service`上了。
 
 
 
 ### 默认路由规则
 
-- Zuul和Eureka结合使用，可以实现路由的自动配置，自动配置的路由以服务名称为匹配路径，相当于如下配置：
+- `Zuul`和`Eureka`结合使用，可以实现路由的自动配置，自动配置的路由以服务名称为匹配路径，相当于如下配置：
 
 ```yaml
 zuul:
@@ -301,7 +297,7 @@ zuul:
 
 ### Header过滤及重定向添加Host
 
-- Zuul在请求路由时，默认会过滤掉一些敏感的头信息，以下配置可以防止路由时的Cookie及Authorization的丢失：
+- `Zuul`在请求路由时，默认会过滤掉一些敏感的头信息，以下配置可以防止路由时的`Cookie`及Authorization的丢失：
 
 ```yaml
 zuul:
@@ -315,7 +311,7 @@ zuul:
 
 ### 查看路由信息
 
-> 我们可以通过SpringBoot Actuator来查看Zuul中的路由信息。
+> 我们可以通过`SpringBoot Actuator`来查看`Zuul`中的路由信息。
 
 
 
@@ -343,13 +339,13 @@ management:
 
 ## 过滤器
 
-> 路由与过滤是Zuul的两大核心功能，路由功能负责将外部请求转发到具体的服务实例上去，是实现统一访问入口的基础，过滤功能负责对请求过程进行额外的处理，是请求校验过滤及服务聚合的基础。
+> 路由与过滤是`Zuul`的两大核心功能，路由功能负责将外部请求转发到具体的服务实例上去，是实现统一访问入口的基础，过滤功能负责对请求过程进行额外的处理，是请求校验过滤及服务聚合的基础。
 
 
 
 ### 过滤器类型
 
-> Zuul中有以下几种典型的过滤器类型。
+> `Zuul`中有以下几种典型的过滤器类型。
 
 
 
@@ -375,16 +371,13 @@ static：特殊的 Filter 具体的可以看 StaticResponseFilter，它允许从
 
 ### 自定义过滤器
 
-- 添加PreLogFilter类继承ZuulFilter
+- 添加`PreLogFilter`类继承`ZuulFilter`
 
 > 这是一个前置过滤器，用于在请求路由到目标服务前打印请求日志。
 
 
 
 ```java
-/**
- * Created by macro on 2019/9/9.
- */
 @Component
 public class PreLogFilter extends ZuulFilter {
     private Logger LOGGER = LoggerFactory.getLogger(this.getClass());
@@ -457,7 +450,7 @@ zuul:
       disable: true 
 ```
 
-- 以下是禁用PreLogFilter的示例配置：
+- 以下是禁用`PreLogFilter`的示例配置：
 
 ```yaml
 zuul:
@@ -491,7 +484,7 @@ zuul:
 
 ## 整合hystrix和ribbon
 
-- zuul本身就支持hystrix和ribbon
+- `zuul`本身就支持`hystrix`和`ribbon`
 
 
 
@@ -529,7 +522,7 @@ hystrix:
 
 
 
-- zuul回退机制
+- `zuul`回退机制
 
 >  提供一个回退机制当路由后面的服务发生故障时
 
@@ -669,7 +662,7 @@ hystrix:
 
 ### 补偿策略
 
-重试的时候还有补偿策略，例如重试时间间隔（默认是没有间隔：org.springframework.retry.backoff.NoBackOffPolicy），我们可以实现自己的补偿策略，也可以用内部实现的一些补偿策略(需要定义一个bean)，如指数级的补偿策略(1秒，2秒，4秒类似这种指数级睡眠间隔增长，不超过10秒):
+重试的时候还有补偿策略，例如重试时间间隔（默认是没有间隔：`org.springframework.retry.backoff.NoBackOffPolicy`），我们可以实现自己的补偿策略，也可以用内部实现的一些补偿策略(需要定义一个bean)，如指数级的补偿策略(1秒，2秒，4秒类似这种指数级睡眠间隔增长，不超过10秒):
 
 ```java
 @Configuration
@@ -688,7 +681,7 @@ public class MyConfiguration {
 
 
 
-也可以正对某些响应状态码进行重试(当调用rcmd-service-data返回404,502的时候，进行重试，其他状态码不重试):
+也可以正对某些响应状态码进行重试(当调用`rcmd-service-data`返回`404,502`的时候，进行重试，其他状态码不重试):
 
 ```yaml
 rcmd-service-data:
@@ -700,11 +693,11 @@ rcmd-service-data:
 
 ### 总结
 
-- 当ribbon使用的是httpclient时，重试机制是默认关闭的，如果要启动重试机制需要在项目中引用spring-retry包,以及手工打开zuul.retryable=true设置,其实除此之外spring.cloud.loadbalancer.retry.enabled=true 也是需要设置的只不过这个值默认为true，所以此处可以忽略设置。
+- 当`ribbon`使用的是`httpclient`时，重试机制是默认关闭的，如果要启动重试机制需要在项目中引用`spring-retry`包,以及手工打开`zuul.retryable=true`设置,其实除此之外`spring.cloud.loadbalancer.retry.enabled=true` 也是需要设置的只不过这个值默认为`true`，所以此处可以忽略设置。
 
-- 当ribbon使用的是okhttp时，重试机制是自动打开的，重试的效果与我们设置的ribbon超时时间以及重试次数都有关系。
+- 当`ribbon`使用的是`okhttp`时，重试机制是自动打开的，重试的效果与我们设置的`ribbon`超时时间以及重试次数都有关系。
 
-- 此外，重试默认都是只支持get请求，如果我把请求方式修改为post重试是不生效的，我们需要设置OkToRetryOnAllOperations为true, 这种情况不太建议，因为post请求大多都是写入请求，如果要支持重试，服务自身的幂等性一定要健壮。
+- 此外，重试默认都是只支持`get`请求，如果我把请求方式修改为`post`重试是不生效的，我们需要设置`OkToRetryOnAllOperations=true`, 这种情况不太建议，因为`post`请求大多都是写入请求，如果要支持重试，服务自身的幂等性一定要健壮。
 
   
 
@@ -714,15 +707,15 @@ rcmd-service-data:
 
 
 
-RateLimiter是Google开源的实现了令牌桶算法的限流工具（速率限制器）。http://ifeve.com/guava-ratelimiter/
+`RateLimiter`是Google开源的实现了令牌桶算法的限流工具（速率限制器）。http://ifeve.com/guava-ratelimiter/
 
-Spring Cloud Zuul RateLimiter结合Zuul对RateLimiter进行了封装，通过实现ZuulFilter提供了服务限流功能
+`Spring Cloud Zuul RateLimiter`结合`Zuul`对`RateLimiter`进行了封装，通过实现`ZuulFilter`提供了服务限流功能
 
 
 
 ## 原理
 
-基于 zuul 网关的过滤功能，新增 RateLimitPreFilter（order：-1） 以及 RateLimitPostFilter（order：990） 过滤器。
+基于 `zuul` 网关的过滤功能，新增 `RateLimitPreFilter`（order：-1） 以及 `RateLimitPostFilter`（order：990） 过滤器。
 
 在内存或者缓存或者数据库中维护一个 Map，根据请求以及限流粒度生成 key，接收到新的请求时，value 值加 1。和限流策略中的 limit 或者 quota 对比，如果超出则报错。
 
@@ -883,13 +876,13 @@ public enum RateLimitType {
 
 
 
-默认的key生成策略实现为:`DefaultRateLimitKeyGenerator` 。如果不能满足需求，可以自定义 RateLimitKeyGenerator 实现。
+默认的`key`生成策略实现为:`DefaultRateLimitKeyGenerator` 。如果不能满足需求，可以自定义 `RateLimitKeyGenerator` 实现。
 
 
 
 ## 存储方式
 
-RateLimiter的限流数据是默认以ConcurrentHashMap方式存储在内存中的，当我们部署了Zuul集群的时候，就会影响我们的限流策略了。我们可以将限流数据存储在Redis中，这样就可以集中记录各个Zuul节点的限流数据，来保证限流的准确性。
+`RateLimiter`的限流数据是默认以`ConcurrentHashMap`方式存储在内存中的，当我们部署了`Zuul`集群的时候，就会影响我们的限流策略了。我们可以将限流数据存储在`Redis`中，这样就可以集中记录各个`Zuul`节点的限流数据，来保证限流的准确性。
 
 
 

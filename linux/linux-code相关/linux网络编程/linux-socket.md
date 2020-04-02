@@ -237,9 +237,11 @@ int listen(int sockfd, int backlog)
 
 
 
-附: linux进程文件描述符最大值
+进程<font color=#dd0000>用户级文件描述符最大值</font>
 
 ```shell
+$ ulimit -n # 查看
+
 $ ulimit -SHn 102400 // 只对当前的session有效
 ```
 
@@ -255,6 +257,26 @@ $ vim /etc/security/limits.conf
 ```
 
 
+
+<font color=#dd0000>系统级限制</font>
+
+> 内核参数：linux内核将分配的最大的文件句柄数，所有进程一共可以打开的文件数量。
+
+```shell
+$ sysctl -a
+$ cat /proc/sys/fs/file-max
+$ cat /proc/sys/fs/file-nr
+	
+1216    0       95896
+
+# 第一个参数：代表已分配的文件句柄
+# 第二个参数：代表已使用的文件句柄
+# 第三个参数：代表文件句柄的最大值
+```
+
+
+
+系统管理员可以通过写`/proc/sys/fs/file-max`文件来修改，具体能修改到多大，这要看机器的内存情况
 
 
 

@@ -47,7 +47,7 @@ $ jmap -dump:live,format=b,file=heap-dump.bin <pid>
 
 
 
-full gc之前dump：
+`full gc`之前`dump`：
 
 `-XX:+HeapDumpBeforeFullGC -XX:HeapDumpPath=./java_pid<pid>.hprof` 
 
@@ -298,8 +298,6 @@ public class GCoverheadTest {
 
 
 
-
-
 ### 3、Permgen space
 
 该错误表示永久代（Permanent Generation）已用满，通常是因为加载的 class 数目太多或体积太大。
@@ -428,9 +426,7 @@ JVM 向 OS 请求创建 native 线程失败，就会抛出 `Unable to create new
 
 5、使用 -Xss 参数减少线程栈的大小；
 
-6、调高 OS 层面的线程最大数：执行 `ulimia-a` 查看最大线程数限制，使用 `ulimit-u xxx` 调整最大线程数限制。
-
-ulimit -a .... 省略部分内容 ..... max user processes (-u) 16384
+6、调高 OS 层面的线程最大数：执行 `ulimia -a` 查看最大线程数限制，使用 `ulimit -u xxx` 调整最大线程数限制。
 
 
 
@@ -448,7 +444,7 @@ ulimit -a .... 省略部分内容 ..... max user processes (-u) 16384
 
 3、应用程序的本地内存泄漏（native leak），例如不断申请本地内存，却不释放。
 
-4、执行 `jmap-histo:live` 命令，强制执行 Full GC；如果几次执行后内存明显下降，则基本确认为 Direct ByteBuffer 问题。
+4、执行 `jmap-histo:live` 命令，强制执行 `Full GC`；如果几次执行后内存明显下降，则基本确认为 `Direct ByteBuffer` 问题。
 
 #### 解决方案
 
@@ -466,7 +462,7 @@ ulimit -a .... 省略部分内容 ..... max user processes (-u) 16384
 
 有一种内核作业（Kernel Job）名为 Out of Memory Killer，它会在可用内存极低的情况下“杀死”（kill）某些进程。OOM Killer 会对所有进程进行打分，然后将评分较低的进程“杀死”，具体的评分规则可以参考 Surviving the Linux OOM Killer。
 
-不同于其他的 OOM 错误， `Killprocessorsacrifice child` 错误不是由 JVM 层面触发的，而是由操作系统层面触发的。
+不同于其他的 OOM 错误， `Kill processor sacrifice child` 错误不是由 JVM 层面触发的，而是由操作系统层面触发的。
 
 #### 原因分析
 
@@ -497,12 +493,12 @@ JVM 在为数组分配内存前，会检查要分配的数据结构在系统中�
 #### 直接内存溢出原因
 
 - 本机直接内存的分配虽然不会受到Java 堆大小的限制，但是受到本机总内存大小限制。
-- 直接内存由 -XX:MaxDirectMemorySize 指定，如果不指定，则默认与Java堆最大值（-Xmx指定）一样。
-- NIO程序中，使用ByteBuffer.allocteDirect(capability)分配的是直接内存，可能导致直接内存溢出。
+- 直接内存由 `-XX:MaxDirectMemorySize` 指定，如果不指定，则默认与Java堆最大值（`-Xmx`指定）一样。
+- `NIO`程序中，使用`ByteBuffer.allocteDirect(capability)`分配的是直接内存，可能导致直接内存溢出。
 
 #### 解决方案
 
-1、Java 只能通过 ByteBuffer.allocateDirect 方法使用 Direct ByteBuffer，因此，可以通过 Arthas 等在线诊断工具拦截该方法进行排查。
+1、Java 只能通过 `ByteBuffer.allocateDirect` 方法使用 `Direct ByteBuffer`，因此，可以通过 Arthas 等在线诊断工具拦截该方法进行排查。
 
 2、检查是否直接或间接使用了 NIO，如 netty，jetty 等。
 

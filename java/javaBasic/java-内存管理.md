@@ -317,6 +317,14 @@ JMM定义了**线程和主内存之间的抽象关系**：线程之间的共享�
 
 
 
+## as-if-serial语义
+
+所有的动作(Action)都可以为了优化而被重排序，但是必须保证它们重排序后的结果和程序代码本身的应有结果是一致的。
+
+Java编译器、运行时和处理器都会保证单线程下的as-if-serial语义。
+
+
+
 ## Happens-Before 内存模型
 
 Happens-Before 内存模型或许叫做 Happens-Before 原则更为合适，在 《JSR 133 ：Java 内存模型与线程规范》中，Happens-Before 内存模型被定义成 Java 内存模型近似模型，Happens-Before 原则要说明的是关于可见性的一组偏序关系。
@@ -432,3 +440,108 @@ mian 线程中调用了 t1 线程的 interrupt() 方法，mian 对 count 的修�
 ### 8、传递性规则
 
 这条规则是指如果 A Happens-Before B，且 B Happens-Before C，那么 A Happens- Before C。
+
+
+
+## 内存屏障
+
+ 内存屏障（Memory Barrier，或有时叫做内存栅栏，Memory Fence）是一种CPU指令，用于控制特定条件下的<font color=#dd0000>重排序和内存可见性问题</font>。Java编译器也会根据内存屏障的规则禁止重排序。
+
+
+
+编译器和CPU能够重排序指令，保证最终相同的结果，尝试优化性能。插入一条Memory Barrier会告诉编译器和CPU：不管什么指令都不能和这条Memory Barrier指令重排序。
+
+
+
+Memory Barrier所做的另外一件事是强制刷出各种CPU cache，如一个Write-Barrier（写入屏障）将刷出所有在Barrier之前写入 cache 的数据，因此，任何CPU上的线程都能读取到这些数据的最新版本。
+
+
+
+### 内存屏障的作用
+
+- 防止指令之间的重排序
+- 强制把写缓冲区/高速缓存中的脏数据等写回主内存，让缓存中相应的数据失效
+
+### 硬件层的内存屏障
+
+- 对于Load Barrier（即：读屏障）来说，在指令前插入Load Barrier，可以让高速缓存中的数据失效，强制从新从主内存加载数据
+- 对于Store Barrier（即：写屏障）来说，在指令后插入Store Barrier，能让写入缓存中的最新数据更新写入主内存，让其他线程可见
+
+### java内存屏障
+
+- LoadLoad屏障：对于这样的语句Load1; LoadLoad; Load2，在Load2及后续读取操作要读取的数据被访问前，保证Load1要读取的数据被读取完毕
+- StoreStore屏障：对于这样的语句Store1; StoreStore; Store2，在Store2及后续写入操作执行前，保证Store1的写入操作对其它处理器可见
+- LoadStore屏障：对于这样的语句Load1; LoadStore; Store2，在Store2及后续写入操作被刷出前，保证Load1要读取的数据被读取完毕
+- StoreLoad屏障：对于这样的语句Store1; StoreLoad; Load2，在Load2及后续所有读取操作执行前，保证Store1的写入对所有处理器可见。它的开销是四种屏障中最大的。在大多数处理器的实现中，这个屏障是个万能屏障，兼具其它三种内存屏障的功能
+
+### volatile内存屏障
+
+在一个变量被volatile修饰后，JVM会为我们做两件事：
+
+1、在每个volatile写操作前插入**StoreStore**屏障，在写操作后插入**StoreLoad**屏障。
+
+2、在每个volatile读操作前插入**LoadLoad**屏障，在读操作后插入**LoadStore**屏障。
+
+### final语义中的内存屏障
+
+对于 final 域，编译器和处理器要遵守两个重排序规则：
+
+1. **final 写**：“构造函数内对一个final域的写入”，与“随后把这个被构造对象的引用赋值给一个引用变量”，这两个操作之间不能重排序。
+2. **final 读**：“初次读一个包含final域的对象的引用”，与“随后初次读对象的final域”，这两个操作之间不能重排序。
+
+
+
+示例
+
+```java
+public final class FinalExample {
+    final int i;
+    public FinalExample() {
+        i = 3;     // 1
+    }
+    
+    public static void main(String[] args) {
+        FinalExample fe = new FinalExample();    // 2
+        int ele = fe.i;                          // 3
+    }
+}
+```
+
+说明： 操作1与操作2符合重排序规则1，不能重排，操作2与操作3符合重排序规则2，不能重排。
+
+由下面的示例我们来具体理解final域的重排序规则。
+
+```java
+public class FinalExample {
+    int i;                      // 普通变量
+    final int j;                // final变量
+    static FinalExample obj;    // 静态变量
+
+    public void FinalExample () { // 构造函数 
+        i = 1;    // 写普通域
+        j = 2;    // 写final域
+    }
+
+    public static void writer () { // 写线程A执行 
+        obj = new FinalExample();
+    }
+
+    public static void reader () {   // 读线程B执行
+        FinalExample object = obj;   // 读对象引用
+        int a = object.i;            // 读普通域
+        int b = object.j;            // 读final域
+    }
+}
+```
+
+说明：假设线程A先执行writer()方法，随后另一个线程B执行reader()方法。下面我们通过这两个线程的交互来说明这两个规则。
+
+
+
+### 优化屏障
+
+避免编译器的重排序优化操作，保证编译程序时在优化屏障之前的指令不会在优化屏障之后执行。这就保证了编译时期的优化不会影响到实际代码逻辑顺序
+
+优化屏障告知编译器：
+	内存信息已经修改，屏障后的寄存器的值必须从内存中重新获取
+	必须按照代码顺序产生汇编代码，不得越过屏障

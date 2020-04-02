@@ -1459,6 +1459,52 @@ public List<Runnable> shutdownNow() {
 
 
 
+### 线程回收逻辑
+
+在每个`Worker`线程中，不断地执行`runWork(Worker w)`方法，它里边在`while`中不断调用`getTask()`从任务队列中获取任务执行，其中`workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS)`调用指定了时间，当`keepAliveTime`时间到了以后，会返回`NULL`，此时会将`timedOut = true;`；在下一轮循环中`boolean timed = allowCoreThreadTimeOut || wc > corePoolSize;`会置为`true`，接着执行下面这段代码：
+
+```java
+if ((wc > maximumPoolSize || (timed && timedOut))
+    && (wc > 1 || workQueue.isEmpty())) {
+    // worker count -1
+    if (compareAndDecrementWorkerCount(c))
+        return null;
+    continue;
+}
+```
+
+此时`getTask()`方法返回`NULL`；而我们的`runWork(Worker w)`中由于`task = getTask()`为`null`，循环会退出，接着执行`finally`语句中的`processWorkerExit(w, completedAbruptly);`结束该线程，其中又会调用`tryTerminate()`->`interruptIdleWorkers(ONLY_ONE);`
+
+```java
+private void interruptIdleWorkers(boolean onlyOne) {
+    final ReentrantLock mainLock = this.mainLock;
+    mainLock.lock();
+    try {
+        for (Worker w : workers) {
+            Thread t = w.thread;
+            //该线程没有被中断且尝试获取锁成功
+            if (!t.isInterrupted() && w.tryLock()) {
+                try {
+                    //中断该线程
+                    t.interrupt();
+                } catch (SecurityException ignore) {
+                } finally {
+                    w.unlock();
+                }
+            }
+            if (onlyOne)
+                break;
+        }
+    } finally {
+        mainLock.unlock();
+    }
+}
+```
+
+
+
+
+
 ### 核心线程池大小配置
 
 

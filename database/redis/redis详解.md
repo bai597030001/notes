@@ -393,6 +393,240 @@ $ zsocre key member:获取该元素的score
 
 
 
+# 常见操作
+
+## SCAN
+
+```shell
+# 用法：
+$ SCAN cursor MATCH pattern COUNT count
+
+$ SSCAN
+$ HSCAN
+$ ZSCAN
+
+# cursor为游标，MATCH和COUNT为可选参数。
+```
+
+它每次返回小部分数据，不会像KEYS那样阻塞Redis。SCAN命令是基于游标的，每次调用后，都会返回一个游标，用于下一次迭代。当游标返回0时，表示迭代结束。
+
+SCAN每次返回的数量并不固定，也有可能返回数据为空。另外，SCAN命令和KEYS命令一样支持匹配。
+
+
+
+示例
+
+在Redis里存入10000个key用于测试
+
+```shell
+127.0.0.1:6379> scan 0 match key24* count 1000
+1) "1688"
+2) 1) "key2411"
+   2) "key2475"
+   3) "key2494"
+   4) "key2406"
+   5) "key2478"
+127.0.0.1:6379> scan 1688 match key24* count 1000
+1) "2444"
+2)  1) "key2458"
+    2) "key249"
+    3) "key2407"
+    4) "key2434"
+    5) "key241"
+    6) "key2497"
+    7) "key2435"
+    8) "key2413"
+    9) "key2421"
+   10) "key248"
+127.0.0.1:6379> scan 2444 match key24* count 1000
+1) "818"
+2)  1) "key2459"
+    2) "key2462"
+    3) "key2409"
+    4) "key2454"
+    5) "key2431"
+    6) "key2423"
+    7) "key2476"
+    8) "key2428"
+    9) "key2493"
+   10) "key2420"
+127.0.0.1:6379> scan 818 match key24* count 1000
+1) "9190"
+2)  1) "key2402"
+    2) "key2415"
+    3) "key2429"
+    4) "key2424"
+    5) "key2425"
+    6) "key2400"
+    7) "key2472"
+    8) "key2479"
+    9) "key2448"
+   10) "key245"
+   11) "key2487"
+   12) "key2430"
+   13) "key2405"
+127.0.0.1:6379> scan 9190 match key24* count 1000
+1) "12161"
+2)  1) "key2488"
+    2) "key2437"
+    3) "key2404"
+    4) "key2440"
+    5) "key2461"
+    6) "key2416"
+    7) "key2436"
+    8) "key2403"
+    9) "key2460"
+   10) "key2452"
+   11) "key2449"
+   12) "key2482"
+127.0.0.1:6379> scan 12161 match key24* count 1000
+1) "11993"
+2)  1) "key2483"
+    2) "key2491"
+    3) "key242"
+    4) "key2466"
+    5) "key2446"
+    6) "key2465"
+    7) "key243"
+    8) "key2438"
+    9) "key2457"
+   10) "key246"
+   11) "key2422"
+   12) "key2418"
+127.0.0.1:6379> scan 11993 match key24* count 1000
+1) "7853"
+2) 1) "key2498"
+   2) "key2451"
+   3) "key2439"
+   4) "key2495"
+   5) "key2408"
+   6) "key2410"
+127.0.0.1:6379> scan 7853 match key24* count 1000
+1) "5875"
+2)  1) "key2486"
+    2) "key2490"
+    3) "key244"
+    4) "key2401"
+    5) "key2463"
+    6) "key2481"
+    7) "key2477"
+    8) "key2468"
+    9) "key2433"
+   10) "key2489"
+   11) "key2455"
+   12) "key2426"
+   13) "key24"
+   14) "key2450"
+   15) "key2414"
+   16) "key2442"
+   17) "key2473"
+   18) "key2467"
+   19) "key2469"
+   20) "key2456"
+127.0.0.1:6379> scan 5875 match key24* count 1000
+1) "14311"
+2)  1) "key2453"
+    2) "key2492"
+    3) "key2480"
+    4) "key2427"
+    5) "key2443"
+    6) "key2417"
+    7) "key2432"
+    8) "key240"
+    9) "key2445"
+   10) "key2484"
+   11) "key2444"
+   12) "key247"
+   13) "key2485"
+127.0.0.1:6379> scan 14311 match key24* count 1000
+1) "16383"
+2)  1) "key2441"
+    2) "key2474"
+    3) "key2447"
+    4) "key2471"
+    5) "key2470"
+    6) "key2464"
+    7) "key2412"
+    8) "key2419"
+    9) "key2499"
+   10) "key2496"
+127.0.0.1:6379> scan 16383 match key24* count 1000
+1) "0"
+2) (empty list or set)
+```
+
+
+
+## DUMP
+
+使用一种Redis的格式序列化指定键存储的值。可用使用RESTORE命令将这个值反序列化。
+
+
+
+
+
+## MIGRATE
+
+用来将源实例的key以原子操作传输到目标实例，然后将源实例的key删除。相当于在源实例执行了DUMP+DEL操作，在目标实例执行了RESTORE操作。这一操作会阻塞进行传输的两个实例，在传输过程中，key总会存在于一个实例中，除非发生超时错误。
+
+
+
+
+
+## MOVE
+
+将当前数据库的key移动到指定的数据库中
+
+如果指定库中已经存在这个key或者当前库不存在这个key，那么这个命令什么也不做。
+
+
+
+## OBJECT
+
+OBJECT用来查看Redis对象内部的相关信息。
+
+用法：
+
+- OBJECT REFCOUNT key：返回指定key的值的引用数量
+- OBJECT ENCODING key：返回指定key的内部存储使用的编码格式
+- OBJECT IDLETIME key：返回指定key的空闲时间（有多长时间没有被读写），目前最小精度为10秒，这一命令经常在Redis淘汰机制中使用（淘汰策略为LRU或noeviction）
+- OBJECT FREQ key：返回指定key访问频率的对数，当淘汰策略为LFU时，这一命令会被用到
+- OBJECT HELP：返回帮助信息
+
+对象的编码格式也有很多种：
+
+- Strings会被编码为raw或int
+- Lists会被编码为ziplist或linkedlist
+- Sets会被编码为intset或hashtable
+- Hashs会被编码为ziplist或hashtable
+- Sorted Sets会被编码为ziplist或skiplist
+
+
+
+## SORT
+
+当有N个元素需要排序，并且要返回M个元素时，SORT命令的时间复杂度为O(N+M*log(M))
+
+此命令用于返回或保存list，set和sorted set的键，默认将数字或者可排序的key进行排序，Redis会将其视为双精度浮点数。
+
+如果想要对字符串按字典顺序排序，可以使用ALPHA参数。
+
+如果想要按照外部字段进行排序，可以使用BY参数。
+
+
+
+## TOUCH
+
+修改某一个或多个key的最后访问时间，如果key不存在，则忽略。
+
+
+
+## WAIT
+
+这个命令会阻塞客户端，直到前面所有的写操作都完成并且保存了指定数量的副本。该命令总会返回副本数量或者超时。
+
+
+
 # transactions
 
 `Redis` 事务可以一次执行多个命令， 并且带有以下两个重要的保证：
@@ -503,6 +737,8 @@ save 60 10000
 - 当子进程完成对新 `RDB` 文件的写入时，`Redis` 用新 `RDB` 文件替换原来的 `RDB` 文件，并删除旧的 `RDB` 文件。
 
 这种工作方式使得 `Redis` 可以从写时复制（copy-on-write）机制中获益。
+
+底层通过`write`, `fsync`完成写入磁盘操作
 
 
 
@@ -1434,19 +1670,175 @@ LRU（ Least Recently Used ）
 
 ## 近似LRU算法
 
-Redis的LRU算法并非完整的实现。这意味着Redis并没办法选择最佳候选来进行回收，也就是最久未被访问的键。相反它会尝试运行一个近似LRU的算法，通过对少量keys进行取样，然后回收其中一个最好的key（被访问时间较早的）。
+Redis使用的是近似LRU算法，它跟常规的LRU算法还不太一样。近似LRU算法通过随机采样法淘汰数据，每次随机出5（默认）个key，从里面淘汰掉最近最少使用的key。
 
-不过从Redis 3.0算法已经改进为回收键的候选池子。这改善了算法的性能，使得更加近似真是的LRU算法的行为。
+> 可以通过maxmemory-samples参数修改采样数量：例：maxmemory-samples 10 maxmenory-samples配置的越大，淘汰的结果越接近于严格的LRU算法
 
-Redis LRU有个很重要的点，你通过调整每次回收时检查的采样数量，以实现**调整算法的精度**。这个参数可以通过以下的配置指令调整:
+Redis为了实现近似LRU算法，给每个key增加了一个额外增加了一个24bit的字段，用来存储该key最后一次被访问的时间。
 
-```
+
+
+**Redis3.0对近似LRU的优化**
+
+Redis3.0对近似LRU算法进行了一些优化。新算法会维护一个候选池（大小为16），池中的数据根据访问时间进行排序，第一次随机选取的key都会放入池中，随后每次随机选取的key只有在访问时间小于池中最小的时间才会放入池中，直到候选池被放满。当放满后，如果有新的key需要放入，则将池中最后访问时间最大（最近被访问）的移除。
+
+当需要淘汰的时候，则直接从池中选取最近访问时间最小（最久没被访问）的key淘汰掉就行。
+
+```conf
 maxmemory-samples 5
 ```
 
 
 
-## 近似LFU算法
+**java实现lru算法：**
+
+```java
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * LinkedHashMap 中也实现了 Lru 算法
+ * @param <K>
+ * @param <V>
+ */
+public class LRULinkedHashCache<K, V> extends LinkedHashMap {
+
+    private final int CACHE_SIZE;
+
+    /**
+     * @param cacheSize 最多能缓存多少数据
+     */
+    public LRULinkedHashCache(int cacheSize){
+        // true 表示让LinkedHashMap按照访问顺序排序，即: 最近访问的放在头部, 最老访问的放在尾部
+        super((int) (Math.ceil(cacheSize / 0.75) + 1), 0.75f, true);
+        CACHE_SIZE = cacheSize;
+    }
+
+    @Override
+    protected boolean removeEldestEntry(Map.Entry eldest){
+        // 当map中的数据量大于指定的缓存个数时, 自动删除最老的数据
+        return size() > CACHE_SIZE;
+    }
+}
+```
+
+
+
+```java
+import java.util.HashMap;
+import java.util.Map;
+
+public class LRUHashCache<k, v> {
+    //容量
+    private int capacity;
+    //当前有多少节点的统计
+    private int count;
+    //缓存节点
+    private Map<k, Node<k, v>> nodeMap;
+    private Node<k, v> head;
+    private Node<k, v> tail;
+
+    public LRUHashCache(int capacity) {
+        if (capacity < 1) {
+            throw new IllegalArgumentException(String.valueOf(capacity));
+        }
+        this.capacity = capacity;
+        this.nodeMap = new HashMap<>();
+        //初始化头节点和尾节点，利用哨兵模式减少判断头结点和尾节点为空的代码
+        Node headNode = new Node(null, null);
+        Node tailNode = new Node(null, null);
+        headNode.next = tailNode;
+        tailNode.pre = headNode;
+        this.head = headNode;
+        this.tail = tailNode;
+    }
+
+    public void put(k key, v value) {
+        Node<k, v> node = nodeMap.get(key);
+        if (node == null) {
+            if (count >= capacity) {
+                //先移除一个节点
+                removeNode();
+            }
+            node = new Node<>(key, value);
+            //添加节点
+            addNode(node);
+        } else {
+            //移动节点到头节点
+            moveNodeToHead(node);
+        }
+    }
+
+    public Node<k, v> get(k key) {
+        Node<k, v> node = nodeMap.get(key);
+        if (node != null) {
+            moveNodeToHead(node);
+        }
+        return node;
+    }
+
+    private void removeNode() {
+        Node node = tail.pre;
+        //从链表里面移除
+        removeFromList(node);
+        nodeMap.remove(node.key);
+        count--;
+    }
+
+    private void removeFromList(Node<k, v> node) {
+        Node pre = node.pre;
+        Node next = node.next;
+
+        pre.next = next;
+        next.pre = pre;
+
+        node.next = null;
+        node.pre = null;
+    }
+
+    private void addNode(Node<k, v> node) {
+        //添加节点到头部
+        addToHead(node);
+        nodeMap.put(node.key, node);
+        count++;
+    }
+
+    private void addToHead(Node<k, v> node) {
+        Node next = head.next;
+        next.pre = node;
+        node.next = next;
+        node.pre = head;
+        head.next = node;
+    }
+
+    public void moveNodeToHead(Node<k, v> node) {
+        //从链表里面移除
+        removeFromList(node);
+        //添加节点到头部
+        addToHead(node);
+    }
+
+    class Node<k, v> {
+        k key;
+        v value;
+        Node pre;
+        Node next;
+
+        public Node(k key, v value) {
+            this.key = key;
+            this.value = value;
+        }
+    }
+}
+```
+
+
+
+也可以用`LinkedList`，每次get以后移动至头部/尾部，保证近期访问的在一侧 
+
+
+
+## LFU算法
 
 LFU算法是Redis4.0里面新加的一种淘汰策略。它的全称是Least Frequently Used，它的核心思想是根据key的最近被访问的频率进行淘汰，很少被访问的优先被淘汰，被访问的多的则被留下来。
 
@@ -1454,7 +1846,129 @@ LFU算法能更好的表示一个key被访问的热度。假如你使用的是LR
 
 
 
+**lfu算法java实现**
+
+```java
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
+public class LFUCache<k, v> {
+
+    private final int capcity;
+
+    private Map<k, v> cache = new HashMap<>();
+
+    private Map<k, HitRate> count = new HashMap<>();
+
+    public LFUCache(int capcity) {
+        this.capcity = capcity;
+    }
+
+    public void put(k key, v value) {
+        v v = cache.get(key);
+        if (v == null) {
+            if (cache.size() == capcity) {
+                removeElement();
+            }
+            count.put(key, new HitRate(key, 1, System.nanoTime()));
+        } else {
+            addHitCount(key);
+        }
+        cache.put(key, value);
+    }
+
+    public v get(k key) {
+        v value = cache.get(key);
+        if (value != null) {
+            addHitCount(key);
+            return value;
+        }
+        return null;
+    }
+
+    //移除元素
+    private void removeElement() {
+        HitRate hr = Collections.min(count.values());
+        cache.remove(hr.key);
+        count.remove(hr.key);
+    }
+
+    //更新访问元素状态
+    private void addHitCount(k key) {
+        HitRate hitRate = count.get(key);
+        hitRate.hitCount = hitRate.hitCount + 1;
+        hitRate.lastTime = System.nanoTime();
+    }
+
+    //内部类
+    class HitRate implements Comparable<HitRate> {
+        private k key;
+        private int hitCount;
+        private long lastTime;
+
+        private HitRate(k key, int hitCount, long lastTime) {
+            this.key = key;
+            this.hitCount = hitCount;
+            this.lastTime = lastTime;
+        }
+
+        @Override
+        public int compareTo(HitRate o) {
+            int compare = Integer.compare(this.hitCount, o.hitCount);
+            return compare == 0 ? Long.compare(this.lastTime, o.lastTime) : compare;
+        }
+    }
+
+
+    public static void main(String[] args) {
+        LFUCache<Integer, Integer> cache = new LFUCache<>(3);
+        cache.put(2, 2);
+        cache.put(1, 1);
+
+        System.out.println(cache.get(2));
+        System.out.println(cache.get(1));
+        System.out.println(cache.get(2));
+
+        cache.put(3, 3);
+        cache.put(4, 4);
+
+        //1、2元素都有访问次数，放入3后缓存满，加入4时淘汰3
+        System.out.println(cache.get(3));
+        System.out.println(cache.get(2));
+        //System.out.println(cache.get(1));
+        System.out.println(cache.get(4));
+
+        cache.put(5, 5);
+        //目前2访问2次，1访问一次，4访问一次，由于4的时间比较新，放入5的时候移除1元素。
+        System.out.println("-=-=-=-");
+        cache.cache.entrySet().forEach(entry -> {
+            System.out.println(entry.getValue());
+        });
+
+    }
+}
+```
+
+
+
 # redis相关问题
+
+## Redis能做什么
+
+- 缓存，毫无疑问这是Redis当今最为人熟知的使用场景。再提升服务器性能方面非常有效；
+
+- 排行榜，如果使用传统的关系型数据库来做这个事儿，非常的麻烦，而利用Redis的SortSet数据结构能够非常方便搞定；
+
+- 计算器/限速器，利用Redis中原子性的自增操作，我们可以统计类似用户点赞数、用户访问数等，这类操作如果用MySQL，频繁的读写会带来相当大的压力；限速器比较典型的使用场景是限制某个用户访问某个API的频率，常用的有抢购时，防止用户疯狂点击带来不必要的压力；
+
+  注：限速器也是对请求限流的一种实现方式。
+
+- 好友关系，利用集合的一些命令，比如求交集、并集、差集等。可以方便搞定一些共同好友、共同爱好之类的功能；
+
+- 简单消息队列，除了Redis自身的发布/订阅模式，我们也可以利用List来实现一个队列机制，比如：到货通知、邮件发送之类的需求，不需要高可靠，但是会带来非常大的DB压力，完全可以用List来完成异步解耦；
+
+- Session共享，默认Session是保存在服务器的文件中，即当前服务器，如果是集群服务，同一个用户过来可能落在不同机器上，这就会导致用户频繁登陆；采用Redis保存Session后，无论用户落在那台机器上都能够获取到对应的Session信息。
 
 
 
@@ -2097,3 +2611,240 @@ min: 0, max: 3, avg: 0.10 (10836 samples)
 
 - 一些时间复杂度比较高的命令，如 lrem，sort，sunion等命令会花比较长时间；另外，大量的重复连接也会造成延时，重用连接是一种很好的品质；如果有大量写操作，可以使用 `pipeline` 管道的方式（类似mysql事务），一次性提交，这样数据量也少了，连接次数也少了，不用每次都返回数据，速度自然会快很多；
 - Redis持久化需要fork出一个进程来进行持久化操作，这本身就会引发延时，如果数据变化大，RDB配置时间短，那这个代价还是挺大的；再加上，硬盘这东西真有点不靠谱，如果还是虚拟机上的虚拟硬盘，如果还是NFS共享目录，那这延时会让你崩溃
+
+
+
+# redis缓存与数据库双写一致性问题
+
+在缓存的使用中，通常会面临一个更新的问题：当数据源产生变化，如何去更新到数据库与缓存之中，并且尽量保证安全与性能。
+
+![](img/cache-db-consistency1.webp)
+
+> 1. 如果数据在缓存里边有，则直接从缓存取数据返回。
+> 2. 如果缓存中没有想要的数据，则先去查询数据库，然后将数据库查出来的数据写到缓存中再返回
+
+
+
+没有更新数据的情况下，数据库和缓存的数据是保持一致的；
+
+但是当要执行数据的更新操作的时候，数据库和缓存的数据就会出现不一致的情况
+
+
+
+为了解决数据不一致的问题，需要在更新数据库的时候，对缓存做一些额外的操作，有以下几种方案
+
+1. 先删缓存，再更新数据库
+2. 先更新数据库，再删缓存
+3. 缓存延时双删，更新前先删除缓存，然后更新数据，再延时删除缓存
+4. 监听MySQL binlog进行缓存更新
+
+
+
+**为什么缓存不采取更新操作而是直接删除？**
+
+> 在一些缓存场景，缓存不单单是数据库中直接取出来的值。比如可能更新了某个表的一个字段，然后其对应的缓存，是需要查询另外两个表的数据并进行运算，才能计算出缓存最新的值的。
+>
+> 如果频繁修改一个缓存涉及的多个表，缓存也频繁更新。但是这个缓存根本不会被频繁的访问到，那么这样更新缓存的待见是很高的。
+>
+> 比如说：一个缓存涉及的表的字段，在 1 分钟内就修改了 20 次，那么缓存更新 20 次；但是这个缓存在 1 分钟内只被读取了 1 次，有大量的冷数据。实际上，如果你只是删除缓存的话，那么在 1 分钟内，这个缓存不过就重新计算一次而已，开销大幅度降低。用到缓存才去算缓存。
+>
+> 其实删除缓存，而不是更新缓存，就是一个 lazy 计算的思想，不要每次都重新做复杂的计算，不管它会不会用到，而是让它到需要被使用的时候再重新计算。
+
+
+
+## 先更新数据库，再更新缓存
+
+### 适合场景
+
+- 读请求占大多数，很少有写请求的网站，比如个人博客，一些手册类的网站。
+- 网站数据量不大（几十万的文章数据）；
+- 很少会去更新数据（一般文章写好后，不会去更新）。
+
+### 存在问题
+
+**问题一：资源浪费**
+
+如果是更新一些很少被访问到的数据，是没有必要写入缓存中的，这些冷门数据的命中率低，放缓存中是在浪费内存。
+
+**问题二：脏数据**
+
+这是由于出现了并发操作的原因导致的。
+
+**问题三：请求时间**
+
+如果缓存不是一种简单的数据缓存，而是需要经过较为复杂的运算，才能得出缓存值，这时候，请求将会在计算缓存值上，耗费一部分时间，而这就导致了请求的响应时间变长，增加系统的负担，降低了系统的处理能力。
+
+**问题四：频繁写入**
+
+在写请求很多，而读请求很少的场景下，频繁对缓存进行更新，但是却一直没有读取，缓存就没有起到其应该有的作用，反而占用了内存资源和写缓存的时间。
+
+
+
+## 先删缓存，再更新数据库
+
+该方案在线程A进行数据**更新**操作，线程B进行**查询**操作时，有可能出现下面的情况导致数据不一致：
+
+1. 线程A删除缓存
+2. 线程B查询数据，发现缓存数据不存在
+3. 线程B查询数据库，得到旧值，写入缓存
+4. 线程A将新值更新到数据库
+
+这样一来，缓存中的数据仍然是旧值
+
+如果线程B执行的是更新操作，线程B查询得到的是旧值，A更新到数据库新值，然后B基于旧值计算写入了计算后的值，A的更新操作被抹去了，这种情况下属于**更新数据事务原子性问题，需要用分布式锁来解决。**
+
+
+
+### 存在问题
+
+**问题一：脏数据**
+
+### 解决方案
+
+1. 设置缓存的有效时间
+
+优点：
+
+- 简单，易操作。即使缓存中是旧数据，其存在时间也较短。
+
+缺点：
+
+- 会存在短时间内的旧数据。
+- 如果数据量太多，缓存有效时间短，容易发生一段时间内缓存大量失效，此时的数据库压力突然剧增，引发缓存雪崩现象。
+
+1. 使用消息队列
+
+先淘汰缓存； 更新数据库； 将需要淘汰的缓存 key 发送到消息队列； 另起一程序拉取消息队列的数据； 对需要删除的 key 进行删除，直至删除为止。
+
+优点：
+
+- 保证了缓存的删除。
+- 不会增加更新的处理时间。
+- 不会引发缓存雪崩。
+
+缺点：
+
+- 会增加一次缓存未命中次数。
+- 引入了消息队列，增加了系统的复杂性。
+
+
+
+## 先更新数据库，再删缓存
+
+当缓存失效时，线程B原子性被破坏时会出现不一致问题：
+
+1. 缓存失效了
+2. 线程B从数据库读取旧值
+3. 线程A从数据库读取旧值
+4. 线程B将新值更新到数据库
+5. 线程B删除缓存
+6. 线程A将旧值写入缓存
+
+这种情况概率很低，实际上数据库的写操作会比读操作慢得多，**读操作必需在写操作前进入数据库操作，而又要晚于写操作更新缓存**，这种情况下只需要线程B延时删除缓存就好。另外在数据库主从同步的情况下，延时删除还能防止数据更新还未从主数据库同步到从数据库的情况。
+
+
+
+### 存在问题
+
+**问题一：脏数据**
+
+与“先更新数据库，再更新缓存”类似，从数据库读取旧的记录的线程把缓存覆盖了。
+
+**问题二：缓存删除失败**
+
+一个线程在处理时，删除缓存失败，另一个线程本来应该从数据库读取然后写入缓存，但由于缓存没有被删除，直接读取到了旧的缓存。
+
+### 解决方案
+
+1. 设置缓存的有效时间（最简单的方案）
+
+优点：
+
+- 简单，易操作。即使缓存中是旧数据，其存在时间也较短。
+
+缺点：
+
+- 会存在短时间内的旧数据。
+- 如果数据量太多，缓存有效时间短，容易发生一段时间内缓存大量失效，此时的数据库压力突然剧增，引发缓存雪崩现象。
+
+1. 使用消息队列
+
+先更新数据库，然后删除缓存，如果缓存删除失败，把要删除的 key 加入消息队列中，下一次从消息队列取出时再执行删除，重复这个过程直到删除成功。
+
+优点：
+
+- 不会引发缓存雪崩。
+- 只删除需要删除的缓存。
+
+缺点：
+
+- 引入了消息队列，增加了系统的复杂性。
+
+
+
+## 缓存延时双删
+
+延时双删即先删除缓存，然后更新数据，再延时n ms后删除缓存
+
+之所以设计为延时双删的目的在于当最后一次延时**删除缓存失败**的情况发生，至少一致性策略只会**退化成先删缓存再更新数据**的策略。
+
+删除缓存失败这种事情个人认为在生产环境缓存高可用的情况下几乎不会出现，且这种情况如果发生了，不如考虑一下重试机制。
+
+
+
+```java
+public void write(String key,Object data){
+
+    redis.delKey(key);
+
+    db.updateData(data);
+
+    Thread.sleep(1000);
+
+    redis.delKey(key);
+
+}
+```
+
+
+
+
+
+## 异步更新缓存
+
+- 监听MySQL binlog进行缓存更新
+
+通过异步更新缓存将缓存与数据库的一致性同步从业务中独立出来统一处理，保证数据一致性
+
+整体技术思路：
+
+1. 读Redis：热数据基本都在Redis
+2. 写MySQL:增删改都是操作MySQL
+3. 更新Redis数据：订阅MySQ的数据操作记录binlog，来更新到Redis
+
+数据操作分为两大部分：
+
+- 全量更新（将全部数据一次性写入redis）
+- 增量更新（实时更新）
+
+这样一旦MySQL中产生了新的写入、更新、删除等操作，就可以把binlog相关的消息通过消息队列推送至Redis，Redis再根据binlog中的记录，对Redis进行更新。
+
+这种同步机制类似于MySQL的主从备份机制，可以结合使用阿里的canal对MySQL的binlog进行订阅。
+
+
+
+## 读请求和写请求串行化（除非必须严格一致，否则不要使用这个方法）
+
+将读请求和写请求都发送到同一个队列里，一个写请求在执行时会阻塞后面的请求：先删除缓存，然后更新数据库，再更新缓存，等数据库和缓存都更新成功，再执行队列中的下一条请求。这样如果写请求没有完成之前，读请求无法进行数据读取，也就不会出现读的缓存和数据库数据不一致的情况。
+
+但是，串行化之后，也就意味着处理请求变成了会阻塞的，失去了并发能力。所以说除非必须严格一致，否则不要使用这个方法。
+
+
+
+## 总结
+
+**分布式系统里要么通过2PC或是Paxos协议保证一致性，要么就是拼命的降低并发时脏数据的概率**
+
+缓存系统适用的场景就是非强一致性的场景，所以它属于CAP中的AP，BASE理论。
+
+异构数据库本来就没办法强一致，我们只是减少时间窗口，达到最终一致性。

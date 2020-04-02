@@ -46,7 +46,7 @@ protected static int getHystrixTimeout(IClientConfig config, String commandKey) 
 
 ## 引入3个依赖
 
-```
+```xml
 <!-- hystrixdashboard  start-->
 <dependency>
     <groupId>org.springframework.cloud</groupId>
@@ -67,7 +67,7 @@ protected static int getHystrixTimeout(IClientConfig config, String commandKey) 
 
 在启动类上加上 `@EnableHystrixDashboard` 注解，开启Hystrix Dashboard功能。
 
-```
+```java
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.netflix.hystrix.dashboard.EnableHystrixDashboard;
@@ -87,7 +87,7 @@ public class ServiceHystrixDashboardApplication {
 
 修改application.properties文件:
 
-```
+```properties
 spring.application.name=service-hystrix-dashboard
 server.port=2019
 ```
@@ -124,42 +124,42 @@ Hystrix Dashboard共支持三种不同的监控方式
 
   - 在启动类注入Servlet bean， springboot 版本如果是2.0，则需要添加 ServletRegistrationBean 因为springboot的默认路径不是 "/hystrix.stream"，只要在自己的项目里配置上下面的servlet就可以了：
 
-    ```
-        @SpringBootApplication
-        @EnableEurekaClient
-        @EnableHystrix
-        @EnableCircuitBreaker // 断路器开启
-        public class ServiceHystrixApplication {
-        
-            @Autowired
-            HystrixService hystrixService;
-        
-            @Bean
-            @LoadBalanced  // 基于Ribbon+RestTemplate实现负载均衡
-            RestTemplate restTemplate(){
-                return new RestTemplate();
-            }
-        
-            public static void main(String[] args) {
-                SpringApplication.run(ServiceHystrixApplication.class, args);
-            }
-        
-        
-            /**
+    ```java
+    @SpringBootApplication
+    @EnableEurekaClient
+    @EnableHystrix
+    @EnableCircuitBreaker // 断路器开启
+    public class ServiceHystrixApplication {
+    
+        @Autowired
+        HystrixService hystrixService;
+    
+        @Bean
+        @LoadBalanced  // 基于Ribbon+RestTemplate实现负载均衡
+        RestTemplate restTemplate(){
+            return new RestTemplate();
+        }
+    
+        public static void main(String[] args) {
+            SpringApplication.run(ServiceHystrixApplication.class, args);
+        }
+    
+    
+        /**
              * Hystrix-dashboard；springboot2.0以后需要注入Servlet
              * @return
              */
-            @Bean
-            public ServletRegistrationBean getServlet() {
-                HystrixMetricsStreamServlet streamServlet = new HystrixMetricsStreamServlet();
-                ServletRegistrationBean registrationBean = new ServletRegistrationBean(streamServlet);
-                registrationBean.setLoadOnStartup(1);
-                registrationBean.addUrlMappings("/hystrix.stream");
-                registrationBean.setName("HystrixMetricsStreamServlet");
-                return registrationBean;
-            }
-        
+        @Bean
+        public ServletRegistrationBean getServlet() {
+            HystrixMetricsStreamServlet streamServlet = new HystrixMetricsStreamServlet();
+            ServletRegistrationBean registrationBean = new ServletRegistrationBean(streamServlet);
+            registrationBean.setLoadOnStartup(1);
+            registrationBean.addUrlMappings("/hystrix.stream");
+            registrationBean.setName("HystrixMetricsStreamServlet");
+            return registrationBean;
         }
+    
+    }
     ```
 
 - 其他的配置和代码保持不变。

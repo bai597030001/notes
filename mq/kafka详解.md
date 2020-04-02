@@ -10,25 +10,29 @@
 
 # 相关概念
 
-`massage`： kafka中最基本的传递对象，有固定格式。 
+- `broker`： 消息处理结点，多个broker组成kafka集群。
 
-`topic`：话题，代表 一类消息，如page view，click行为等。
+- `topic`：话题，代表 一类消息，如page view，click行为等。
 
-`producer`： 产生信息的主体，可以是服务器日志信息等。
+- `partition`： topic的物理分组，每个partition都是一个有序队列。
 
-`consumer`： 消费producer产生话题消息的主体。
+- `segment`： 多个大小相等的段组成了一个partition。
 
-`Consumer Group`：每个 Consumer 属于一个特定的 Consumer Group（可为每个 Consumer 指定 group name，若不指定 group name 则属于默认的 group）。
+- `massage`： kafka中最基本的传递对象，有固定格式。 
 
-`broker`： 消息处理结点，多个broker组成kafka集群。
+- `offset`： 一个连续的用于定位被追加到分区的每一个消息的序列号，最大值为64位的long大小，19位数字字符长度。
 
-`partition`： topic的物理分组，每个partition都是一个有序队列。
+- `producer`： 产生信息的主体，可以是服务器日志信息等。
 
-`segment`： 多个大小相等的段组成了一个partition。
+- `consumer`： 消费producer产生话题消息的主体。
 
-`offset`： 一个连续的用于定位被追加到分区的每一个消息的序列号，最大值为64位的long大小，19位数字字符长度。
+- `Consumer Group`：每个 Consumer 属于一个特定的 Consumer Group（可为每个 Consumer 指定 group name，若不指定 group name 则属于默认的 group）。
 
-- `topic、partition、segment、offset`的关系：
+
+
+## topic、partition、segment、offset的关系
+
+
 
 ![](img/kafka1.webp)
 
@@ -58,7 +62,7 @@
 - `segment`
   
   - `segment`由`index`和`data`文件组成，两个文件成对出现，分别存储索引和数据。
-- `segment`文件命名规则：对于所有的`partition`来说，`segment`名称从0开始，之后的每一个`segment`名称为上一个`segment`文件最后一条消息的offset值。
+  - `segment`文件命名规则：对于所有的`partition`来说，`segment`名称从0开始，之后的每一个`segment`名称为上一个`segment`文件最后一条消息的`offset`值。
   
 - `offset`
 
@@ -69,6 +73,16 @@
 - `topic` 和 `partition`
 
 ![](img/kafka2.png)
+
+
+
+## 为什么要在topic里加入partitions的概念
+
+topic是逻辑的概念，partition是物理的概念，对用户来说是透明的。producer只需要关心消息发往哪个topic，而consumer只关心自己订阅哪个topic，并不关心每条消息存于整个集群的哪个broker。
+
+为了性能考虑，如果topic内的消息只存于一个broker，那这个broker会成为瓶颈，无法做到<font color=#dd0000>水平扩展</font>。所以把topic内的数据分布到整个集群就是一个自然而然的设计方式。Partition的引入就是解决水平扩展问题的一个方案。
+
+
 
 - kafka消息传递语义
 
@@ -89,61 +103,68 @@ Exactly once 每条消息肯定会被传输一次且仅传输一次，很多时候这是用户所想要的。
 # 这种方式称为【at least once】。fetch到消息后，等消费完成再调用方法【consumer.commitSync()】，手动更新offset；如果消费失败，则offset也不会更新，此条消息会被重复消费一次。
 ```
 
-- 消息分发
 
-  > Kafka 中最基本的数据单元就是消息，而一条消息其实是由 Key + Value 组成的（Key 是可选项，可传空值，Value 也可以传空值）。在发送一条消息时，我们可以指定这个 Key，那么 Producer 会根据 Key 和 partition 机制来判断当前这条消息应该发送并存储到哪个 partition 中（这个就跟分片机制类似）。我们可以根据需要进行扩展 Producer 的 partition 机制（默认算法是 hash 取 %）。
 
-  扩展自己的 partition：
+## kafka消息分发
 
-  ```java
-  
-  package dongguabai.kafka.partition;
-   
-  import org.apache.kafka.clients.producer.Partitioner;
-  import org.apache.kafka.common.Cluster;
-  import org.apache.kafka.common.PartitionInfo;
-   
-  import java.util.List;
-  import java.util.Map;
-  import java.util.Random;
-   
-  /**
-   * 消息发送后会调用自定义的策略
-   *
-   * @author Dongguabai
-   * @date 2019/1/18 15:40
-   */
-  public class MyPartitioner implements Partitioner {
-   
-      @Override
-      public int partition(String topic, Object key, byte[] keyBytes, Object value, byte[] valueBytes, Cluster cluster) {
-          //获取当前 topic 有多少个分区（分区列表）
-          List<PartitionInfo> partitions = cluster.partitionsForTopic(topic);
-          int partitionNum = 0;
-          if (key == null) { //之前介绍过 Key 是可以传空值的
-              partitionNum = new Random().nextInt(partitions.size());   //随机
-          } else {
-              //取 %
-              partitionNum = Math.abs((key.hashCode()) % partitions.size());
-          }
-          System.out.println("key：" + key + "，value：" + value + "，partitionNum：" + partitionNum);
-          //发送到指定分区
-          return partitionNum;
-      }
-   
-      @Override
-      public void close() {
-   
-      }
-   
-      @Override
-      public void configure(Map<String, ?> configs) {
-   
-      }
-  }
-  ```
+默认的分区策略是：
 
-  
+- 如果在发消息的时候指定了分区，则消息投递到指定的分区
+- 如果没有指定分区，但是消息的key不为空，则基于key的哈希值来选择一个分区
+- 如果既没有指定分区，且消息的key也是空，则用轮询的方式选择一个分区
+
+> Kafka 中最基本的数据单元就是消息，而一条消息其实是由 Key + Value 组成的（Key 是可选项，可传空值，Value 也可以传空值）。在发送一条消息时，我们可以指定这个 Key，那么 Producer 会根据 Key 和 partition 机制来判断当前这条消息应该发送并存储到哪个 partition 中（这个就跟分片机制类似）。我们可以根据需要进行扩展 Producer 的 partition 机制（默认算法是 hash 取 %）。
+
+
+
+扩展自己的 partition：
+
+```java
+import org.apache.kafka.clients.producer.Partitioner;
+import org.apache.kafka.common.Cluster;
+import org.apache.kafka.common.PartitionInfo;
+ 
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+ 
+/**
+ * 消息发送后会调用自定义的策略
+ *
+ * @author Dongguabai
+ * @date 2019/1/18 15:40
+ */
+public class MyPartitioner implements Partitioner {
+ 
+    @Override
+    public int partition(String topic, Object key, byte[] keyBytes, Object value, byte[] valueBytes, Cluster cluster) {
+        //获取当前 topic 有多少个分区（分区列表）
+        List<PartitionInfo> partitions = cluster.partitionsForTopic(topic);
+        int partitionNum = 0;
+        if (key == null) { //之前介绍过 Key 是可以传空值的
+            partitionNum = new Random().nextInt(partitions.size());   //随机
+        } else {
+            //取 %
+            partitionNum = Math.abs((key.hashCode()) % partitions.size());
+        }
+        System.out.println("key：" + key + "，value：" + value + "，partitionNum：" + partitionNum);
+        //发送到指定分区
+        return partitionNum;
+    }
+ 
+    @Override
+    public void close() {
+ 
+    }
+ 
+    @Override
+    public void configure(Map<String, ?> configs) {
+ 
+    }
+}
+```
+
+
 
 # 实例讲解
 
@@ -172,12 +193,12 @@ Created topic "test-demo".
 # delete.topic.enble = true
 $ kafka-topics --delete --topic [话题名称] --zookeeper [Zookeeper集群IP:端口]
 
-eg:
-$ kafka-topics --delete --topic test --zookeeper hadoop-cluster01:2181
+# eg:
+$ kafka-topics --delete --topic test-demo --zookeeper hadoop-cluster01:2181
 
 #删除zookeeper中该topic相关的目录命令：
-$ rm -r /kafka/config/topics/test0
-$ rm -r /kafka/brokers/topics/test0
+$ rm -r /kafka/config/topics/test-demo0
+$ rm -r /kafka/brokers/topics/test-demo0
 ```
 
 
@@ -214,14 +235,16 @@ $ kafka-topics --zookeeper zk_host:port/chroot --alter --topic my_topic_name --d
 ```shell
 [root@spark-master ~]# kafka-topics --describe  --zookeeper spark-master:2181 | grep test-demo
 Topic:test-demo PartitionCount:3        ReplicationFactor:2     Configs:
-      Topic: test-demo        Partition: 0    Leader: 1       Replicas: 1,5   Isr: 1,5
+      Topic: test-demo        Partition: 0    Leader: 1       Replicas: 1,3   Isr: 1,3
       Topic: test-demo        Partition: 1    Leader: 2       Replicas: 2,1   Isr: 2,1
       Topic: test-demo        Partition: 2    Leader: 3       Replicas: 3,2   Isr: 3,2
 ```
 
-
-
-> PartitionCount:3 表示该话题有3个分区（0，1，2）；Leader1，2，3表示3个分区分别为broker1，2，3；Replicas表示该分区的备份broker id
+> PartitionCount:3 表示该话题有3个分区（0，1，2）；
+>
+> Leader1，2，3表示3个分区分别为broker1，2，3；
+>
+> Replicas表示该分区的备份broker id
 
 
 
@@ -245,12 +268,9 @@ test-demo-1
 test-demo-1
 test-demo-2
 
-# broker 5
-[root@spark-slave1 ~]# ls /home/data/kafka/kafkadata/ | grep test-demo
-test-demo-0
-
 # broker 3
 [root@spark-slave2 ~]# ls /home/data/kafka/kafkadata/ | grep test-demo
+test-demo-0
 test-demo-2
 
 ```
@@ -281,7 +301,7 @@ test-demo-2
 #使用 --offset [偏移量] --partion [分区编号] 参数自定义读取消息时的偏移量
 $ kafka-console-consumer --bootstrap-server [listeners IP:端口] --topic [话题名称] [--consumer-property group.id=group_test]
 
-eg:
+# eg:
 
 $ kafka-console-consumer --bootstrap-server spark-slave1:9092 --topic test-demo [--consumer-property group.id=group_test] --from-beginning
 question:what is your name?
@@ -322,7 +342,7 @@ test                           0          2               8               6     
 - 删除group
 
 ```shell
-kafka-consumer-groups  --bootstrap-server 172.16.0.200:9092 --group group_test  --delete
+$ kafka-consumer-groups  --bootstrap-server 172.16.0.200:9092 --group group_test  --delete
 ```
 
 
@@ -439,8 +459,14 @@ $ kafka-run-class kafka.tools.DumpLogSegments --files /home/data/kafka/kafkadata
 - topic以partition的方式存储
 
 - 如何设置partition值
-  1. 一个partition只能被一个消费者消费（一个消费者可以同时消费多个partition）因此，如果设置的partition的数量小于consumer的数量，就会有消费者消费不到数据。所以，推荐partition的数量一定要大于同时运行的consumer的数量。
-  2. 建议partition的数量大于集群broker的数量，这样leader partition就可以均匀的分布在各个broker中，最终使得集群负载均衡。
+
+  topic下的一个分区只能被同一个consumer group下的一个consumer线程来消费。（但反之并不成立，即一个consumer线程可以消费多个分区的数据，比如Kafka提供的ConsoleConsumer，默认就只是一个线程来消费所有分区的数据）。
+
+  因此，如果设置的partition的数量小于consumer的数量，就会有消费者消费不到数据。所以，推荐partition的数量一定要大于同时运行的consumer的数量。
+
+  <font color=#dd0000>总结：分区数决定了同组消费者个数的上限。</font>
+
+  建议partition的数量大于集群broker的数量，这样leader partition就可以均匀的分布在各个broker中，最终使得集群负载均衡。
 
 
 
@@ -485,7 +511,7 @@ producer发message到某个topic，message会被均匀的分布到多个partition上（随机或根据
 
 每个segment中存储很多条消息，消息id由其逻辑位置决定，即从消息id可直接定位到消息的存储位置，避免id到位置的额外映射。
 
-下面文件列表是笔者在Kafka broker上做的一个实验，创建一个topicXXX包含1 partition，设置每个segment大小为500MB,并启动producer向Kafka broker写入大量数据,如下图2所示segment文件列表形象说明了上述2个规则：
+下面文件列表是笔者在Kafka broker上做的一个实验，创建一个topicXXX包含1 partition，设置每个segment大小为500MB,并启动producer向Kafka broker写入大量数据，如下图2所示segment文件列表形象说明了上述2个规则：
 
 ![](img/kafka3.png)
 
@@ -611,11 +637,11 @@ public final class RecordMetadata {
 
  **特点：**
 
-1.总共创建两个线程：执行KafkaPrducer#send逻辑的线程——我们称之为“用户主线程”；
+总共创建两个线程：执行KafkaPrducer#send逻辑的线程——我们称之为“用户主线程”；
 
 ?									  执行发送逻辑的IO线程——我们称之为“Sender线程”。 
 
-2.batch机制——“分批发送“机制。每个批次(batch)中包含了若干个PRODUCE请求，因此具有更高的吞吐量。 
+batch机制——“分批发送“机制。每个批次(batch)中包含了若干个PRODUCE请求，因此具有更高的吞吐量。 
 
 
 
@@ -633,7 +659,7 @@ try {
 }
 ```
 
-2、同步发送：我们使用send()方怯发送消息， 它会返回一个Future对象，调用get()方法进行等待， 就可以知道悄息是否发送成功。
+2、同步发送：我们使用send()方法发送消息， 它会返回一个Future对象，调用get()方法进行等待， 就可以知道悄息是否发送成功。
 
 ```java
 ProducerRecord<String, String> record = new ProducerRecord<String, String>("CustomerCountry", "Precision Products", "France");
@@ -767,7 +793,7 @@ linger.ms
 #	延迟会比前一种方式大大增加（至少增加一个网络往返时间）；如果使用异步方式，应用感知不到延迟，
 #	吞吐量则会受异步正在发送中的数量限制。
 # 	
-#	acks=all：生产者会等待所有副本成功写入该消息，这种方式是最安全的，能够保证消息不丢失，但是延迟也是最大的。
+#	acks=-1/all：生产者会等待所有副本成功写入该消息，这种方式是最安全的，能够保证消息不丢失，但是延迟也是最大的。
 request.required.acks = 0, 1, n, -1/all
 
 # 设置生产者缓冲发送的消息的内存大小(即：Batch缓冲总的大小->accumulator)，如果应用调用send方法的速度大于生产者发送的速度，
@@ -837,8 +863,17 @@ send.buffer.bytes
 
 - Kafka提供了两套consumer api，分为`high-level api`和`sample-api`。
 
-  - **Sample-api** 是一个底层的API，通过直接操作底层API获取数据的方式获取Kafka中的数据，需要自行给定分区、偏移量等属性。优点：可操作性强；缺点：代码相对而言比较复杂。(入口类：SimpleConsumer) 
-  - **High Level Consumer API**：高度抽象的Kafka消费者API；将底层具体获取数据、更新offset、设置偏移量等操作屏蔽掉，直接将操作数据流的处理工作提供给编写程序的人员。优点是：操作简单；缺点：可操作性太差，无法按照自己的业务场景选择处理方式。(入口类：ConsumerConnector)
+  - **Sample-api** 是一个底层的API，通过直接操作底层API获取数据的方式获取Kafka中的数据，需要自行给定分区、偏移量等属性。
+
+    优点：可操作性强；
+
+    缺点：代码相对而言比较复杂。(入口类：`SimpleConsumer`) 
+
+  - **High Level Consumer API**：高度抽象的Kafka消费者API；将底层具体获取数据、更新offset、设置偏移量等操作屏蔽掉，直接将操作数据流的处理工作提供给编写程序的人员。
+
+    优点是：操作简单；
+
+    缺点：可操作性太差，无法按照自己的业务场景选择处理方式。(入口类：`ConsumerConnector`)
 
 - **在kafka中，当前读到哪条消息的offset值是由consumer来维护的**，因此，consumer可以自己决定如何读取kafka中的数据。比如，consumer可以通过重设offset值来重新消费已消费过的数据。不管有没有被消费，kafka会保存数据一段时间，这个时间周期是**可配置**的，只有到了过期时间，kafka才会删除这些数据。
 
@@ -858,12 +893,17 @@ send.buffer.bytes
 
   Low level api是consumer读的partition的offsite在consumer自己的程序中维护。不会同步到zookeeper上。但是为了kafka manager能够方便的监控，一般也会手动的同步到zookeeper上。这样的好处是一旦读取某个message的consumer失败了，这条message的offsite我们自己维护，我们不会+1。下次再启动的时候，还会从这个offsite开始读。这样可以做到exactly once对于数据的准确性有保证。
 
-- Consumer与Partition的关系（ **Consumer Rebalance** ）：
-  - 如果consumer比partition多，是浪费，因为kafka的设计是在一个partition上是不允许并发的，所以consumer数不要大于partition数
-  - 如果consumer比partition少，一个consumer会对应于多个partitions，这里主要合理分配consumer数和partition数，否则会导致partition里面的数据被取的不均匀
-  - 如果consumer从多个partition读到数据，不保证数据间的顺序性，kafka只保证在一个partition上数据是有序的，但多个partition，根据你读的顺序会有不同
-  - 增减consumer，broker，partition会导致rebalance，所以rebalance后consumer对应的partition会发生变化
-  - High-level接口中获取不到数据的时候是会block的
+  
+
+  
+
+### Consumer与Partition的关系（ **Consumer Rebalance** ）
+
+- 如果consumer比partition多，是浪费，因为kafka的设计是在一个partition上是不允许并发的，所以consumer数不要大于partition数
+- 如果consumer比partition少，一个consumer会对应于多个partitions，这里主要合理分配consumer数和partition数，否则会导致partition里面的数据被取的不均匀
+- 如果consumer从多个partition读到数据，不保证数据间的顺序性，kafka只保证在一个partition上数据是有序的，但多个partition，根据你读的顺序会有不同
+- 增减consumer，broker，partition会导致rebalance，所以rebalance后consumer对应的partition会发生变化
+- High-level接口中获取不到数据的时候是会block的
 
 
 
@@ -877,24 +917,109 @@ Kafka支持的三种消息投递语义:
 
 
 
-消息的投递和消费分为两端:`producer-broker，broker-consumer。`
+## 0.11.0之前的版本
 
-**producer-broker**: 当`producer`向`broker`发送消息时，一旦这条消息`commit`了，由于`broker`有`replication`的存在，这条消息就不会丢失，这样就可以在`producer-broker`端保证`at least once`消息语义。当然，也可以通过设置`Producer`异步发送来实现`at most once`语义。
+### Producer 消息生产者端
 
-**broker-consumer**: `consumer`在消费消息时，每个`consumer`都会在保存`offset`来记录自己消费的位置(从`__consumer_offsets`这个`topic`中取，老版本存储在`zk`中)。当`consumer`挂了的时候，就会发生负载均衡，需要`consumer group`中另外的`consumer`来接管并继续消费。`consumer`在处理消息和修改`offset`时也有两种处理方式:
+当 producer 向 leader 发送数据时，可以通过 `request.required.acks` 参数来设置数据可靠性的级别：
 
-- `consumer`读取消息后，先修改`offset`，然后处理消息。
-- `consumer`读取消息后，先处理消息，然后修改`offset`。
+- acks=1（默认）：当且仅当leader收到消息**返回commit确认信号**后认为发送成功。如果 leader 宕机，则会丢失数据。
+- acks=0：producer发出消息即完成发送，**无需等待**来自 broker 的确认。这种情况下数据传输效率最高，但是数据可靠性确是最低的。
+- acks=-1（ALL）：发送端需要等待 **ISR 列表中所有列表都确认接收数据**后才算一次发送完成，可靠性最高，延迟也较大。
 
-如果`consumer`在处理消息的过程中挂掉了，我们无法确认`consumer`是否已经处理完了消息。所以处理方式一，虽然消息会丢，但消息不会被重复消费，确保了`at most once`语义。处理方式二，因为`consumer`还没有修改`offset`就挂了，所以`consumer group`中接管的`consumer`会从上次消费的`offset`处接手继续消费，虽然消息会重复，但消息肯定不会丢，保证了`at least once`语义。
+这里涉及到producer端的acks设置和broker端的副本数量，以及`min.insync.replicas`的设置。
 
 
 
- 想要做到`exactly once`，就需要`producer-broker、broker-consumer`端两端同时保证。 
+### Broker 消息接收端
+
+acks=1，表示当leader分片副本写消息成功就返回响应给producer，此时认为消息发送成功。
+如果leader写成功单马上挂了，还没有将这个写成功的消息同步给其他的分片副本，那么这个分片此时的ISR列表为空，
+如果unclean.leader.election.enable=true，就会发生log truncation（日志截取），同样会发生消息丢失。
+如果unclean.leader.election.enable=false，那么这个分片上的服务就不可用了，producer向这个分片发消息就会抛异常。
+
+所以我们设置min.insync.replicas=2，unclean.leader.election.enable=false，producer端的acks=all，这样发送成功的消息就绝不会丢失。
+
+
+
+### Consumer 消息消费者端
+
+我们要求消费者关闭自动提交(`enable.auto.commit:false`)，同时当消费者每次 poll 处理完业务逻辑后必须完成手动同步提交（`commitSync`），如果消费者在消费过程中发生 `crash`，下次启动时依然会从之前的位置开始消费，从而保证每次提交的内容都能被消费。
+
+
+
+### 消息去重
+
+考虑到 producer,broker,consumer 之间都有可能造成消息重复，所以我们要求接收端需要支持消息去重的功能，最好借助业务消息本身的幂等性来做。其中有些大数据组件，如 hbase，elasticsearch 天然就支持幂等操作。
+
+举例：
+在接收端，启动专门的消费者拉取 kafka 数据存入 hbase。hbase 的 rowkey 的设计主要包括`Id`和 `timestamp`。消费线程从 kafka 拉取数据后反序列化，然后批量插入 hbase，只有插入成功后才往 kafka 中持久化 offset。这样的好处是，如果在中间任意一个阶段发生报错，程序恢复后都会从上一次持久化 offset 的位置开始消费数据，而不会造成数据丢失。如果中途有重复消费的数据，则插入 hbase 的 rowkey 是相同的，数据只会覆盖不会重复，最终达到数据一致。
+
+
+
+## 0.11.0之后的版本
+
+### 幂等性发送
+
+在0.11之前主要是通过下游系统具有幂等性来保证`Exactly Once`。但是这样有几个缺陷：
+
+- 要求下游系统支持幂等操作，限制了`Kafka`的适用场景
+- 实现门槛相对较高，需要用户对`Kafka`的工作机制非常了解
+- 对于`Kafka Stream`而言，`Kafka Producer`本身就是“下游”系统，能让`Producer`具有幂等处理特性，那就可以让`Kafka Stream`在一定程度上支持`Exactly once`语义。
+
+0.11之后的版本，引入了idempotent producer机制，通过**Producer ID（PID）和Sequence Number**实现Producer的幂等语义。
+
+- `Producer ID`：每个新的`Producer`在初始化的时候会被分配一个唯一的PID
+- `Sequence Number`：对于每个`PID`，该`Producer`发送数据的每个`<Topic, Partition>`都对应一个从0开始单调递增的`Sequence Number`。
+
+`Broker`端也会在内存中为每个`<PID, Topic, Partition>`维护一个序号，并且每次`Commit`一条消息时将其对应序号递增。对于接收的每条消息，如果其序号比`Broker`维护的序号（即最后一次`Commit`的消息的序号）大一，则`Broker`会接受它，否则将其丢弃：
+
+- 如果消息序号比Broker维护的序号大一以上，说明中间有数据尚未写入，也即乱序，此时Broker拒绝该消息，Producer抛出InvalidSequenceNumber
+- 如果消息序号小于等于Broker维护的序号，说明该消息已被保存，即为重复消息，Broker直接丢弃该消息，Producer抛出DuplicateSequenceNumber
+
+这种机制很好的<font color=#dd0000>解决了数据重复和数据乱序的问题</font>。
+
+
+
+**如何设置呢**？
+
+设置`producer`端的新参数 `enable.idempotent=true`。
+
+
+
+而多分区的情况，我们需要保证原子性的写入多个分区，即写入到多个分区的消息要么全部成功，要么全部回滚。
+
+这时候就需要使用事务，在producer端设置 transcational.id为一个指定字符串。
+
+<font color=#dd0000>这样幂等producer只能保证单分区上无重复消息；事务可以保证多分区写入消息的完整性。</font>
+
+
+
+这样producer端实现了exactly once，那么consumer端呢？
+
+consumer端由于可能无法消费事务中所有消息，并且消息可能被删除，所以事务并不能解决consumer端exactly once的问题，我们可能还是需要自己处理这方面的逻辑。比如自己管理offset的提交，不要自动提交，也是可以实现exactly once的。
+
+**还有一个选择就是使用kafka自己的流处理引擎，也就是Kafka Streams，**
+
+**设置processing.guarantee=exactly_once，就可以轻松实现exactly once了。**
+
+
+
+**注意**
+
+以上说的这个只是针对单个Producer在一个session内的情况，假设Producer挂了，又重新启动一个Producer被而且分配了另外一个PID，这样就不能达到防重的目的了，所以kafka又引进了Transactional Guarantees（事务性保证）。
+
+
 
 ## 幂等
 
-对于`producer`，如果`broker`配置了`enable.idempotence = true`,每个`producer`在初始化的时候都会被分配一个唯一的`Producer ID`，`producer`向指定`topic`的`partition`发送消息时，携带一个自己维护的自增的`Sequence Number`。`broker`会维护一个`<pid,topic,partition>`对应的`seqNum`。 每次`broker`接收到`producer`发来的消息，会和之前的`seqNum`做比对，如果刚好大一，则接受;如果相等，说明消息重复;如果相差大于一，则说明中间存在丢消息，拒绝接受。
+幂等性：
+
+> 一般指 producer 投递了多少消息，consumer 就消费了多少消息，不会发生消息丢失或者消息重复的情况；
+
+
+
+对于`producer`，如果`broker`配置了`enable.idempotence = true`,每个`producer`在初始化的时候都会被分配一个唯一的`Producer ID`，`producer`向指定`topic`的`partition`发送消息时，携带一个自己维护的自增的`Sequence Number`。`broker`会维护一个`<pid,topic,partition>`对应的`seqNum`。 每次`broker`接收到`producer`发来的消息，会和之前的`seqNum`做比对，如果刚好大一，则接受；如果相等，说明消息重复;如果相差大于一，则说明中间存在丢消息，拒绝接受。
 
 这个设计解决了两个问题:
 
@@ -903,49 +1028,21 @@ Kafka支持的三种消息投递语义:
 
 ## 事务性保证
 
-上述的幂等操作，只能保证单个producer对于同一个<topic,partition>的`exactly once`,并不能保证向多个topic partitions写操作时的原子性。更不能保证多个读写操作时的原子性。例如某个场景是，从某个topic消费消息，处理转换后回写到另一个topic中。
+kafka的事务性保证：同时向多个`Topic` `Partitions`发送消息，要么都成功，要么都失败。
 
-事务性保证可以使应用程序将生产数据和消费数据当作一个原子单元来处理，即使该生产或消费跨多个<Topic, Partition>。应用程序也可以在重启后，从上一个事物点恢复，也即事物恢复。
+上述的幂等操作，只能保证单个`producer`对于同一个`<topic,partition>`的`exactly once`,并不能保证向多个`topic` `partitions`写操作时的原子性。更不能保证多个读写操作时的原子性。
 
-因为消息可以是跨topic和partition的，所以为实现这一效果，必须是应用程序提供一个稳定的（重启后不变）唯一的ID `Transaction ID`，使得PID 和 Transaction ID 一一对应起来。
+例如某个场景是，从某个`topic`消费消息，处理转换后回写到另一个`topic`中。
+
+事务性保证可以使应用程序将生产数据和消费数据当作一个原子单元来处理，即使该生产或消费跨多个`<Topic, Partition>`。应用程序也可以在重启后，从上一个事物点恢复，也即事物恢复。
+
+因为消息可以是跨`topic`和`partition`的，所以为实现这一效果，必须是应用程序提供一个稳定的（重启后不变）唯一的`Transaction ID`，使得`PID` 和 `Transaction ID` 一一对应起来。
 
 ## conusmer端
 
 以上事务性保证只是针对producer端的，对consumer端依然无法保证。
 
 如果是消费kafka中的topic，并将结果回写到另一个topic，那么可以将消费消息和发送消息绑定为一个事务。 如果要将处理消息后的结果保存到外部系统，就要用到两阶段提交了。
-
-
-
-## 如何保证投递寓意
-
-### At least once
-
-默认为至少一次。
-
-
-
-
-
-
-
-
-
-### At most once
-
-通过禁止生产者重试和处理一批消息前提交它的偏移量来实现 “最多一次”传递 
-
-
-
-
-
-
-
-### Exactly once
-
-
-
-
 
 
 
@@ -1110,6 +1207,16 @@ group.initial.rebalance.delay.ms=0
 #
 confluent.support.customer.id=anonymous
 ```
+
+
+
+# 客户端
+
+`kafka-manager`
+
+https://blog.51cto.com/liqingbiao/2417010
+
+https://juejin.im/post/5dd2261df265da0bc3309393
 
 
 

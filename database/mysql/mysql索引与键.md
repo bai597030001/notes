@@ -1,10 +1,10 @@
-# 1.mysql中的键
+# mysql中的键
 
 mysql建表时的**4种KEY**
 
 
 
-## 1.1 主键(primary key)
+## 主键(primary key)
 
 - 能够**唯一标识**表中某一行的属性或属性组，**不能有重复**的，**不允许为空**，用来保证数据完整性。
 
@@ -20,7 +20,7 @@ CREATETABLE tablename ( [...], PRIMARY KEY (列的列表) )
 ALTER TABLE tablename ADD PRIMARY KEY(列的列表)
 ```
 
-## 1.2 唯一键(unique key)
+## 唯一键(unique key)
 
 - 一张表往往有很多字段需要唯一性，数据**不能重复**；但是一张表只能有一个字段为主键，那么唯一键(unique key)，就可以解决表中有**多个字段**需要唯一性约束的问题。
 
@@ -64,7 +64,7 @@ ALTER TABLE tablename ADD PRIMARY KEY(列的列表)
 --指定唯一约束名字为num_uk
 ```
 
-## 1.3 外键（foreign key）
+## 外键（foreign key）
 
 - 是另一表的主键, 外键**可以有重复**的, **可以是空值**，用来**和其他表建立联系**用的。所以说，如果谈到了外键一定是至少涉及到两张表
 
@@ -134,7 +134,7 @@ NO ACTION：什么都不做。
 	Records: 1  Duplicates: 0  Warnings: 0
 ```
 
-## 1.4 普通键（KEY）
+## 普通键（KEY）
 
 - 建立索引
 
@@ -172,7 +172,7 @@ CREATE TABLE `C3TimeOut_AlarmInfo` (
 ) ENGINE=InnoDB AUTO_INCREMENT=51 DEFAULT CHARSET=utf8 COLLATE=utf8_bin ROW_FORMAT=DYNAMIC;
 ```
 
-# 2.mysql 的索引
+# mysql 的索引
 
 ## 索引类型
 
@@ -186,7 +186,7 @@ UNIQUE 唯一索引。 不允许有重复。
 
 FULLTEXT 是全文索引，用于在一篇文章中，检索文本信息的。
 
-## 2.1 索引(index) 
+## 索引(index) 
 
 - 用来快速地寻找那些具有特定值的记录。主要是为了检索的方便，是为了加快访问速度， 按一定的规则创建的，一般起到排序作用。
 
@@ -197,7 +197,7 @@ ALTER TABLE tablename ADD INDEX [索引的名字] (列的列表);
 
 CREATE TABLE tablename ( [...], INDEX [索引的名字] (列的列表) )
 ```
-## 2.2 唯一性索引
+## 唯一性索引
 
 - 这种索引和前面的“普通索引”基本相同，但有一个区别：索引列的所有值都只能出现一次，即必须唯一。
 
@@ -209,7 +209,7 @@ ALTER TABLE tablename ADD UNIQUE [索引的名字] (列的列表)
 CREATE TABLE tablename ( [...], UNIQUE [索引的名字] (列的列表) )
 ```
 
-## 2.3 全文索引
+## 全文索引
 
 - MySQL从3.23.23版开始支持全文索引和全文检索。
 
@@ -217,9 +217,9 @@ CREATE TABLE tablename ( [...], UNIQUE [索引的名字] (列的列表) )
 	
 	它可以通过CREATE TABLE命令创建，也可以通过ALTER TABLE或CREATE INDEX命令创建。
 
-## 2.4 联合索引
+## 联合索引
 
-### 2.4.1 建立联合索引
+### 建立联合索引
 
 - alert table test add INDEX `sindex` (`aaa`,`bbb`,`ccc`) 
 
@@ -234,21 +234,33 @@ CREATE TABLE index5(
 );
 ```
 
-### 2.4.2 最左前缀匹配原则
+### 最左前缀匹配原则
 
 - 最左优先，在检索数据时从联合索引的最左边开始匹配
 
 - 示例讲解：
 
+	
+	
 	对列col1、列col2和列col3建一个联合索引
 	
 	> KEY test_col1_col2_col3 on test(col1,col2,col3);
+	
+	
 	
 	联合索引 test_col1_col2_col3 实际建立了(col1)、(col1,col2)、(col,col2,col3)三个索引。
 	
 	> SELECT * FROM test WHERE col1=“1” AND clo2=“2” AND clo4=“4”
 	
+	
+	
 	上面这个查询语句执行时会依照最左前缀匹配原则，检索时会使用索引(col1,col2)进行数据匹配。
+	
+	> SELECT * FROM test WHERE col1=“1” AND clo2>“2” AND clo3=“3”
+	
+	上面这个查询语句执行时会使用col1和col2作为索引进行查询
+
+
 
 注意：索引的字段可以是任意顺序的，如：
 
@@ -258,7 +270,159 @@ SELECT * FROM test WHERE col1=“1” AND clo2=“2”
 SELECT * FROM test WHERE col2=“2” AND clo1=“1”
 ```
 
-# 3.主键与索引对比
+
+
+最后附上索引情况
+
+![](img/mysql-multi-index1.png)
+
+
+
+## 索引失效
+
+### where语句中包含or时，可能会导致索引失效
+
+使用`or`并不是一定会使索引失效，你需要看`or`左右两边的查询列是否命中相同的索引。
+
+假设`USER`表中的`user_id`列有索引，`age`列没有索引。
+
+下面这条语句是命中索引的
+
+```sql
+select * from `user` where user_id = 1 or user_id = 2;
+```
+
+但是这条语句是无法命中索引的。
+
+```sql
+select * from `user` where user_id = 1 or age = 20;
+```
+
+假设`age`列也有索引的话，依然是无法命中索引的。
+
+```sql
+select * from `user` where user_id = 1 or age = 20;
+```
+
+因此才有建议说，尽量避免使用`or`语句，可以根据情况尽量使用`union all`或者`in`来代替，这两个语句的执行效率也比`or`好些。
+
+
+
+### where语句中索引列使用了负向查询，可能会导致索引失效
+
+负向查询包括：`NOT、!=、<>、!<、!>、NOT IN、NOT LIKE`等。
+
+需要注意的是，负向查询并不绝对会索引失效，这要看MySQL优化器的判断，全表扫描或者走索引哪个成本低了。
+
+
+
+### 索引字段可以为null，使用is null或is not null时，可能会导致索引失效
+
+单个索引字段，使用`is null`或`is not null`时，是可以命中索引的。
+
+```sql
+假设USER表中的user_id列有索引且允许null，age列有索引且允许null。
+
+select * from `user` where user_id is not null or age is not null;
+```
+
+阿里的java编码规范中强调，字段要设为`not null`并提供默认值，是有原因值得参考的。
+
+
+
+### 在索引列上使用内置函数，一定会导致索引失效
+
+```sql
+索引列login_time上使用了函数，会索引失效：
+
+select * from `user` where DATE_ADD(login_time, INTERVAL 1 DAY) = 7;
+```
+
+优化建议：尽量在应用程序中进行计算和转换。
+
+
+
+还有两种索引失效场景，应该都归于索引列使用了函数。
+
+####  隐式类型转换导致的索引失效
+
+比如下面语句中索引列user_id为varchar类型，不会命中索引：
+
+```sql
+select * from `user` where user_id = 12;
+```
+
+这是因为MySQL做了隐式类型转换，调用函数将user_id做了转换。
+
+```sql
+select * from `user` where CAST(user_id AS signed int) = 12;
+```
+
+####  隐式字符编码转换导致的索引失效
+
+当两个表之间做关联查询时，如果两个表中关联的字段字符编码不一致的话，`MySQL`可能会调用`CONVERT`函数，将不同的字符编码进行隐式转换从而达到统一。作用到关联的字段时，就会导致索引失效。
+
+比如下面这个语句，其中`d.tradeid`字符编码为`utf8`，而`l.tradeid`的字符编码为`utf8mb4`。因为`utf8mb4`是`utf8`的超集，所以`MySQL`在做转换时会用`CONVERT`将`utf8`转为`utf8mb4`。简单来看就是`CONVERT`作用到了`d.tradeid`上，因此索引失效。
+
+```sql
+select l.operator from tradelog l , trade_detail d where d.tradeid=l.tradeid and d.id=4;
+```
+
+这种情况一般有两种解决方案。
+
+方案1: 将关联字段的字符编码统一。
+
+方案2: 实在无法统一字符编码时，手动将`CONVERT`函数作用到关联时=的右侧，起到字符编码统一的目的，这里是强制将`utf8mb4`转为`utf8`，当然从超集向子集转换是有数据截断风险的。如下：
+
+```sql
+select d.* from tradelog l , trade_detail d where d.tradeid=CONVERT(l.tradeid USING utf8) and l.id=2;
+```
+
+
+
+### 对索引列进行运算，一定会导致索引失效
+
+运算如+，-，*，/等，如下：
+
+```sql
+select * from `user` where age - 1 = 10;
+```
+
+优化的话，要把运算放在值上，或者在应用程序中直接算好，比如：
+
+```sql
+select * from `user` where age = 10 - 1;
+```
+
+
+
+###  like通配符可能会导致索引失效
+
+like查询以%开头时，会导致索引失效。解决办法有两种：
+
+将%移到后面，如：
+
+```sql
+select * from `user` where `name` like '李%';
+```
+
+利用覆盖索引来命中索引。
+
+```sql
+select name from `user` where `name` like '%李%';
+```
+
+
+
+### 联合索引中，where中索引列违背最左匹配原则，一定会导致索引失效
+
+
+
+### MySQL优化器的最终选择，不走索引
+
+
+
+# 主键与索引对比
 
 - 主键一定是唯一性索引，唯一性索引并不一定就是主键。
 
@@ -288,7 +452,7 @@ SELECT * FROM test WHERE col2=“2” AND clo1=“1”
 | 主键只能有一个 | 一个表可以有多个外键      |    一个表可以有多个惟一索引 |
 
 
-# 4.存储引擎中索引的类型
+# 存储引擎中索引的类型
 
 ## 非聚簇索引
 

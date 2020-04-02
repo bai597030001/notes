@@ -2,11 +2,9 @@
 
 https://www.cnblogs.com/jmcui/p/11218824.html
 
-上面已经介绍了Ribbon和Hystrix了，可以发现的是：他俩作为基础工具类框架**广泛地应用**在各个微服务的实现中。我们会发现对这两个框架的**使用几乎是同时出现**的。
+了解了`Ribbon`和`Hystrix`以后，可以发现：他俩作为基础工具类框架**广泛地应用**在各个微服务的实现中。我们会发现对这两个框架的**使用几乎是同时出现**的。
 
-为了**简化**我们的开发，Spring Cloud Feign出现了！它基于 Netflix Feign 实现，**整合**了 Spring Cloud Ribbon 与 Spring Cloud Hystrix, 除了整合这两者的强大功能之外，它还提 供了**声明式的服务调用**(不再通过RestTemplate)。
-
-
+为了**简化**我们的开发，`Spring Cloud Feign`出现了！它基于 `Netflix Feign` 实现，**整合**了 `Spring Cloud Ribbon` 与 `Spring Cloud Hystrix`, 除了整合这两者的强大功能之外，它还提 供了**声明式的服务调用**(不再通`RestTemplate`)。
 
 > Feign是一种声明式、模板化的HTTP客户端。在Spring Cloud中使用Feign, 我们可以做到使用HTTP请求远程服务时能与调用本地方法一样的编码体验，开发者完全感知不到这是远程方法，更感知不到这是个HTTP请求。
 
@@ -14,14 +12,14 @@ https://www.cnblogs.com/jmcui/p/11218824.html
 
 ## Feign 简介
 
-- Feign 是一个声明式的伪 Http 客户端。使用 Feign 时，仅仅需要创建一个接口并注解。
-- Feign 支持可插拔的编码器、解码器。
-- Feign 默认集成了 Ribbon，并和 Eureka 结合，实现了默认的负载均衡功能。
-- 整合了 Hystrix，具有熔断能力。
+- `Feign` 是一个声明式的伪 `http` 客户端。使用 `Feign` 时，仅仅需要创建一个接口并注解。
+- `Feign` 支持可插拔的编码器、解码器。
+- `Feign` 默认集成了 `Ribbon`，并和 `Eureka` 结合，实现了默认的负载均衡功能。
+- 整合了 `Hystrix`，具有熔断能力。
 
 ## 准备
 
-继续启用 eureka-srv 端口为 8761、eureka-srv-cli1 两个实例 端口为 8762、8763.
+继续启用 `eureka-srv` 端口为 8761、`eureka-srv-cli, eureka-srv-cli1` 两个实例 端口为 8762、8763.
 
 ## 创建一个 Feign 服务
 
@@ -44,7 +42,7 @@ https://www.cnblogs.com/jmcui/p/11218824.html
 
 ## 修改配置信息
 
-配置文件中指定服务名伪： service-feign， 端口伪 8765， 注册到注册中心： http://localhost:8761/eureka/。 application.properties:
+配置文件中指定服务名伪： service-feign， 端口伪 8765， 注册到注册中心： http://localhost:8761/eureka/。 `application.properties`:
 
 ```properties
 spring.application.name=service-feign
@@ -86,7 +84,7 @@ public interface IFeignServiceHi {
 }
 ```
 
-## 向外层暴露一个Controller，调用Feigb接口定义的服务来消费
+## 向外层暴露一个Controller，调用Feign接口定义的服务来消费
 
 ```java
 @RestController
@@ -104,7 +102,7 @@ public class HiController {
 
 ## 测试
 
-当然，测试之前，请先关闭[Ribbon](https://github.com/Byron4j/CookBook/blob/master/SpringCloud/2-Ribbon负载均衡.md)实例，以免干扰； 再启动本例的Feign启动类，然后访问： `http://localhost:8765/hi?name=forezp`，也看到了和Ribbon负载均衡一样的效果：
+当然，测试之前，请先关闭Ribbon负载均衡实例，以免干扰； 再启动本例的Feign启动类，然后访问： `http://localhost:8765/hi?name=forezp`，也看到了和Ribbon负载均衡一样的效果：
 
 > hi forezp,i am from port:8763
 >

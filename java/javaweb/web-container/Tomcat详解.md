@@ -2994,7 +2994,7 @@ C.返回响应的数据到客户端（浏览器）
 
 2. 找到它对应的servlet-name
 3. 通过mapping中servlet-name找到相应的servlet(它们的servet-name是一样的)
-  在servlet标签中找到它的servlet-class，它里面是全限定名称
+    在servlet标签中找到它的servlet-class，它里面是全限定名称
 
 
 ```xml
@@ -3446,6 +3446,75 @@ The default implementation supports the following attributes:
 | `threadRenewalDelay`      | (long) If a [ThreadLocalLeakPreventionListener](https://tomcat.apache.org/tomcat-8.5-doc/config/listeners.html) is configured, it will notify this executor about stopped contexts. After a context is stopped, threads in the pool are renewed. To avoid renewing all threads at the same time, this option sets a delay between renewal of any 2 threads. The value is in ms, default value is `1000` ms. If value is negative, threads are not renewed. |
 
 
+
+## tomcat扩展线程池和任务队列
+
+`tomcat`扩展`juc`中的线程池`ThreadPoolExecutor`
+
+因为在`juc`的`ThreadPoolExecutor`中，当线程数达到核心线程大小，开始想任务队列中添加，此时如果任务队列容量很大，那么是不会创建临时线程去执行任务的。
+
+tomcat就扩展了`java.util.concurrent.ThreadPoolExecutor`，在内部提供了`AtomicInteger submittedCount`变量来记录已经提交还未执行的任务数量；并且在内部提供的`execute(Runnable command, long timeout, TimeUnit unit)`中操作该变量。
+
+```java
+public void execute(Runnable command, long timeout, TimeUnit unit) {
+    //新增任务数
+    submittedCount.incrementAndGet();
+    try {
+        //执行
+        super.execute(command);
+    } catch (RejectedExecutionException rx) {
+        //如果执行抛出异常，则尝试加入任务队列
+        //注意：tomcat提供了自定义的阻塞队列 TaskQueue, 其内部重写了offer(Runnable o)方法 
+        if (super.getQueue() instanceof TaskQueue) {
+            final TaskQueue queue = (TaskQueue)super.getQueue();
+            try {
+                if (!queue.force(command, timeout, unit)) {
+                    submittedCount.decrementAndGet();
+                    throw new RejectedExecutionException("Queue capacity is full.");
+                }
+            } catch (InterruptedException x) {
+                submittedCount.decrementAndGet();
+                throw new RejectedExecutionException(x);
+            }
+        } else {
+            submittedCount.decrementAndGet();
+            throw rx;
+        }
+    }
+}
+```
+
+
+
+```java
+public class TaskQueue extends LinkedBlockingQueue<Runnable> {
+
+    // ...
+
+    @Override
+    public boolean offer(Runnable o) {
+        //we can't do any checks
+        if (parent == null)
+            return super.offer(o);
+        //we are maxed out on threads, simply queue the object
+        //如果当前线程数等于最大线程数,此时不能创建新线程,只能添加进任务队列中
+        if (parent.getPoolSize() == parent.getMaximumPoolSize())
+            return super.offer(o);
+        //we have idle threads, just add it to the queue
+        //如果已提交但是未完成的任务数小于等于当前线程数,说明能处理过来,就放入队列中
+        if (parent.getSubmittedCount() <= (parent.getPoolSize()))
+            return super.offer(o);
+        //if we have less threads than maximum force creation of a new thread
+        //到这一步说明,已提交但是未完成的任务数大于当前线程数,此时如果当前线程数小于最大线程数,就返回false新建线程
+        if (parent.getPoolSize() < parent.getMaximumPoolSize())
+            return false;
+        //if we reached here, we need to add it to the queue
+        return super.offer(o);
+    }
+
+    // ...
+}
+```
 
 
 

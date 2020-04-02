@@ -1,12 +1,12 @@
 # Ribbon
 
-Spring Cloud Ribbon是基于Netflix Ribbon实现的一套客户端负载均衡的工具。它是一个基于HTTP和TCP的客户端负载均衡器。它可以通过在客户端中配置ribbonServerList来设置服务端列表去轮询访问以达到均衡负载的作用。
+`Spring Cloud Ribbon`是基于`Netflix Ribbon`实现的一套客户端负载均衡的工具。它是一个基于`HTTP`和`TCP`的客户端负载均衡器。它可以通过在客户端中配置`ribbonServerList`来设置服务端列表去轮询访问以达到均衡负载的作用。
 
-当Ribbon与Eureka联合使用时，ribbonServerList会被DiscoveryEnabledNIWSServerList重写，扩展成从Eureka注册中心中获取服务实例列表。同时它也会用NIWSDiscoveryPing来取代IPing，它将职责委托给Eureka来确定服务端是否已经启动。
+当`Ribbon`与`Eureka`联合使用时，`ribbonServerList`会被`DiscoveryEnabledNIWSServerList`重写，扩展成从`Eureka`注册中心中获取服务实例列表。同时它也会用`NIWSDiscoveryPing`来取代`IPing`，它将职责委托给`Eureka`来确定服务端是否已经启动。
 
-而当Ribbon与Consul（类似于Eureka的另一种服务注册中心）联合使用时，ribbonServerList会被ConsulServerList来扩展成从Consul获取服务实例列表。同时由ConsulPing来作为IPing接口的实现。
+而当`Ribbon`与`Consul`（类似于`Eureka`的另一种服务注册中心）联合使用时，`ribbonServerList`会被`ConsulServerList`来扩展成从`Consul`获取服务实例列表。同时由`ConsulPing`来作为`IPing`接口的实现。
 
-我们在使用Spring Cloud Ribbon的时候，不论是与Eureka还是Consul结合，都会在引入Spring Cloud Eureka或Spring Cloud Consul依赖的时候通过自动化配置来加载上述所说的配置内容，所以我们可以快速在Spring Cloud中实现服务间调用的负载均衡。
+我们在使用`Spring Cloud Ribbon`的时候，不论是与`Eureka`还是`Consul`结合，都会在引入`Spring Cloud Eureka`或`Spring Cloud Consul`依赖的时候通过自动化配置来加载上述所说的配置内容，所以我们可以快速在`Spring Cloud`中实现服务间调用的负载均衡。
 
 
 
@@ -296,10 +296,16 @@ ribbon-config-demo.ribbon.listOfServers=localhost:8081,localhost:8083
 ### 超时时间
 
 ```properties
+# 全局设置
+
 # 请求连接的超时时间
 ribbon.ConnectTimeout=2000
 # 请求处理的超时时间
 ribbon.ReadTimeout=5000
+
+
+
+# 局部设置
 
 # 也可以为每个Ribbon客户端设置不同的超时时间, 通过服务名称进行指定：
 ribbon-config-demo.ribbon.ConnectTimeout=2000
@@ -334,9 +340,7 @@ protected static int getRibbonTimeout(IClientConfig config, String commandKey) {
 
 
 
-
-
-可以看到ribbonTimeout是一个总时间，所以从逻辑上来讲，作者希望<font color=##00dd00> hystrixTimeout要大于ribbonTimeout</font>，否则hystrix熔断了以后，ribbon的重试就都没有意义了。
+可以看到`ribbonTimeout`是一个总时间，所以从逻辑上来讲，作者希望<font color=##00dd00> hystrixTimeout要大于ribbonTimeout</font>，否则`hystrix`熔断了以后，`ribbon`的重试就都没有意义了。
 
 
 
@@ -384,36 +388,57 @@ public class RibbonConfiguration {
 
 ### 重试机制
 
-在集群环境中，用多个节点来提供服务，难免会有某个节点出现故障。用 Nginx 做负载均衡的时候，如果你的应用是无状态的、可以滚动发布的，也就是需要一台台去重启应用，这样对用户的影响其实是比较小的，因为 Nginx 在转发请求失败后会重新将该请求转发到别的实例上去。
+在集群环境中，用多个节点来提供服务，难免会有某个节点出现故障。用 `Nginx` 做负载均衡的时候，如果你的应用是无状态的、可以滚动发布的，也就是需要一台台去重启应用，这样对用户的影响其实是比较小的，因为 `Nginx` 在转发请求失败后会重新将该请求转发到别的实例上去。
 
-由于 Eureka 是基于 AP 原则构建的，牺牲了数据的一致性，每个 Eureka 服务都会保存注册的服务信息，当注册的客户端与 Eureka 的心跳无法保持时，有可能是网络原因，也有可能是服务挂掉了。
+由于 `Eureka` 是基于 `AP` 原则构建的，牺牲了数据的一致性，每个 `Eureka` 服务都会保存注册的服务信息，当注册的客户端与 `Eureka` 的心跳无法保持时，有可能是网络原因，也有可能是服务挂掉了。
 
-在这种情况下，Eureka 中还会在一段时间内保存注册信息。这个时候客户端就有可能拿到已经挂掉了的服务信息，故 Ribbon 就有可能拿到已经失效了的服务信息，这样就会导致发生失败的请求。
+在这种情况下，`Eureka` 中还会在一段时间内保存注册信息。这个时候客户端就有可能拿到已经挂掉了的服务信息，所以 `Ribbon` 就有可能拿到已经失效了的服务信息，这样就会导致发生失败的请求。
 
-这种问题我们可以利用重试机制来避免。重试机制就是当 Ribbon 发现请求的服务不可到达时，重新请求另外的服务。
+这种问题我们可以利用重试机制来避免。重试机制就是当 `Ribbon` 发现请求的服务不可到达时，重新请求另外的服务。
 
 
 
-#### 1. RetryRule 重试
+#### 1. Retry Rule 重试
 
 解决上述问题，最简单的方法就是利用 Ribbon 自带的重试策略进行重试，此时只需要指定某个服务的负载策略为重试策略即可：
 
 ```properties
+# 开启重试机制，它默认是关闭的
+spring.cloud.loadbalancer.retry.enabled=true
+# 断路器hystrix的超时时间需要大于Ribbon的超时时间，不然不会触发重试。
+hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds=10000
+# 请求连接时间
+hello-service.ribbon.ConnectTimeout=250
+# 请求处理时间
+hello-service.ribbon.ReadTimeout=1000
+# 对所有操作都进行重试
+hello-service.ribbon.OkToRetryOnAllOperations=true
+# 切换实例的重试次数
+hello-service.ribbon.MaxAutoRetriesNextServer=2
+# 对当前实例的重试次数
+hello-service.ribbon.MaxAutoRetries=1
+
 ribbon-config-demo.ribbon.NFLoadBalancerRuleClassName=com.netflix.loadbalancer.RetryRule
 ```
 
 #### 2. Spring Retry 重试
 
-除了使用 Ribbon 自带的重试策略，我们还可以通过集成 Spring Retry 来进行重试操作。
+除了使用 `Ribbon` 自带的重试策略，我们还可以通过集成 `Spring Retry` 来进行重试操作。
 
-在 pom.xml 中添加 Spring Retry 的依赖，代码如下所示。
+1. 在 `pom.xml` 中添加 `Spring Retry` 的依赖，代码如下所示。
 
 ```xml
 <dependency>
-  <groupId>org.springframework.retry</groupId>
-  <artifactId>spring-retry</artifactId>
+    <groupId>org.springframework.retry</groupId>
+    <artifactId>spring-retry</artifactId>
 </dependency>
 ```
+
+
+
+2. 启动类加上`@EnableRetry`注解。
+
+
 
 配置重试次数等信息：
 
@@ -441,6 +466,13 @@ ribbon.retryableStatusCodes=500,404,502
 ### 配置文件方式
 
 ```	properties
+# 对于Ribbon参数配置通常有两种方式: 全局配置 和 客户端配置
+
+# 全局配置:ribbon.<key>=<value>
+# 指定客户端配置:<client>.ribbon.<key>=<value>格式进行配置,client可以理解为服务名
+# 对于Ribbon参数的key以及value类型定义,可以查看com.netflix.client.config.CommonClientConfigKey类获取更为详细的配置内容
+
+
 <clientName>.ribbon.NFLoadBalancerClassName: Should implement ILoadBalancer(负载均衡器操作接口)
 <clientName>.ribbon.NFLoadBalancerRuleClassName: Should implement IRule(负载均衡算法)
 <clientName>.ribbon.NFLoadBalancerPingClassName: Should implement IPing(服务可用性检查)
@@ -450,37 +482,37 @@ ribbon.retryableStatusCodes=500,404,502
 
 
 
-
-
 ## 基本实现
 
-BaseLoadBalancer是一个负载均衡器，是ribbon框架提供的负载均衡器。Spring Cloud对ribbon封装以后，直接调用ribbon的负载均衡器来实现微服务客户端的负载均衡。
+`BaseLoadBalancer`是一个负载均衡器，是`ribbon`框架提供的负载均衡器。`Spring Cloud`对`ribbon`封装以后，直接调用`ribbon`的负载均衡器来实现微服务客户端的负载均衡。
 
-这里需要注意，ribbon框架本身提供了几个负载均衡器，BaseLoadBalancer只是其中之一。
+这里需要注意，`ribbon`框架本身提供了几个负载均衡器，`BaseLoadBalancer`只是其中之一。
 
-Spring Cloud是如何封装ribbon框架的呢？Spring Cloud提供了2个接口：ServiceInstanceChooser和LoadBalancerClient，这2个接口就是客户端负载均衡的定义。具体实现类是RibbonLoadBalancerClient。RibbonLoadBalancerClient#choose()方法根据微服务实例的serviceId，然后使用配置的负载均衡策略，打到对于的微服务实例节点上。
+Spring Cloud是如何封装`ribbon`框架的呢？Spring Cloud提供了2个接口：`ServiceInstanceChooser`和`LoadBalancerClient`，这2个接口就是客户端负载均衡的定义。具体实现类是`RibbonLoadBalancerClient`。`RibbonLoadBalancerClient#choose()`方法根据微服务实例的`serviceId`，然后使用配置的负载均衡策略，打到对应的微服务实例节点上。
 
-OK，到这里，我们简单梳理一下Spring Cloud集成ribbon后，负载均衡的执行逻辑。
+OK，到这里，我们简单梳理一下Spring Cloud集成`ribbon`后，负载均衡的执行逻辑。
 
-1，Spring Cloud RibbonLoadBalancerClient#choose()调用ribbon框架的BaseLoadBalancer。
+1，`Spring Cloud RibbonLoadBalancerClient#choose()`调用`ribbon`框架的`BaseLoadBalancer`。
 
-2，BaseLoadBalancer#chooseServer()选择具体的负载均衡策略（RoundRibonRule），然后执行。
+2，`BaseLoadBalancer#chooseServer()`选择具体的负载均衡策略（`RoundRibonRule`），然后执行。
 
-但是，RibbonLoadBalancerClient#choose()是在哪里调用的呢？这里用到了拦截器，@RibbonClient注解自动化配置类LoadBalancerAutoConfiguration.class中有两个注解：
+但是，`RibbonLoadBalancerClient#choose()`是在哪里调用的呢？这里用到了拦截器，`@RibbonClient`注解自动化配置类`LoadBalancerAutoConfiguration.class`中有两个注解：
 
+```java
 @ConditionalOnClass({RestTemplate.class})
 
 @ConditionalOnClass({LoadBalancerClient.class})
+```
 
-也就是说，在RestTemplate.class和LoadBalancerClient.class存在的情况下，LoadBalancerInterceptor.class会拦截RestTemplate.class上的@LoadBalanced注解，然后将请求中的微服务实例名serviceId转化为具体的ip+端口，然后去请求目标服务节点。
+也就是说，在`RestTemplate.class`和`LoadBalancerClient.class`存在的情况下，`LoadBalancerInterceptor.class`会拦截`RestTemplate.class`上的`@LoadBalanced`注解，然后将请求中的微服务实例名`serviceId`转化为具体的`ip+端口`，然后去请求目标服务节点。
 
 
 
 ## 原理
 
 - 1.获取`@LoadBalanced`注解标记的`RestTemplate`。
-- 2.`RestTemplate`添加一个拦截器(filter)，当使用`RestTemplate`发起http调用时进行拦截。
-- 3.在filter拦截到该请求时，获取该次请求服务集群的全部列表信息。
+- 2.`RestTemplate`添加一个拦截器(`filter`)，当使用`RestTemplate`发起`http`调用时进行拦截。
+- 3.在`filter`拦截到该请求时，获取该次请求服务集群的全部列表信息。
 - 4.根据规则从集群中选取一个服务作为此次请求访问的目标。
 - 5.访问该目标，并获取返回结果。
 
@@ -500,7 +532,7 @@ private List<RestTemplate> restTemplates = Collections.emptyList();
 
 ### RestTemplate添加一个拦截器(filter)
 
-RestTemplate添加拦截器需要有两个步骤，首先是定义一个拦截器，其次是将定义的拦截器添加到RestTemplate中。
+`RestTemplate`添加拦截器需要有两个步骤，首先是定义一个拦截器，其次是将定义的拦截器添加到`RestTemplate`中。
 
 #### 定义一个拦截器
 
@@ -518,7 +550,7 @@ public interface ClientHttpRequestInterceptor {
 }
 ```
 
-ribbon中对应的实现类是`LoadBalancerInterceptor`(不使用`spring-retry`的情况下)具体源码如下：
+`ribbon`中对应的实现类是`LoadBalancerInterceptor`(不使用`spring-retry`的情况下)具体源码如下：
 
 ```java
 public class LoadBalancerInterceptor implements ClientHttpRequestInterceptor {
@@ -573,7 +605,7 @@ public abstract class InterceptingHttpAccessor extends HttpAccessor {
 }
 ```
 
-通过这两个方法我们就可以将刚才定义的`LoadBalancerInterceptor`添加到有`@LoadBalanced`注解标识的`RestTemplate`中。具体的源码如下(LoadBalancerAutoConfiguration)省略部分代码：
+通过这两个方法我们就可以将刚才定义的`LoadBalancerInterceptor`添加到有`@LoadBalanced`注解标识的`RestTemplate`中。具体的源码如下(`LoadBalancerAutoConfiguration`)省略部分代码：
 
 ```java
 public class LoadBalancerAutoConfiguration {
@@ -644,11 +676,11 @@ public class LoadBalancerAutoConfiguration {
 }
 ```
 
-至此知道了ribbon拦截请求的基本原理，接下来我们看看Ribbon是怎样选取server的。
+至此知道了`ribbon`拦截请求的基本原理，接下来我们看看`Ribbon`是怎样选取server的。
 
 #### Ribbon选取server原理概览
 
-通过上面的介绍我们知道了当发起请求时ribbon会用`LoadBalancerInterceptor`这个拦截器进行拦截。在该拦截器中会调用`LoadBalancerClient.execute()`方法，该方法具体代码如下：
+通过上面的介绍我们知道了当发起请求时`ribbon`会用`LoadBalancerInterceptor`这个拦截器进行拦截。在该拦截器中会调用`LoadBalancerClient.execute()`方法，该方法具体代码如下：
 
 ```java
 @Override
@@ -678,7 +710,7 @@ public <T> T execute(String serviceId, LoadBalancerRequest<T> request) throws IO
 ```
 
 通过代码我们可知，首先创建一个`ILoadBalancer`，这个`ILoadBalancer`是Ribbon的核心类。可以理解成它包含了选取服务的规则(`IRule`)、服务集群的列表(`ServerList`)、检验服务是否存活(`IPing`)等特性，同时它也具有了根据这些特性从服务集群中选取具体一个服务的能力。
-`Server server = getServer(loadBalancer);`这行代码就是选取举一个具体server。
+`Server server = getServer(loadBalancer);`这行代码就是选取举一个具体`server`。
 最终调用了内部的`execute`方法，该方法代码如下(只保留了核心代码)：
 
 ```java

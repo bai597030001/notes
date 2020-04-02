@@ -843,11 +843,11 @@ listeners = PLAINTEXT://spark-slave1:9092
 
 >如果是单机版，则默认配置就可以，其它主机也需要修改这三项。第三项如果不修改的话，producer必须用默认的hostname方式连接，在producer的主机上还需要把hosts对应关系配置上。
 >
->message.max.bytes=5000000  //默认值为1000000，broker能接收消息的最大字节数，这个值应该比消费端的fetch.message.max.bytes更小才对，否则broker就会因为消费端无法使用这个消息而挂起。
+>`message.max.bytes=5000000`  //默认值为1000000，broker能接收消息的最大字节数，这个值应该比消费端的`fetch.message.max.bytes`更小才对，否则broker就会因为消费端无法使用这个消息而挂起。
 >
->replica.fetch.max.bytes=5001000 //broker
+>`replica.fetch.max.bytes=5001000` //broker
 >
->可复制的消息的最大字节数。这个值应该比message.max.bytes大，否则broker会接收此消息，但无法将此消息复制出去，从而造成数据丢失。
+>可复制的消息的最大字节数。这个值应该比`message.max.bytes`大，否则broker会接收此消息，但无法将此消息复制出去，从而造成数据丢失。
 
 - consumer.properties
 

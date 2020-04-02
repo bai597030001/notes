@@ -530,13 +530,13 @@ Thread类的setPriority()和getPriority()方法分别用来设置和获取线程
 - 在Java中，可以通过配合调用`Object`对象的`wait`方法和`notify`方法或`notifyAll`方法来实现**线程间的协作通信**。在线程中调用wait方法，将阻塞等待其他线程的通知(其他线程调用`notify`方法或`notifyAll`方法)，在线程中调用`notify`方法或`notifyAll`方法，将通知其他线程从`wait`方法处返回。
 - 在`JDK1.4`之后出现了一个**Condition类**，这个类也能够实现**线程间的协作通信**，并且一般建议使用Condition替代`wait,notify,notifyAll`家族，实现更安全的线程间协作通信功能，比如`ArrayBlockingQueue`就是使用`Condition`实现阻塞队列的。
 - 注意
-  - `Object.wait()`与`Object.notify()`**必须要与**同步块或同步方法(**synchronized**块或者`synchronized`方法)一起使用，也就是`wait`与`notify`是针对已经获取了`Object`锁进行操作，从语法角度来说就是说`Object.wait(),Object.notify`必须在同步块或同步方法内。
+  - `Object.wait()`与`Object.notify()`必须要<font color=#dd0000>与同步块或同步方法(synchronized块或者`synchronized`方法)一起使用</font>，也就是`wait`与`notify`是针对已经获取了`Object`锁进行操作，从语法角度来说就是说`Object.wait(),Object.notify`必须在同步块或同步方法内。
   - `wait`：线程在获取对象锁后，主动释放对象锁，同时本线程休眠。直到有其它线程调用对象的`notify()`唤醒该线程，才能继续获取对象锁，并继续执行。
-  - `notify`：对对象锁的唤醒操作。有一点需要注意的是`notify()`调用后，并**不是马上就释放对象锁**的，而是在相应的同步块或同步方法中执行结束，自动释放锁后，`JVM`会在`wait`()对象锁的线程中随机选取一线程，赋予其对象锁，唤醒线程，继续执行。这样就提供了在线程间同步、唤醒的操作。
+  - `notify`：对对象锁的唤醒操作。有一点需要注意的是<font color=#dd0000>`notify()`调用后，并不是马上就释放对象锁的，而是在相应的同步块或同步方法中执行结束</font>，自动释放锁后，`JVM`会在`wait`()对象锁的线程中随机选取一线程，赋予其对象锁，唤醒线程，继续执行。这样就提供了在线程间同步、唤醒的操作。
 
 ### 为什么需要和synchronized一起使用
 
-**每个对象都可以被认为是一个"监视器monitor"，这个监视器由三部分组成（一个独占锁，一个入口队列，一个等待队列）(和AQS的state，同步队列，等待队列很相似)。**注意是一个对象只能有一个独占锁，但是任意线程线程都可以拥有这个独占锁。
+**每个对象都可以被认为是一个"监视器monitor"，这个监视器由三部分组成（一个独占锁，一个入口队列，一个等待队列）(和AQS的state，同步队列，等待队列很相似)。**注意是一个对象只能有一个独占锁，但是任意线程都可以拥有这个独占锁。
 
 - 对于对象的<font color="#dd0000">非同步方法</font>而言，任意时刻可以有任意个线程调用该方法。（即普通方法同一时刻可以有多个线程调用）
 - 对于对象的<font color="#dd000">同步方法</font>而言，只有拥有这个对象的独占锁才能调用这个同步方法。如果这个独占锁被其他线程占用，那么另外一个调用该同步方法的线程就会处于阻塞状态，**此线程进入入口队列**。
@@ -588,8 +588,7 @@ if(!condition){
 
 ```java
 // 线程A 的代码
-synchronized(obj_A)
-{
+synchronized(obj_A) {
 	while(!condition){ 
 	    wait();
 	}
@@ -599,8 +598,7 @@ synchronized(obj_A)
 
 ```java
 // 线程 B 的代码
-synchronized(obj_A)
-{
+synchronized(obj_A) {
 	if(!condition){ 
 		// do something ...
 	    condition = true;
@@ -613,8 +611,7 @@ synchronized(obj_A)
 
 ```java
 // 线程 A 的代码
-synchronized(obj_A)
-{
+synchronized(obj_A) {
 	while(!condition){ 
 	    obj_A.wait();
 	}
@@ -624,8 +621,7 @@ synchronized(obj_A)
 
 ```java
 // 线程 B 的代码
-synchronized(obj_A)
-{
+synchronized(obj_A) {
 	if(!condition){ 
 		// do something ...
 	    condition = true;
@@ -711,15 +707,19 @@ class Waiter implements Runnable{
 
 
 
+### 使用wait/notify使线程顺序执行
+
+
+
 ## Condition类
 
 与`synchronized`关键字与`wait`()和`notify`/`notifyAll`()方法相结合相比，`Lock`与`Condition`结合的优点是：
 
-1.可以实现**多路通知**功能，也就是在一个`Lock`对象中可以创建多个`Condition`实例（即对象监视器），线程对象可以注册在指定的`Condition`中，从而可以有选择性的进行线程通知，在调度线程上更加灵活。
+1.可以实现<font color=#dd0000>多路通知功能</font>，也就是在一个`Lock`对象中可以创建多个`Condition`实例（即对象监视器），线程对象可以注册在指定的`Condition`中，从而可以有选择性的进行线程通知，在调度线程上更加灵活。
 
 
 
-2.在使用`notify/notifyAll()`方法进行通知时，被通知的线程是有`JVM`选择的，使用`ReentrantLock`类结合`Condition`实例可以实现“**选择性通知**”（ 等待线程按 FIFO 顺序收到信号 ），这个功能非常重要，而且是`Condition`接口默认提供的。
+2.在使用`notify/notifyAll()`方法进行通知时，被通知的线程是由`JVM`选择的；使用`ReentrantLock`类结合`Condition`实例可以实现<font color=#dd0000>选择性通知（ 等待线程按 FIFO 顺序收到信号 ）</font>，这个功能非常重要，而且是`Condition`接口默认提供的。
 
 
 
@@ -1027,6 +1027,78 @@ public class ConditionSeqExec {
 
 # 线程同步
 
+## 指令重排
+
+```java
+int a=10 ;//1
+int b=20 ;//2
+int c= a+b ;//3
+```
+
+一段特别简单的代码，理想情况下它的执行顺序是：`1>2>3`。但有可能经过 JVM 优化之后的执行顺序变为了 `2>1>3`。
+
+可以发现不管 JVM 怎么优化，前提都是保证单线程中最终结果不变的情况下进行的。
+
+
+
+**问题示例代码**
+
+```java
+private static Map<String,String> value ;
+private static volatile boolean flag = fasle ;
+//以下方法发生在线程 A 中 初始化 Map
+public void initMap(){
+	//耗时操作
+	value = getMapValue() ;//1
+	flag = true ;//2
+}
+//发生在线程 B中 等到 Map 初始化成功进行其他操作
+public void doSomeThing(){
+	while(!flag){
+		sleep() ;
+	}
+	//dosomething
+	doSomeThing(value);
+}
+```
+
+这里就能看出问题了，当 `flag` 没有被 `volatile` 修饰时，`JVM` 对 1 和 2 进行重排，导致 `value` 都还没有被初始化就有可能被线程 B 使用了。
+
+所以加上 `volatile` 之后可以防止这样的重排优化，保证业务的正确性。
+
+
+
+**双重懒加载的单例模式**
+
+```java
+public class Singleton {
+    private volatile static Singleton singleton;
+
+    private Singleton() {}
+
+    public static Singleton getInstance() {
+        if (singleton == null) { // 1
+            synchronized(Singleton.class) {
+                if (singleton == null) {
+                    singleton = new Singleton(); // 2
+                }
+            }
+        }
+        return singleton;
+    }
+} 
+```
+
+实际上当程序执行到2处的时候，如果我们没有使用volatile关键字修饰变量singleton，就可能会造成错误。这是因为使用new关键字初始化一个对象的过程并不是一个原子的操作，它分成下面三个步骤进行：
+
+```properties
+ a. 给 singleton 分配内存
+ b. 调用 Singleton 的构造函数来初始化成员变量
+ c. 将 singleton 对象指向分配的内存空间（执行完这步 singleton 就为非 null 了）
+```
+
+如果虚拟机存在指令重排序优化，则步骤b和c的顺序是无法确定的。如果A线程率先进入同步代码块并先执行了c而没有执行b，此时因为singleton已经非null。这时候线程B到了1处，判断singleton非null并将其返回使用，因为此时Singleton实际上还未初始化，自然就会出错。synchronized可以解决内存可见性，但是不能解决重排序问题。
+
 
 
 ## final
@@ -1038,7 +1110,29 @@ public class ConditionSeqExec {
 ## volatile
 
 - 保证线程可见性
+
+  > 当一个被`volatile`关键字修饰的变量被一个线程修改的时候，其他线程可以立刻得到修改之后的结果。当一个线程向被`volatile`关键字修饰的变量写入数据的时候，虚拟机会强制它被值刷新到主内存中。当一个线程用到被`volatile`关键字修饰的值的时候，虚拟机会强制要求它从主内存中读取。
+
 - 防止指令重排（`synchronized`，`final`关键字也可以）
+
+  > 屏蔽指令重排序：指令重排序是编译器和处理器为了高效对程序进行优化的手段，它只能保证程序执行的结果时正确的，但是无法保证程序的操作顺序与代码顺序一致。这在单线程中不会构成问题，但是在多线程中就会出现问题。非常经典的例子是在单例方法中同时对字段加入`voliate`，就是为了防止指令重排序。
+
+  `volatile`防止指令重排是基于内存屏障（`Memory Barrier`）实现的
+
+  如果一个变量是`volatile`修饰的，`JMM`会在写入这个字段之后插进一个`Write-Barrier`指令，并在读这个字段之前插入一个`Read-Barrier`指令。这意味着，如果写入一个`volatile`变量，就可以保证：
+
+  - 一个线程写入变量a后，任何线程访问该变量都会拿到最新值。
+  - 在写入变量a之前的写入操作，其更新的数据对于其他线程也是可见的。因为`Memory Barrier`会刷出`cache`中的所有先前的写入。
+
+- `volatile`除了保证可见性和阻止指令重排，还解决了`long`类型和`double`类型数据的**8字节赋值问题**。
+
+> 对于32位操作系统来说，单次次操作能处理的最长长度为32bit，而long类型8字节64bit，所以对long的读写都要两条指令才能完成（即每次读写64bit中的32bit）。如果JVM要保证long和double读写的原子性，势必要做额外的处理。
+
+
+
+`volatile` 在 `Java` 并发中用的很多，比如像 `Atomic` 包中的 `value`、以及 `AbstractQueuedLongSynchronizer` 中的 `state` 都是被定义为 `volatile` 来用于保证内存可见性。
+
+
 
 示例代码：
 
@@ -1741,6 +1835,10 @@ $ java -Xms256m ThreadLocalOOMDemo
 
 
 
+#### 子线程可否继承
+
+
+
 #### 疑问
 
 ​	每次新建`ThreadLocal`，使用，然后`remove`删除，这样操作频繁，会频繁触发`GC`，怎么办？
@@ -2417,7 +2515,7 @@ public class ABADemo {
 
 另外，从空间方面考虑，**LongAdder**其实是一种“空间换时间”的思想，从这一点来讲**AtomicLong**更适合。
 
-总之，低并发、一般的业务场景下AtomicLong是足够了。如果并发量很多，存在大量写多读少的情况，那LongAdder可能更合适。适合的才是最好的，如果真出现了需要考虑到底用AtomicLong好还是LongAdder的业务场景，那么这样的讨论是没有意义的，因为这种情况下要么进行性能测试，以准确评估在当前业务场景下两者的性能，要么换个思路寻求其它解决方案。
+总之，低并发、一般的业务场景下`AtomicLong`是足够了。如果并发量很多，存在大量<font color=#dd0000>写多读少</font>的情况，那`LongAdder`可能更合适。适合的才是最好的，如果真出现了需要考虑到底用`AtomicLong`好还是`LongAdder`的业务场景，那么这样的讨论是没有意义的，因为这种情况下要么进行性能测试，以准确评估在当前业务场景下两者的性能，要么换个思路寻求其它解决方案。
 
 
 

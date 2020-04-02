@@ -563,6 +563,8 @@ Map m = Collections.synchronizeMap(hashMap);
 
 ### LinkedHashMap
 
+<font color=#dd0000>内部维持了一个双向链表，可以保持顺序。保持进入的顺序与被取出的顺序一致</font>
+
 源码示例
 
 ```java
@@ -746,7 +748,7 @@ public class LinkedHashMapTest {
 
 基本概念：
 
-- TreeMap集合是基于红黑树（Red-Black tree）的 `NavigableMap`实现。该集合最重要的特点就是**可排序**，该映射根据其键的自然顺序进行排序，或者根据创建映射时提供的 `Comparator` 进行排序，具体取决于使用的构造方法。
+- TreeMap集合是基于红黑树（Red-Black tree）的 `NavigableMap`实现。该集合最重要的特点就是<font color=#dd0000>可排序</font>，该映射根据其键的自然顺序进行排序，或者根据创建映射时提供的 `Comparator` 进行排序，具体取决于使用的构造方法。
 - 要想使用TreeMap存储并排序我们自定义的类（如`User`类），那么必须自己定义比较机制：
   - 一种方式是User类去实现`java.lang.Comparable`接口，并实现其`compareTo`()方法。
   - 另一种方式是写一个类（如`MyCompatator`）去实现`java.util.Comparator`接口，并实现compare()方法，然后将`MyCompatator`类实例对象作为TreeMap的构造方法参数进行传参（当然也可以使用匿名内部类）

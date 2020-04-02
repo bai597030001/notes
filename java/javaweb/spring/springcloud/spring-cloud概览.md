@@ -101,7 +101,7 @@ SOA：业务系统分解为多个组件，让每个组件都独立提供离散�
 - 客户端负载均衡： Spring Cloud Ribbon
 - 服务容错保护： Spring Cloud Hystrix
 - 声明式服务调用： Spring Cloud Feign
-- API网关服务：Spring Cloud Zuul
+- API网关服务：Spring Cloud Zuul，Spring Cloud Gateway
 - 分布式配置中心： Spring Cloud Config
 
 ## SpringCloud的高级功能
