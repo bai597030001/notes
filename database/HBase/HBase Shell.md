@@ -13,18 +13,22 @@
 
 ​        create ‘表名称’,’列名称1’，’列名称2’，’列名称3’ 
 
-> ```
-> create 'student','info','grade'
-> ```
+```shell
+$ create 'student','info','grade'
+```
+
+
 
 ###     2.列出所有的表
 
 list 
 ![blob.png](http://www.52xjava.cn/wp-content/uploads/image/20180122/1516629147169951.png)
 
-> ```
-> list ‘abc.*’ #显示abc开头的表
-> ```
+```shell
+list ‘abc.*’ #显示abc开头的表
+```
+
+
 
 ###     3.获得表的描述
 

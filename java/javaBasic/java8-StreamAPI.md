@@ -262,18 +262,18 @@ getLength(strA);
 getLength("");
 getLength(strB);
 public static void print(String text) {
- // Java 8
- Optional.ofNullable(text).ifPresent(System.out::println);
- // Pre-Java 8
- if (text != null) {
- System.out.println(text);
- }
+     // Java 8
+     Optional.ofNullable(text).ifPresent(System.out::println);
+     // Pre-Java 8
+     if (text != null) {
+     	System.out.println(text);
+     }
  }
 public static int getLength(String text) {
- // Java 8
-return Optional.ofNullable(text).map(String::length).orElse(-1);
- // Pre-Java 8
-return if (text != null) ? text.length() : -1;
+     // Java 8
+    return Optional.ofNullable(text).map(String::length).orElse(-1);
+     // Pre-Java 8
+    return if (text != null) ? text.length() : -1;
  };
 ```
 
@@ -287,11 +287,13 @@ Stream 中的 findAny、max/min、reduce 等方法等返回 Optional 值。还�
 
 这个方法的主要作用是把 Stream 元素组合起来。它提供一个起始值（种子），然后依照运算规则（BinaryOperator），和前面 Stream 的第一个、第二个、第 n 个元素组合。从这个意义上说，字符串拼接、数值的 sum、min、max、average 都是特殊的 reduce。例如 Stream 的 sum 就相当于
 
-Integer sum = integers.reduce(0, (a, b) -> a+b); 或
-
+```java
+Integer sum = integers.reduce(0, (a, b) -> a+b); 
+或
 Integer sum = integers.reduce(0, Integer::sum);
+```
 
-也有没有起始值的情况，这时会把 Stream 的前面两个元素组合起来，返回的是 Optional。
+没有起始值的情况，这时会把 Stream 的前面两个元素组合起来，返回的是 Optional。
 
 ```java
 // 字符串连接，concat = "ABCD"
@@ -312,6 +314,30 @@ concat = Stream.of("a", "B", "c", "D", "e", "F").
 
 
 
+#### collect
+
+```java
+/**
+supplier：一个能创造目标类型实例的方法。
+
+accumulator：一个将当前元素添加到目标中的方法。
+
+combiner：一个将中间状态的多个结果整合到一起的方法（并发的时候会用到）
+*/
+<R> R collect(Supplier<R> supplier,
+                  BiConsumer<R, ? super T> accumulator,
+                  BiConsumer<R, R> combiner);
+
+/**
+Collector其实是上面supplier、accumulator、combiner的聚合体
+*/
+<R, A> R collect(Collector<? super T, A, R> collector);
+```
+
+
+
+
+
 #### limit/skip
 
  limit 返回 Stream 的前面 n 个元素；skip 则是扔掉前 n 个元素（它是由一个叫 subStream 的方法改名而来）。 
@@ -320,13 +346,13 @@ concat = Stream.of("a", "B", "c", "D", "e", "F").
 public void testLimitAndSkip() {
 	List<Person> persons = new ArrayList();
 	for (int i = 1; i <= 10000; i++) {
-	Person person = new Person(i, "name" + i);
-	persons.add(person);
-}
-List<String> personList2 = persons.stream().
-map(Person::getName).limit(10).skip(3).collect(Collectors.toList());
- System.out.println(personList2);
-}
+		Person person = new Person(i, "name" + i);
+		persons.add(person);
+	}
+    List<String> personList2 = persons.stream().
+    map(Person::getName).limit(10).skip(3).collect(Collectors.toList());
+    	System.out.println(personList2);
+    }
 
 private class Person {
 	public int no;
@@ -394,7 +420,7 @@ name4
 
 #### sorted
 
- 对 Stream 的排序通过 sorted 进行，它比数组的排序更强之处在于你可以首先对 Stream 进行各类 map、filter、limit、skip 甚至 distinct 来减少元素数量后，再排序，这能帮助程序明显缩短执行时间。我们对清单 14 进行优化： 
+ 对 Stream 的排序通过 sorted 进行，它比数组的排序更强之处在于你可以首先对 Stream 进行各类 map、filter、limit、skip 甚至 distinct 来减少元素数量后，再排序，这能帮助程序明显缩短执行时间。
 
 ```java
 List<Person> persons = new ArrayList();
@@ -412,7 +438,7 @@ System.out.println(personList2);
 
 #### min/max/distinct
 
- min 和 max 的功能也可以通过对 Stream 元素先排序，再 findFirst 来实现，但前者的性能会更好，为 O(n)，而 sorted 的成本是 O(n log n)。同时它们作为特殊的 reduce 方法被独立出来也是因为求最大最小值是很常见的操作。 
+min 和 max 的功能也可以通过对 Stream 元素先排序，再 findFirst 来实现，但前者的性能会更好，为 O(n)，而 sorted 的成本是 O(n log n)。同时它们作为特殊的 reduce 方法被独立出来也是因为求最大最小值是很常见的操作。 
 
 ```java
 // 找出最长一行的长度
@@ -459,9 +485,11 @@ persons.add(new Person(2, "name" + 2, 21));
 persons.add(new Person(3, "name" + 3, 34));
 persons.add(new Person(4, "name" + 4, 6));
 persons.add(new Person(5, "name" + 5, 55));
+
 boolean isAllAdult = persons.stream().
  allMatch(p -> p.getAge() > 18);
 System.out.println("All are adult? " + isAllAdult);
+
 boolean isThereAnyChild = persons.stream().
  anyMatch(p -> p.getAge() < 12);
 System.out.println("Any child? " + isThereAnyChild);
