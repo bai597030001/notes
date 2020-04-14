@@ -94,7 +94,7 @@ Region服务器负责存储和维护分配给自己的Region，处理来自客�
 
 - Master RegionServer要实时的向Master报告信息。Master知道全局的RegionServer运行情况，可以控制RegionServer的故障转移和Region的切分。
 
-## 架构细化
+## 架构详情
 
 ![](img/hbase7.webp)
 
@@ -131,10 +131,8 @@ Regions，代表table，Region有多个Store(列簇)，Store有一个Memstore和
 
 # 存储设计
 
-
-
 在Hbase中，表被分割成多个更小的块然后分散的存储在不同的服务器上，这些小块叫做Regions，存放Regions的地方叫做RegionServer。Master进程负责处理不同的RegionServer之间的Region的分发。在Hbase实现中HRegionServer和HRegion类代表RegionServer和Region。HRegionServer除了包含一些HRegions之外，还处理两种类型的文件用于数据存储
 
-- HLog， 预写日志文件，也叫做WAL(write-ahead log)
+- HLog 预写日志文件，也叫做WAL(write-ahead log)
 - HFile 真实的数据存储文件
 
