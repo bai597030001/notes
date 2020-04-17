@@ -437,7 +437,7 @@ $ scan <table>, {COLUMNS => [ <family:column>,.... ], LIMIT => num}
 # 删除指定rowkey的 'info:age' 字段
 $ delete 'table_name','row_index','info:age'
 # 删除整行
-deleteall 'table_name','row_index'
+$ deleteall 'table_name','row_index'
 
 # 查询表中有多少行
 $ count 'namespace1:t1'
@@ -465,7 +465,7 @@ $ scan ‘table_name’,{COLUMNS=>[‘c1’,’c2’]}    # 多个列、字段
 #### 限制查找条数
 
 ```shell
-$ scan 'table_name', {COLUMNS => [ 'c'], LIMIT => n}
+$ scan 'table_name', {COLUMNS=>[ 'c'], LIMIT => n}
 ```
 
 #### 限制时间范围
@@ -483,7 +483,7 @@ $ scan 'table_name', {TIMERANGE=>[ minStamp, maxStamp]}
 ##### 行键前缀过滤-PrefixFilter
 
 ```shell
-$ scan 'table_name',{FILTER => "PrefixFilter('rowkey_prefix')"}
+$ scan 'table_name',{FILTER=> "PrefixFilter('rowkey_prefix')"}
 ```
 
 #### 列族过滤 
@@ -491,20 +491,20 @@ $ scan 'table_name',{FILTER => "PrefixFilter('rowkey_prefix')"}
 ##### 列名限定符过滤器 QuanlifierFilter
 
 ```shell
-$ scan 'table_name',{FILTER => "QualifierFilter(CompareOp,'BinaryComparator')"} 
+$ scan 'table_name',{FILTER=> "QualifierFilter(CompareOp,'BinaryComparator')"} 
 # 参数是关系比较运算符 和 二进制比较器
 ```
 
 ##### 列名前缀过滤器 ColumnPrexfixFilter
 
 ```shell
-$ scan 'table_name',{FILTER => "ColumnPrefixFilter('colunm')"}
+$ scan 'table_name',{FILTER=> "ColumnPrefixFilter('colunm')"}
 ```
 
 ##### 多个列名前缀过滤器 MultipleColumnPrexfixFilter
 
 ```shell
-$ scan 'table_name',{FILTER => "MultipleColumnPrefixFilter('c1','c2')" }
+$ scan 'table_name',{FILTER=> "MultipleColumnPrefixFilter('c1','c2')" }
 ```
 
 #### 列值过滤 SingleColumnValueFilter
@@ -514,7 +514,7 @@ $ scan 'table_name',{FILTER => "MultipleColumnPrefixFilter('c1','c2')" }
 import org.apache.hadoop.hbase.filter.SingleColumnValueFilter
 import org.apache.hadoop.hbase.filter.CompareFilter
 import org.apache.hadoop.hbase.filter.SubstringComparator
-$ scan 'table_name',{FILTER => SingleColumnValueFilter.new(Bytes.toBytes('info'),  
+$ scan 'table_name',{FILTER=> SingleColumnValueFilter.new(Bytes.toBytes('info'),  
     # 列族 
     Bytes.toBytes('column),    
     # 字段  
@@ -548,7 +548,7 @@ $ scan 'table_name',{FILTER => SingleColumnValueFilter.new(Bytes.toBytes('info')
 多个过滤器可以通过 AND OR 连接进行组合过滤
 
 ```shell
-$ scan 'emp', {FILTER => "(MultipleColumnPrefixFilter('sal','COMM','deptno')) AND (SingleColumnValueFilter('empinfo','deptno',=,'substring:20'))"}
+$ scan 'emp', {FILTER=> "(MultipleColumnPrefixFilter('sal','COMM','deptno')) AND (SingleColumnValueFilter('empinfo','deptno',=,'substring:20'))"}
 ```
 
 
@@ -681,7 +681,7 @@ org.apache.hadoop.hbase.client.Mutation ） 。分别针对表、插入操作、
 
 需要注意的是， Delete 和 Put 并不会继承 Table 的 Durability 级别（已实测验证） 。
 
-Durability是一个枚举变量，可选值参见4.2节。如果不通过该方法指定WAL日志级别，则为 默认 USE_DEFAULT 级别。
+Durability是一个枚举变量。如果不通过该方法指定WAL日志级别，则为 默认 USE_DEFAULT 级别。
 ```
 
 ### 删除表
@@ -776,44 +776,44 @@ admin.close();
 
 ### 新增、更新数据 Put
 
-```properties
-常用构造函数：
+```java
+// 常用构造函数：
 
-    （1）指定行键
+    // （1）指定行键
 
     public Put(byte[] row)
 
-    参数： row 行键
+    //  参数： row 行键
 
-    （2）指定行键和时间戳
+    // （2）指定行键和时间戳
 
     public Put(byte[] row, long ts)
 
-    参数： row 行键， ts 时间戳
+    // 参数： row 行键， ts 时间戳
 
-    （3）从目标字符串中提取子串，作为行键
+    // （3）从目标字符串中提取子串，作为行键
 
     Put(byte[] rowArray, int rowOffset, int rowLength)
 
-    （4）从目标字符串中提取子串，作为行键，并加上时间戳
+    // （4）从目标字符串中提取子串，作为行键，并加上时间戳
 
     Put(byte[] rowArray, int rowOffset, int rowLength, long ts)
 
-常用方法：
+// 常用方法：
 
-    （1）指定 列族、限定符 ，添加值
+    // （1）指定 列族、限定符 ，添加值
 
     add(byte[] family, byte[] qualifier, byte[] value)
 
-    （2）指定 列族、限定符、时间戳 ，添加值
+    // （2）指定 列族、限定符、时间戳 ，添加值
 
     add(byte[] family, byte[] qualifier, long ts, byte[] value)
 
-    （3） 设置写WAL （Write-Ahead-Log）的级别
+    // （3） 设置写WAL （Write-Ahead-Log）的级别
 
     public void setDurability(Durability d)
 
-    参数是一个枚举值，可以有以下几种选择：
+    // 参数是一个枚举值，可以有以下几种选择：
 
     ASYNC_WAL ： 当数据变动时，异步写WAL日志
     SYNC_WAL ： 当数据变动时，同步写WAL日志
@@ -1046,10 +1046,9 @@ void setCacheBlocks(boolean cacheBlocks)  设置该Get获取的数据是否缓�
 // 实测代码
 
 // 1）获取行键指定行的 所有列族、所有列 的 最新版本 数据
-
-    Configuration conf = HBaseConfiguration. create ();
+Configuration conf = HBaseConfiguration. create ();
 HTable table =  new  HTable(conf,  "rd_ns:leetable" );
-Get get =  new  Get(Bytes. toBytes ( "100003" ));
+Get get =  new  Get(Bytes.toBytes ( "100003" ));
 Result r = table.get(get);
 for  (Cell cell : r.rawCells()) {
     System. out .println(
@@ -1062,10 +1061,9 @@ for  (Cell cell : r.rawCells()) {
 table.close();
 
 // 2）获取行键指定行中， 指定列 的最新版本数据
-
-    Configuration conf = HBaseConfiguration. create ();
+Configuration conf = HBaseConfiguration. create ();
 HTable table =  new  HTable(conf,  "rd_ns:leetable" );
-Get get =  new  Get(Bytes. toBytes ( "100003" ));
+Get get =  new  Get(Bytes.toBytes ( "100003" ));
 get.addColumn(Bytes. toBytes ( "info" ), Bytes. toBytes ( "name" ));
 Result r = table.get(get);
 for  (Cell cell : r.rawCells()) {
@@ -1079,8 +1077,7 @@ for  (Cell cell : r.rawCells()) {
 table.close();
 
 // 3）获取行键指定的行中， 指定时间戳 的数据
-
-    Configuration conf = HBaseConfiguration. create ();
+ Configuration conf = HBaseConfiguration. create ();
 HTable table =  new  HTable(conf,  "rd_ns:leetable" );
 Get get =  new  Get(Bytes. toBytes ( "100003" ));
 get.setTimeStamp(1405407854374L);
@@ -1123,18 +1120,20 @@ Scan 的结果数据是可以缓存在内存中的，可以通过 getCaching ()�
 
 
 
-	HTable htable = ...      // instantiate HTable
-	Scan scan = new Scan();
-	scan.addColumn(Bytes.toBytes("cf"),Bytes.toBytes("attr"));
-	scan.setStartRow( Bytes.toBytes("row"));                   // start key is inclusive
-	scan.setStopRow( Bytes.toBytes("row" +  (char)0));  // stop key is exclusive
-	ResultScanner rs = htable.getScanner(scan);
-	try {
-		for (Result r = rs.next(); r != null; r = rs.next()) {
-		// process result...
-	} finally {
-		rs.close(); // always close the ResultScanner!
-	}
+```java
+HTable htable = ...      // instantiate HTable
+Scan scan = new Scan();
+scan.addColumn(Bytes.toBytes("cf"),Bytes.toBytes("attr"));
+scan.setStartRow( Bytes.toBytes("row"));                   // start key is inclusive
+scan.setStopRow( Bytes.toBytes("row" +  (char)0));  // stop key is exclusive
+ResultScanner rs = htable.getScanner(scan);
+try {
+	for (Result r = rs.next(); r != null; r = rs.next()) {
+	// process result...
+} finally {
+	rs.close(); // always close the ResultScanner!
+}
+```
 
 
 ​			
@@ -1566,7 +1565,7 @@ List<KeyValue> list()
 
 #### FilterList
 
-FilterList 代表一个过滤器链它可以包含一组即将应用于目标数据集的过滤器，过滤器间具有“与” FilterList.Operator.MUST_PASS_ALL 和“或” FilterList.Operator.MUST_PASS_ONE 关系。
+`FilterList` 代表一个过滤器链它可以包含一组即将应用于目标数据集的过滤器，过滤器间具有“与” `FilterList.Operator.MUST_PASS_ALL` 和“或” `FilterList.Operator.MUST_PASS_ONE` 关系。
 
 ```java
 FilterList list = new FilterList(FilterList.Operator.MUST_PASS_ONE);   //数据只要满足一组过滤器中的一个就可以

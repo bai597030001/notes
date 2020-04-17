@@ -126,7 +126,31 @@ null：
 
 
 
-# 增删改查
+# shell 增删改查
+
+```shell
+# mongodb.conf
+dbpath=/home/data/mongodb/db
+logpath=/home/data/mongodb/logs/mongodb.log
+port=27017
+fork=true #以守护程序的方式启用，即在后台运行
+#auth=true #需要认证。如果放开注释，就必须创建MongoDB的账号，使用账号与密码才可远程访问，第一次安装建议注释
+bind_ip=0.0.0.0 #允许远程访问，或者直接注释，127.0.0.1是只允许本地访问
+
+# 启动mongodb
+$ mongod [--dbpath] -f /opt/mongodb-linux-x86_64-4.0.13/bin/mongodb.conf
+
+# mongodb shell client 连接
+$ mongo -h
+$ mongo [options] [db address] [file names (ending in .js)]
+
+db address can be:
+  foo                   foo database on local machine
+  192.168.0.5/foo       foo database on 192.168.0.5 machine
+  192.168.0.5:9999/foo  foo database on 192.168.0.5 machine on port 9999
+```
+
+
 
 ## 增删
 
@@ -337,39 +361,73 @@ db.collection.update(
      writeConcern: <document>
    }
 )
-参数说明：对比update db1.t1 set name='EGON',sex='Male' where name='egon' and age=18;
+参数说明：
+	对比update db1.t1 set name='EGON',sex='Male' where name='egon' and age=18;
 
-query : 相当于where条件。
-update : update的对象和一些更新的操作符（如$,$inc...等，相当于set后面的
-upsert : 可选，默认为false，代表如果不存在update的记录不更新也不插入，设置为true代表插入。
-multi : 可选，默认为false，代表只更新找到的第一条记录，设为true,代表更新找到的全部记录。
-writeConcern :可选，抛出异常的级别。
+    query : 相当于where条件。
+    update : update的对象和一些更新的操作符（如$,$inc...等，相当于set后面的
+    upsert : 可选，默认为false，代表如果不存在update的记录不更新也不插入，设置为true代表插入。
+    multi : 可选，默认为false，代表只更新找到的第一条记录，设为true,代表更新找到的全部记录。
+    writeConcern :可选，抛出异常的级别。
 
 更新操作是不可分割的：若两个更新同时发送，先到达服务器的先执行，然后执行另外一个，不会破坏文档。
 ```
 
 
 
-## 聚合
+# 聚合 Aggregation
 
-如果你有数据存储在MongoDB中，你想做的可能就不仅仅是将数据提取出来那么简单了；你可能希望对数据进行分析并加以利用。MongoDB提供了以下聚合工具：
+聚合操作处理数据记录并返回计算结果. 聚合操作将来自多个文档的值组合在一起，并且可以对分组的数据执行各种操作以返回单个结果. 
 
-```properties
-#1、聚合框架
-#2、MapReduce
-#3、几个简单聚合命令：count、distinct和group
-```
+MongoDB提供了三种执行聚合的方式
 
 
+
+## 1、聚合框架/管道
 
 聚合框架可以使用多个构件创建一个管道，上一个构件的结果传给下一个构件。
 这些构件包括（括号内为构件对应的操作符）：
 
 ```properties
-筛选($match)、投射($project)、分组($group)、排序($sort)、限制($limit)、跳过($skip)
+筛选($match)
+投射/重命名($project)
+数组每个值拆分成独立文档 ($ unwind)
+分组($group)
+排序($sort)
+限制($limit)
+跳过($skip)
+数学运算("$add", "$subtract"...)
+日期("$year"...)
+字符串("$substr"...),
+逻辑布尔("$eq", "$and"...)
 ```
 
 不同的管道操作符可以任意组合，重复使用
+
+
+
+```shell
+$ db.orders.aggregate([
+   { $match: { status: "A" } },
+   { $group: { _id: "$cust_id", total: { $sum: "$amount" } } }
+])
+
+# 第一阶段 ： $match阶段按status字段过滤文档，然后将status等于"A"那些文档传递到下一阶段.
+
+# 第二阶段 ： $group阶段按cust_id字段对文档进行分组，以计算每个唯一cust_id的金额之和.
+
+最基本的管道阶段提供过滤器 ，其操作类似于查询和修改输出文档格式的文档转换 .
+```
+
+
+
+## 2、MapReduce
+
+
+
+## 3、单一目的聚合命令
+
+`db.collection.count`、`db.collection.distinct`、`db.collection.estimatedDocumentCount`
 
 
 
@@ -389,6 +447,126 @@ Criteria可以接的一些方法和对应的mongodb方法
 | Criteria lt (Object o)                    | $lt     | 小于     |                |
 | Criteria lte (Object o)                   | $lte    | 小等于   |                |
 | Criteria nin (Object… o)                  | $nin    | 不包含   | 可以是一个数组 |
+
+
+
+# 索引
+
+## 单字段索引 （Single Field Index）
+
+```shell
+$ db.employee.createIndex({'id': 1})
+```
+
+
+
+## 复合索引 (Compound Index)
+
+### 索引field的先后顺序很关键
+
+- MongoDB在复合索引中是根据prefix排序查询，就是说排在前面的可以单独使用。
+
+```shell
+$ db.collection.createIndex({'id': 1, 'city': 1, 'score': 1})
+```
+
+我们如下的查询可以利用索引
+
+```shell
+$ db.collection.find({'id': xxx})
+$ db.collection.find({'id': xxx, 'city': xxx})
+$ db.collection.find({'id': xxx, 'city':xxx, 'score': xxxx})
+```
+
+
+
+- 过滤出的document越少的field越应该放在前面，比如此例中id如果是唯一的，那么就应该放在最前面，因为这样通过id就可以锁定唯一一个文档。而如果通过city或者score过滤完成后还是会有大量文档，这就会影响最终的性能。
+
+### 索引的排序顺序不同
+
+复合索引最末尾的field，其排序顺序不同对于MongoDB的查询排序操作是有影响的。 
+
+比如：
+
+```shell
+$ db.events.createIndex( { username: 1, date: -1 } )
+```
+
+这种情况下， 如下的query可以利用索引：
+
+```shell
+$ db.events.find().sort( { username: 1, date: -1 } )
+```
+
+但是如下query则无法利用index进行排序
+
+```shell
+$ db.events.find().sort( { username: 1, date: 1 } )
+```
+
+
+
+## 多key索引 （Multikey Index）
+
+这个主要是针对数据类型为数组的类型
+
+```shell
+{"name" : "jack", "age" : 19, habbit: ["football, runnning"]}
+
+$ db.person.createIndex( {habbit: 1} )  # 自动创建多key索引
+$ db.person.find( {habbit: "football"} )
+```
+
+
+
+## 其它类型索引
+
+### 哈希索引
+
+这些索引在其范围内具有更随机的值分布，但*仅*支持相等匹配，而不能支持基于范围的查询.
+
+### 地理位置索引
+
+
+
+### 文本索引
+
+`MongoDB`提供了一种`text`索引类型，该类型支持在集合中搜索字符串内容. 这些文本索引不存储特定于语言的*停用*词（例如" the"，" a"，" or"），并且在集合中*词干*仅存储根词.
+
+
+
+# 索引属性
+
+- unique
+
+  唯一索引。这个非常常用，用于限制索引的field是否具有唯一性属性，即保证该field的值唯一
+
+- partial
+
+  局部索引。很有用，在索引的时候只针对符合特定条件的文档来建立索引，如下
+
+```shell
+$ db.restaurants.createIndex(
+   { cuisine: 1, name: 1 },
+   { partialFilterExpression: { rating: { $gt: 5 } } } # 只有当rating大于5时才会建立索引
+)
+```
+
+​	这样做的好处是，我们可以只为部分数据建立索引，从而可以减少索引数据的量，除节省空间外，其检索性能也会因为较少的数据量而得到提升。
+
+- sparse
+
+  稀疏索引。可以认为是partial索引的一种特殊情况，由于MongoDB3.2之后已经支持partial属性，所以建议直接使用partial属性。
+
+  索引的稀疏属性可确保索引仅包含具有索引字段的文档的条目. 索引会跳过*没有*索引字段的文档.
+
+  可以将稀疏索引选项与唯一索引选项结合使用，以防止插入索引字段具有重复值的文档，而跳过缺少索引字段的索引文档.
+
+- TTL
+
+  可以用于设定文档有效期，有效期到自动删除对应的文档。
+
+
 
 
 
@@ -493,4 +671,6 @@ public class ColumnStoreOrmDemoApplicationTests {
     }
 }
 ```
+
+
 
