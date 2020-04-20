@@ -601,9 +601,9 @@ drop_namespace 'my_ns'
 alter_namespace 'my_ns', {METHOD => 'set', 'PROPERTY_NAME' => 'PROPERTY_VALUE'}
 
 # 预定义的命名空间	
-hbase ：系统命名空间，用于包含hbase的内部表 
+hbase  # 系统命名空间，用于包含hbase的内部表 
 
-default ： 所有未指定命名空间的表都自动进入该命名空间
+default  # 所有未指定命名空间的表都自动进入该命名空间
 ```
 
 
@@ -618,14 +618,13 @@ admin.createNamespace(NamespaceDescriptor. create ( "my_ns" ).build());
 
 //create tableDesc, with  namespace  name "my_ns" and table name "mytable "
 HTableDescriptor tableDesc =  new  HTableDescriptor(TableName. valueOf ("my_ns:mytable" ));
-tableDesc.setDurability(Durability.SYNC_WAL );
+tableDesc.setDurability(Durability.SYNC_WAL);//设置写 WAL 日志的级别
 //add a column family " mycf "
 HColumnDescriptor hcd =  new  HColumnDescriptor( "mycf" );
 tableDesc.addFamily(hcd);
 admin.createTable(tableDesc);
 
 admin.close();
-
 ```
 
 
@@ -1007,6 +1006,7 @@ table.close();
 ### 获取单行 Get
 
 如果希望获取整行数据，用行键初始化一个Get对象就可以;
+
 如果希望进一步缩小获取的数据范围，可以使用Get对象的以下方法：
 
 如果希望取得指定列族的所有列数据，使用 addFamily 添加所有的目标列族即可； 
@@ -1096,6 +1096,7 @@ table.close();
 ### 获取多行 Scan
 
 Scan 对象可以返回满足给定条件的多行数据。 如果希望获取所有的行，直接初始化一个Scan对象即可。 
+
 如果希望限制扫描的行范围，可以使用以下方法：
 
 如果希望获取指定列族的所有列，可使用 addFamily 方法来添加所有希望获取的列族 

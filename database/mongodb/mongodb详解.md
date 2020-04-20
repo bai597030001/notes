@@ -478,8 +478,6 @@ $ db.collection.find({'id': xxx, 'city': xxx})
 $ db.collection.find({'id': xxx, 'city':xxx, 'score': xxxx})
 ```
 
-
-
 - 过滤出的document越少的field越应该放在前面，比如此例中id如果是唯一的，那么就应该放在最前面，因为这样通过id就可以锁定唯一一个文档。而如果通过city或者score过滤完成后还是会有大量文档，这就会影响最终的性能。
 
 ### 索引的排序顺序不同
