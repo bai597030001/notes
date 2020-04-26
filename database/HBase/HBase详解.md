@@ -400,7 +400,7 @@ $ describe ‘table_name’
 # 删除一个列族  alter,disable, enable
 # 删除列族时必须先将表给disable
 
-$ disable 'table_name'drop 'table_name'
+$ disable 'table_name'
 $ drop 'table_name'
 
 $ exists 'table_name'

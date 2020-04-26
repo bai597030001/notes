@@ -30,7 +30,7 @@ Stream 的另外一大特点是，数据源本身可以是无限的。
 
 
 
-### 流的构成
+## 流的构成
 
 当我们使用一个流的时候，通常包括三个基本步骤：
 
@@ -38,33 +38,57 @@ Stream 的另外一大特点是，数据源本身可以是无限的。
 
 ![](img/java8-Stream1.png)
 
-有多种方式生成 Stream Source：
+## 生成 Stream
 
-- 从 Collection 和数组
+- 从 BufferedReader
 
-- - Collection.stream()
-  - Collection.parallelStream()
-  - Arrays.stream(T array) or Stream.of()
+  java.io.BufferedReader.lines()
 
-  从 BufferedReader
+  
 
-  - java.io.BufferedReader.lines()
+- 从 Collection 和 Array
 
-- 静态工厂
+  Collection.stream()
 
-- java.util.stream.IntStream.range()
-- java.nio.file.Files.walk()
+  Collection.parallelStream() # 并行流
 
-- 自己构建
+  Arrays.stream(T array) 
 
-- - java.util.Spliterator
 
-  其它
 
+- 直接创建
+
+  Stream.of()
+
+  java.util.stream.IntStream.range()
+
+
+
+- 文件
+
+  Files.lines()
+
+  java.nio.file.Files.walk()
+
+
+
+- 通过函数生成无限流
+
+  Stream.iterate()
+
+  ```java
+  Stream.iterate(0, n -> n + 2)
+        .limit(10)
+        .forEach(System.out::println);
+  ```
+
+
+
+- 其它
   - Random.ints()
   - BitSet.stream()
   - Pattern.splitAsStream(java.lang.CharSequence)
-  - JarFile.stream()
+  - java.util.Spliterator
 
 
 
@@ -184,6 +208,22 @@ Stream<Integer> outputStream = inputStream.flatMap((childList) -> childList.stre
 
 
 
+**map与flatMap**
+
+> map——接收 Lambda ， 将元素转换成其他形式或提取信息。接收一个函数作为参数，该函数会被应用到每个元素上，并将其映射成一个新的元素。
+>
+> flatMap——接收一个函数作为参数，将流中的每个值都换成另一个流，然后把所有流连接成一个流
+
+
+
+![](img/streamApi-map.jpg)
+
+
+
+![](img/streamApi-flatMap.jpg)
+
+
+
 #### filter
 
 filter 对原始 Stream 进行某项测试（过滤），通过测试的元素被留下来生成一个新 Stream。 
@@ -285,7 +325,11 @@ Stream 中的 findAny、max/min、reduce 等方法等返回 Optional 值。还�
 
 #### reduce
 
-这个方法的主要作用是把 Stream 元素组合起来。它提供一个起始值（种子），然后依照运算规则（BinaryOperator），和前面 Stream 的第一个、第二个、第 n 个元素组合。从这个意义上说，字符串拼接、数值的 sum、min、max、average 都是特殊的 reduce。例如 Stream 的 sum 就相当于
+这个方法的主要作用是把 Stream 元素<font color=#00dd00>组合起来</font>。它提供一个起始值（种子），然后依照运算规则（BinaryOperator），和前面 Stream 的第一个、第二个、第 n 个元素组合。
+
+从这个意义上说，字符串拼接、数值的 sum、min、max、average 都是特殊的 reduce。
+
+例如 Stream 的 sum 就相当于
 
 ```java
 Integer sum = integers.reduce(0, (a, b) -> a+b); 
@@ -316,6 +360,8 @@ concat = Stream.of("a", "B", "c", "D", "e", "F").
 
 #### collect
 
+将流转换为其他形式。接收一个 Collector接口的实现，用于给Stream中元素做汇总的方法
+
 ```java
 /**
 supplier：一个能创造目标类型实例的方法。
@@ -336,9 +382,49 @@ Collector其实是上面supplier、accumulator、combiner的聚合体
 
 
 
+```java
+List<String> list = emps.stream()
+                .map(Employee::getName)
+                .collect(Collectors.toList());
+
+Set<String> set = emps.stream()
+                .map(Employee::getName)
+                .collect(Collectors.toSet());
+
+HashSet<String> hs = emps.stream()
+                .map(Employee::getName)
+                .collect(Collectors.toCollection(HashSet::new));
+```
+
+
+
+collect是基于Collectors实现的，而Collectors除了上面的to…之外还有
+
+```properties
+maxBy:最大
+minBy: 最小
+summingDouble: 求和
+averagingDouble: 平均值
+counting: 计数
+summarizingDouble: 统计，上面5种都包括
+groupingBy: 分组（可以自定义分组，可以多级分组）
+partitioningBy: 分区，将满足条件的分成一个区，不满足的分成一个区
+joining: 连接字符串，delimiter:分割符，prefix：前缀，suffix：后缀
+reducing: 归约
+```
+
+
+
 
 
 #### limit/skip
+
+
+
+- limit：截断流，使其元素不超过给定对象
+- skip(n)：跳过元素，返回一个扔掉了前n个元素的流，若流中元素不足n个，则返回一个空流，与limit(n)互补
+
+
 
  limit 返回 Stream 的前面 n 个元素；skip 则是扔掉前 n 个元素（它是由一个叫 subStream 的方法改名而来）。 
 
@@ -437,6 +523,8 @@ System.out.println(personList2);
 
 
 #### min/max/distinct
+
+distinct：筛选，通过流所生成元素的hashCode()和equals()去除重复元素。
 
 min 和 max 的功能也可以通过对 Stream 元素先排序，再 findFirst 来实现，但前者的性能会更好，为 O(n)，而 sorted 的成本是 O(n log n)。同时它们作为特殊的 reduce 方法被独立出来也是因为求最大最小值是很常见的操作。 
 
@@ -625,3 +713,49 @@ System.out.println("Adult number: " + children.get(false).size());
 
 - 可以是无限的
   - 集合有固定大小，Stream 则不必。limit(n) 和 findFirst() 这类的 short-circuiting 操作可以对无限的 Stream 进行运算并很快完成。
+
+
+
+# Google guava Streams
+
+
+
+## zip
+
+- 将两个集合压缩到一个集合中
+
+```java
+@Data
+public class Person {
+    public final String name;
+    public final int age;
+}
+```
+
+
+
+将两个list中的元素压缩到一个集合中
+
+```java
+List<String> names = Lists.newArrayList("Alice", "Bob", "Charles");
+List<Integer> ages = Lists.newArrayList(42, 27, 31);
+
+List<Person> persons =
+    transform with a function that converts (String, Integer) to Person
+System.out.println(persons);
+
+// => [(Alice, 42), (Bob, 27), (Charles, 31)]
+
+// 1.使用Guava Streams
+List<Person> persons = Streams.zip(names.stream(), ages.stream(), 
+                                   (name, age) -> name + ":" + age)
+    
+List<Person> persons = Streams.zip(names.stream(), ages.stream(), Person::new)
+                              .collect(Collectors.toList());
+
+// 2. 使用jdk IntStream
+List<Person> persons2 = IntStream.range(0, Math.min(names.size(), ages.size()))
+                .mapToObj(i -> new Person(names.get(i), ages.get(i)))
+                .collect(Collectors.toList());
+```
+
