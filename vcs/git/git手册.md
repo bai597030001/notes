@@ -6,7 +6,7 @@
 
 - Workspace:工作区，执行`git add *`命令就把改动提交到了暂存区，执行`git pull`命令将远程仓库的数据拉到当前分支并合并，执行`git checkout [branch-name]`切换分支
 - Index:暂存区，执行`git commit -m '说明'` 命令就把改动提交到了仓库区（当前分支）
-- Repository:仓库区（或本地仓库），执行`git push origin master`提交到远程仓库，执行`git clone 地址`将克隆远程仓库到本地
+- Repository:本地仓库，执行`git push origin master`提交到远程仓库，执行`git clone 地址`将克隆远程仓库到本地
 - Remote:远程仓库，就是类似github，coding等网站所提供的仓库
 
 
@@ -330,8 +330,19 @@ $ git branch --no-merged 查看未与当前分支合并的分支
 $ git branch -d 分支名 删除本地分支
 $ git branch -D 分支名 强行删除分支
 $ git branch origin :分支名 删除远处仓库分支
-$ git merge 分支名 合并分支到当前分支上
 ```
+
+
+
+```shell
+$ git merge  # 分支名 合并分支到当前分支上
+
+# Rebase 实际上就是取出一系列的提交记录，“复制”它们，然后在另外一个地方逐个的放下去。
+# Rebase 的优势就是可以创造更线性的提交历史，这听上去有些难以理解。如果只允许使用 Rebase 的话，代码库的提交历史将会变得异常清晰。
+$ git rebase
+```
+
+
 
 
 

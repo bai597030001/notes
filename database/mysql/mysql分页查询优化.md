@@ -13,15 +13,15 @@
 
 		SELECT * FROM table LIMIT [offset,] rows | rows OFFSET offset
 
-			第一个参数指定第一个返回记录行的偏移量  
-		
-			第二个参数指定返回记录行的最大数目  
-		
-			如果只给定一个参数：它表示返回最大的记录行数目  
-		
-			第二个参数为 -1 表示检索从某一个偏移量到记录集的结束所有的记录行  
-		
-			初始记录行的偏移量是 0(而不是 1)  
+	> 第一个参数指定第一个返回记录行的偏移量  
+	>
+	> 第二个参数指定返回记录行的最大数目  
+	>
+	> 如果只给定一个参数：它表示返回最大的记录行数目  
+	>
+	> 第二个参数为 -1 表示检索从某一个偏移量到记录集的结束所有的记录行  
+	>
+	> 初始记录行的偏移量是 0(而不是 1)  
 
 - 存在的问题
 
@@ -34,16 +34,15 @@
 - 这种方式先定位偏移位置的 id，然后往后查询，这种方式适用于 id 递增的情况。
 
 ```sql
+select * from orders_history where type=8 limit 100000,1;
 
-	select * from orders_history where type=8 limit 100000,1;
-	
-	select id from orders_history where type=8 limit 100000,1;
-	
-	select * from orders_history where type=8 and 
+select id from orders_history where type=8 limit 100000,1;
+
+select * from orders_history where type=8 and 
 	id>=(select id from orders_history where type=8 limit 100000,1) 
 	limit 100;
-	
-	select * from orders_history where type=8 limit 100000,100;
+
+select * from orders_history where type=8 limit 100000,100;
 ```
 
 ![](img/mysqlPage1.png)

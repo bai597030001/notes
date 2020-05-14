@@ -512,3 +512,267 @@ commit;
 # InnoDB之LBCC
 
 - Lock-Based Concurrency Control，基于锁的并发控制
+
+
+
+# 分布式事务
+
+## 2PC提交
+
+- 二阶段提交协议是将事务的提交过程分成提交事务请求和执行事务提交两个阶段进行处理。
+
+阶段1：提交事务请求
+
+- 事务询问：协调者向所有的参与者发送事务内容，询问是否可以执行事务提交操作，并开始等待各参与者的响应
+- 执行事务：各参与者节点执行事务操作，并将Undo和Redo信息记入事务日志中
+- 如果参与者成功执事务操作，就反馈给协调者Yes响应，表示事物可以执行，如果没有成功执行事务，就反馈给协调者No响应，表示事务不可以执行
+- 二阶段提交一些的阶段一夜被称为投票阶段，即各参与者投票票表明是否可以继续执行接下去的事务提交操作
+
+阶段二：执行事务提交
+
+1. 假如协调者从所有的参与者或得反馈都是Yes响应，那么就会执行事务提交。
+2. 发送提交请求：协调者向所有参与者节点发出Commit请求
+3. 事务提交：参与者接受到Commit请求后，会正式执行事务提交操作，并在完成提交之后放弃整个事务执行期间占用的事务资源
+4. 反馈事务提交结果:参与者在完成事物提交之后，向协调者发送ACK消息
+5. 完成事务：协调者接收到所有参与者反馈的ACK消息后，完成事务
+
+
+
+## Mysql XA事务
+
+XA的意思为“eXtended Architecture”，是The Open Group组织为分布式事务处理创建的标准。虽然MySQL 5.0是第一个支持XA的版本，但MySQL 5.7提升了XA支持的可靠性，修复了许多错误，并增加了整体测试用例覆盖率。
+
+
+
+ MySQL 从5.0.3开始支持XA分布式事务，且只有InnoDB存储引擎支持。MySQL Connector/J 从5.0.0版本之后开始直接提供对XA的支持。
+
+
+
+### XA 事务SQL语法
+
+```sql
+//开启XA事务，如果使用的是XA START而不是XA BEGIN，那么不支持[JOIN|RESUME]，xid是一个唯一值，表示事务分支标识符
+XA {START|BEGIN} xid [JOIN|RESUME]
+
+//结束一个XA事务，不支持[SUSPEND [FOR MIGRATE]]
+XA END xid [SUSPEND [FOR MIGRATE]]
+
+// 准备提交
+XA PREPARE xid 
+
+//提交，如果使用了ONE PHASE，则表示使用一阶段提交。两阶段提交协议中，如果只有一个RM参与，那么可以优化为一阶段提交
+XA COMMIT xid [ONE PHASE]
+
+//回滚
+XA ROLLBACK xid
+
+//列出所有处于PREPARE阶段的XA事务
+XA RECOVER [CONVERT XID]
+```
+
+
+
+### XA事务状态
+
+XA事务的状态，按照如下步骤进行展开
+
+1. 使用XA START来启动一个XA事务，并把它置于`ACTIVE`状态。
+
+2. 对于一个ACTIVE状态的 XA事务，我们可以执行构成事务的SQL语句，然后发布一个XA END语句。XA END把事务放入`IDLE`状态。
+
+3. 对于一个IDLE 状态XA事务，可以执行一个XA PREPARE语句或一个XA COMMIT…ONE PHASE语句：
+
+- XA PREPARE把事务放入`PREPARED`状态。在此点上的XA RECOVER语句将在其输出中包括事务的xid值，因为XA RECOVER会列出处于PREPARED状态的所有XA事务。
+- XA COMMIT…ONE PHASE用于预备和提交事务。xid值将不会被XA RECOVER列出，因为事务终止。
+
+4. 对于一个PREPARED状态的 XA事务，您可以发布一个XA COMMIT语句来提交和终止事务，或者发布XA ROLLBACK来回滚并终止事务。
+
+
+
+针对一个给定的客户端连接而言，XA事务和非XA事务(即本地事务)是互斥的。
+
+例如，已经执行了”XA START”命令来开启一个XA事务，则本地事务不会被启动，直到XA事务已经被提交或被 回滚为止。
+
+相反的，如果已经使用START TRANSACTION启动一个本地事务，则XA语句不能被使用，直到该事务被提交或被 回滚为止。
+
+
+
+### 通过jdbc操作mysql xa事务
+
+注意：
+
+业务开发人员在编写代码时，不应该直接操作这些XA事务操作的接口。因为在DTP模型中，RM上的事务分支的开启、结束、准备、提交、回滚等操作，都应该是由事务管理器TM来统一管理。
+
+由于目前我们还没有接触到TM，那么我们不妨做一回"人肉事务管理器"，用你智慧的大脑，来控制多个mysql实例上xa事务分支的执行，提交/回滚。通过直接操作这些接口，你将对xa事务有更深刻的认识。
+
+```java
+import com.mysql.jdbc.jdbc2.optional.MysqlXAConnection;
+import com.mysql.jdbc.jdbc2.optional.MysqlXid;
+import javax.sql.XAConnection;
+import javax.transaction.xa.XAException;
+import javax.transaction.xa.XAResource;
+import javax.transaction.xa.Xid;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+public class MysqlXAConnectionTest {
+   public static void main(String[] args) throws SQLException {
+      //true表示打印XA语句,，用于调试
+      boolean logXaCommands = true;
+      // 获得资源管理器操作接口实例 RM1
+      Connection conn1 = DriverManager.getConnection("jdbc:mysql://localhost:3306/test", "root", "shxx12151022");
+      XAConnection xaConn1 = new MysqlXAConnection((com.mysql.jdbc.Connection) conn1, logXaCommands);
+      XAResource rm1 = xaConn1.getXAResource();
+      // 获得资源管理器操作接口实例 RM2
+      Connection conn2 = DriverManager.getConnection("jdbc:mysql://localhost:3306/test", "root",
+            "shxx12151022");
+      XAConnection xaConn2 = new MysqlXAConnection((com.mysql.jdbc.Connection) conn2, logXaCommands);
+      XAResource rm2 = xaConn2.getXAResource();
+      // AP请求TM执行一个分布式事务，TM生成全局事务id
+      byte[] gtrid = "g12345".getBytes();
+      int formatId = 1;
+      try {
+         // ==============分别执行RM1和RM2上的事务分支====================
+         // TM生成rm1上的事务分支id
+         byte[] bqual1 = "b00001".getBytes();
+         Xid xid1 = new MysqlXid(gtrid, bqual1, formatId);
+         // 执行rm1上的事务分支
+         rm1.start(xid1, XAResource.TMNOFLAGS);//One of TMNOFLAGS, TMJOIN, or TMRESUME.
+         PreparedStatement ps1 = conn1.prepareStatement("INSERT into user(name) VALUES ('tianshouzhi')");
+         ps1.execute();
+         rm1.end(xid1, XAResource.TMSUCCESS);
+         // TM生成rm2上的事务分支id
+         byte[] bqual2 = "b00002".getBytes();
+         Xid xid2 = new MysqlXid(gtrid, bqual2, formatId);
+         // 执行rm2上的事务分支
+         rm2.start(xid2, XAResource.TMNOFLAGS);
+         PreparedStatement ps2 = conn2.prepareStatement("INSERT into user(name) VALUES ('wangxiaoxiao')");
+         ps2.execute();
+         rm2.end(xid2, XAResource.TMSUCCESS);
+         // ===================两阶段提交================================
+         // phase1：询问所有的RM 准备提交事务分支
+         int rm1_prepare = rm1.prepare(xid1);
+         int rm2_prepare = rm2.prepare(xid2);
+         // phase2：提交所有事务分支
+         boolean onePhase = false; //TM判断有2个事务分支，所以不能优化为一阶段提交
+         if (rm1_prepare == XAResource.XA_OK
+               && rm2_prepare == XAResource.XA_OK
+               ) {//所有事务分支都prepare成功，提交所有事务分支
+            rm1.commit(xid1, onePhase);
+            rm2.commit(xid2, onePhase);
+         } else {//如果有事务分支没有成功，则回滚
+            rm1.rollback(xid1);
+            rm1.rollback(xid2);
+         }
+      } catch (XAException e) {
+         // 如果出现异常，也要进行回滚
+         e.printStackTrace();
+      }
+   }
+}
+```
+
+
+
+### mysql5.7.7堆XA的改进
+
+在5.7.7之前，如果客户端连接已终止或服务器正常退出，则回滚PREPARED事务。当客户端被Kill时，所有事务都被回滚。因此，即使XA事务处于PREPARED状态，它也无法在XA RECOVER期间恢复事务。理想情况下，当事务是PREPARED时，应该可以COMMIT或ROLLBACK事务。
+
+```sql
+mysql> CREATE TABLE t1(fld1 INT);
+Query OK, 0 rows affected (0.01 sec)
+
+mysql> COMMIT;
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> XA START 'test';
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> INSERT INTO t1 VALUES (1);
+Query OK, 1 row affected (0.00 sec)
+
+mysql> XA END 'test';
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> XA PREPARE 'test';
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> Killed
+
+Now start another client session. 
+
+mysql> XA COMMIT 'test';
+ERROR 1397 (XAE04): XAER_NOTA: Unknown XID
+
+mysql> XA RECOVER;
+Empty set (0.00 sec)
+```
+
+
+
+在5.7.7之前，如果XA事务处于PREPARED状态并且服务器异常退出，则可以在重新启动服务器后恢复事务 - 但是它没有被复制。 服务器重启后，XA事务仍然存在于PREPARED状态，但内容无法记录在二进制日志中。因此，二进制日志不同步导致数据漂移。因此，XA无法安全地用于复制。
+
+```sql
+sql> CREATE TABLE t1(fld1 INT);
+Query OK, 0 rows affected (0.01 sec)
+
+mysql> COMMIT;
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> XA START 'test';
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> INSERT INTO t1 VALUES (1);
+Query OK, 1 row affected (0.00 sec)
+
+mysql> XA END 'test';
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> XA PREPARE 'test';
+Query OK, 0 rows affected (0.00 sec)
+
+Now kill the server.
+
+mysql> XA RECOVER;
+
+ERROR 2006 (HY000): MySQL server has gone away
+No connection. Trying to reconnect...
+Connection id: 1
+Current database: test
+
++----------+--------------+--------------+------+
+| formatID | gtrid_length | bqual_length | data |
++----------+--------------+--------------+------+
+| 1        | 4            | 0            | test |
++----------+--------------+--------------+------+
+1 row in set (0.02 sec)
+
+mysql> XA COMMIT 'test';
+Query OK, 0 rows affected (0.02 sec)
+
+mysql> SHOW BINLOG EVENS\G;
+*************************** 1. row ***************************
+ Log_name: nisha-PORTEGE-Z30-A-bin.000001
+ Pos: 4
+ Event_type: Format_desc
+ Server_id: 1
+ End_log_pos: 120
+ Info: Server ver: 5.6.29-debug-log, Binlog ver: 4
+1 row in set (0.00 sec)
+
+mysql> SELECT * FROM t1;
++------+
+| fld1 |
++------+
+| 1 |
++------+
+1 row in set (0.00 sec)
+```
+
+
+
+克服上述限制需要更改XA事务恢复机制和二进制日志记录机制。在5.7.7中进行了这种改进。
+
+XA恢复机制已经扩展，当连接终止时，PREPARED XA事务将保留在事务高速缓存中，并在InnoDB中进行特殊标记。这允许客户端恢复PREPARED XA事务，然后是COMMIT / ROLLBACK。
+XA事务现在使用两个不同的GTID分两个阶段进行二进制记录，这两个GTID允许事务交错。在第一阶段，当发布XA PREPARE时，直到该点的事务被记录在二进制日志中并且可以通过XA_prepare_log_event. 在第二阶段识别在发出XA COMMIT / ROLLBACK时，事务的第二部分被写入二进制日志。由于XA PREPARE是持久的，因此XA事务不会回滚，并且在服务器重新启动或客户端断开连接后仍然存在。客户端可以执行XA COMMIT / ROLLBACK，二进制日志保持最新。当GTID为ON且二进制日志关闭时，XA事务也可以正常工作。
