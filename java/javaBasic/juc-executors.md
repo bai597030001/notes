@@ -1802,7 +1802,7 @@ public class CompletionServiceTest {
 
 ## Fork/Join框架
 
-[https://segmentfault.com/a/1190000015558984](https://segmentfault.com/a/1190000015558984)
+[链接](https://segmentfault.com/a/1190000015558984)
 
 
 
@@ -1999,6 +1999,8 @@ F/J框架的实现非常复杂，内部大量运用了位操作和无锁算法�
 
 #### ForkJoinPool
 
+![](img/forkJoinPool1.png)
+
 ```java
 @sun.misc.Contended
 public class ForkJoinPool extends AbstractExecutorService {
@@ -2029,6 +2031,8 @@ ForkJoinPool提供了3类外部提交任务的方法：**invoke**、**execute**�
 
 1. 通过3种构造器的任意一种进行构造；
 2. 通过`ForkJoinPool.commonPool()`静态方法构造。
+
+   > JDK8以后，ForkJoinPool又提供了一个静态方法commonPool()，这个方法返回一个ForkJoinPool内部声明的静态ForkJoinPool实例，主要是为了简化线程池的构建，这个ForkJoinPool实例可以满足大多数的使用场景
 
 
 
@@ -2089,7 +2093,7 @@ public static ForkJoinPool commonPool() {
 
 
 
-重点是`mode`这个字段，`ForkJoinPool`支持两种模式：
+这些入参目前不用关注，重点是`mode`这个字段，`ForkJoinPool`支持两种模式：
 
 1. 同步模式（默认方式）
 2. 异步模式
@@ -2252,9 +2256,194 @@ volatile WorkQueue[] workQueues; // main registry
 
 ### 线程池调度示例
 
-[https://segmentfault.com/a/1190000015558984](https://segmentfault.com/a/1190000015558984)
+[链接1](https://segmentfault.com/a/1190000015558984)
 
-[https://segmentfault.com/a/1190000016781127](https://segmentfault.com/a/1190000016781127)
+[链接2](https://segmentfault.com/a/1190000016781127)
+
+任务入队和“工作窃取”的整个过程
+
+假设现在通过ForkJoinPool的submit方法提交了一个FuturetTask任务
+
+#### 初始
+
+初始状态下，线程池中的任务队列为空，`workQueues == null`，也没有工作线程：
+
+![](img/forkJoin2.png)
+
+
+
+#### 外部提交FutureTask任务
+
+此时会初始化任务队列数组`WorkQueue[]`，大小为**2的幂次**，然后在某个槽位（**偶数**位）初始化一个任务队列（`WorkQueue`），并插入任务：
+
+![](img/forkJoin3.png)
+
+
+
+**注意**，由于是非工作线程通过外部方法提交的任务，所以这个任务队列并没有绑定工作线程。
+
+> 之所以是2的幂次，是由于ForkJoinPool采用了一种随机算法（类似ConcurrentHashMap的随机算法），该算法通过线程池随机数（ThreadLocalRandom的probe值）和数组的大小计算出工作线程所映射的数组槽位，这种算法要求数组大小为2的幂次。
+
+
+
+#### 创建工作线程
+
+首次提交任务后，由于没有工作线程，所以会创建一个工作线程，同时在某个**奇数**槽的位置创建一个与它绑定的任务队列，如下图：
+
+![](img/forkJoin4.png)
+
+
+
+#### 窃取任务
+
+ForkJoinWorkThread_1会随机扫描workQueues中的队列，直到找到一个可以窃取的队列——`workQueues[2]`，然后从该队列的`base`端获取任务并执行，并将`base`加1：
+
+![](img/forkJoin5.png)
+
+窃取到的任务是FutureTask，ForkJoinWorkThread_1最终会调用它的`compute`方法（子类继承ForkJoinTask，覆写compute），该方法中会新建两个子任务，并执行它们的`fork`方法：
+
+```java
+@Override
+protected Long compute() {
+    long sum = 0;
+ 
+    if (end - begin + 1 < THRESHOLD) {      // 小于阈值, 直接计算
+        for (int i = begin; i <= end; i++) {
+            sum += array[i];
+        }
+    } else {
+        int middle = (end + begin) / 2;
+        ArraySumTask subtask1 = new ArraySumTask(this.array, begin, middle);
+        ArraySumTask subtask2 = new ArraySumTask(this.array, middle + 1, end);
+ 
+        subtask1.fork();
+        subtask2.fork();
+ 
+        long sum1 = subtask1.join();
+        long sum2 = subtask2.join();
+ 
+        sum = sum1 + sum2;
+    }
+    return sum;
+}
+```
+
+之前说过，由于是由工作线程ForkJoinWorkThread_1来调用FutureTask的`fork`方法，所以会将这两个子任务放入ForkJoinWorkThread_1自身队列中：
+
+![](img/forkJoin6.png)
+
+然后，ForkJoinWorkThread_1会阻塞等待任务1和任务2的结果（先在`subtask1.join`等待）：
+
+```java
+long sum1 = subtask1.join();
+long sum2 = subtask2.join();
+```
+
+> 从这里也可以看出，任务放到哪个队列，其实是**由调用线程来决定**的（根据线程探针值probe计算队列索引）。如果调用线程是工作线程，则必然有自己的队列（**task queue**），则任务都会放到自己的队列中；如果调用线程是其它线程（如主线程），则创建没有工作线程绑定的任务队列（**submissions queue**），然后存入任务。
+
+
+
+#### 新的工作线程
+
+ForkJoinWorkThread_1调用两个子任务1和2的`fork`方法，除了将它们放入自己的任务队列外，还会导致新增一个工作线程ForkJoinWorkThread_2：
+
+![](img/forkJoin7.png)
+
+
+
+ForkJoinWorkThread_2运行后会像ForkJoinWorkThread_1那样从其它队列窃取任务，如下图，从ForkJoinWorkThread_1队列的`base`端窃取一个任务（直接执行，并不会放入自己队列）：
+
+
+
+![](img/forkJoin8.png)
+
+
+
+窃取完成后，ForkJoinWorkThread_2会直接执行任务1，又回到了FutureTask子类的`compute`方法，假设此时又`fork`出两个任务——任务3、任务4，则ForkJoinWorkThread_2最终会在任务3的`join`方法上等待：
+
+
+
+![](img/forkJoin9.png)
+
+
+
+> 如果此时还有其它工作线程，则重复上述步骤：`窃取、执行、入队、join阻塞、返回`。ForkJoinTask的join方法内部逻辑非常复杂，上述ForkJoinWorkThread_1和ForkJoinWorkThread_2目前都在等待任务的完成，但事实上，ForkJoinTask存在一种**互助机制**，即工作线程之间可以互相帮助执行任务，这里不详细展开，只需要知道，ForkJoinWorkThread_1和ForkJoinWorkThread_2可能会被其它工作线程唤醒。
+
+我们这里假设ForkJoinWorkThread_2被其它某个工作线程唤醒，任务3和任务4的join方法依次返回了结果，那么任务1的结果也会返回，于是ForkJoinWorkThread_1也被唤醒（它在任务1的join上等待），然后ForkJoinWorkThread_1会继续执行任务2的join方法，如果任务2不再分解，则最终返回任务1和任务2的合并结果，计算结束。
+
+
+
+#### 自身队列的任务执行
+
+ForkJoinWorkThread_1和ForkJoinWorkThread_2唤醒执行完窃取到的任务后，还没有结束，它们还会去看看自身队列中有无任务可以执行。
+
+```java
+/**
+ * Executes the given task and any remaining local tasks.
+ */
+final void runTask(ForkJoinTask<?> task) {
+    if (task != null) {
+        scanState &= ~SCANNING; // mark as busy
+        (currentSteal = task).doExec();
+        U.putOrderedObject(this, QCURRENTSTEAL, null); // release for GC
+        execLocalTasks();
+        ForkJoinWorkerThread thread = owner;
+        if (++nsteals < 0)      // collect on overflow
+            transferStealCount(pool);
+        scanState |= SCANNING;
+        if (thread != null)
+            thread.afterTopLevelExec();
+    }
+}
+```
+
+
+
+上述`ForkJoinPool.WorkQueue.runTask`方法中，`doExec()`就是执行窃取的任务，而`execLocalTasks`用于执行队列本身的任务。
+
+我们假设此时的线程池是下面这种状态：
+
+![](img/forkJoin10.png)
+
+
+
+工作线程ForkJoinWorkThread_1调用**execLocalTasks**方法一次性执行自己队列中的所有任务，这时分成两种情况：
+
+**1.异步模式（asyncMode==true）**
+
+如果构造线程池时，asyncMode为true，表示以异步模式执行工作线程自身队列中的任务，此时会从 `base -> top`遍历并执行所有任务。
+
+**2.同步模式（asyncMode==false）**
+
+如果构造线程池时，asyncMode为false（默认情况），表示以同步模式执行工作线程自身队列中的任务，此时会从 `top -> base` 遍历并执行所有任务。
+
+> 任务的入队总是在`top`端，所以当以同步模式遍历时，其实相当于栈操作（从栈顶pop元素）；
+> 如果是异步模式，相当于队列的出队操作（从base端poll元素）。
+> **异步模式比较适合于那些不需要返回结果的任务**。其实如果将队列中的任务看成一棵树（无环连通图）的话，异步模式类似于图的广度优先遍历，同步模式类似于图的深度优先遍历
+
+假设此处以默认的**同步模式**遍历，ForkJoinWorkThread_1从栈顶开始执行并移除任务，先执行任务2并移除，再执行任务1并：
+
+![](img/forkJoin11.png)
+
+
+
+![](img/forkJoin12.png)
+
+
+
+#### 总结
+
+F/J框架的核心来自于它的工作窃取及调度策略，可以总结为以下几点：
+
+1. 每个Worker线程利用它自己的任务队列维护可执行任务；
+2. 任务队列是一种双端队列，支持LIFO的**push**和**pop**操作，也支持FIFO的**take**操作；
+3. 任务fork的子任务，只会push到它所在线程（调用fork方法的线程）的队列；
+4. 工作线程既可以使用LIFO通过pop处理自己队列中的任务，也可以FIFO通过poll处理自己队列中的任务，具体取决于构造线程池时的asyncMode参数；
+5. 当工作线程自己队列中没有待处理任务时，它尝试去随机读取（窃取）其它任务队列的base端的任务；
+6. 当线程进入join操作，它也会去处理其它工作线程的队列中的任务（自己的已经处理完了），直到目标任务完成（通过isDone方法）；
+7. 当一个工作线程没有任务了，并且尝试从其它队列窃取也失败了，它让出资源（通过使用yields, sleeps或者其它优先级调整）并且随后会再次激活，直到所有工作线程都空闲了——此时，它们都阻塞在等待另一个顶层线程的调用。
+
+
 
 
 
