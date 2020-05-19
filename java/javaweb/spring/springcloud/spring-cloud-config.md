@@ -645,7 +645,7 @@ test.word: cloud config client, hello world
 
 
 
-浏览器访问：http://localhost:10001/show
+浏览器访问：http://localhost:10001/showWord
 
 
 

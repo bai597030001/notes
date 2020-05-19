@@ -406,6 +406,8 @@ public class RibbonConfiguration {
 # 开启重试机制，它默认是关闭的
 spring.cloud.loadbalancer.retry.enabled=true
 # 断路器hystrix的超时时间需要大于Ribbon的超时时间，不然不会触发重试。
+# 断路器hystrix的超时时间需要大于Ribbon的超时时间，不然不会触发重试。
+# 断路器hystrix的超时时间需要大于Ribbon的超时时间，不然不会触发重试。
 hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds=10000
 # 请求连接时间
 hello-service.ribbon.ConnectTimeout=250
