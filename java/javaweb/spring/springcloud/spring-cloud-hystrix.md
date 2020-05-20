@@ -1,8 +1,398 @@
-# hystrix
+# 引言
 
-## 配置
+## 服务雪崩
 
-http://www.gxitsky.com/2019/03/31/springcloud-07-Hystrix-circuit-breaker-properties/
+在微服务架构中通常会有多个服务层调用，基础服务的故障可能会导致级联故障，进而造成整个系统不可用的情况，这种现象被称为**服务雪崩**效应。服务雪崩效应是一种因“服务提供者”的不可用导致“服务消费者”的不可用,并将不可用逐渐放大的过程。
+
+
+
+## 熔断器（CircuitBreaker）
+
+可以实现快速失败，如果它在一段时间内侦测到许多类似的错误，会强迫其以后的多个调用快速失败，不再访问远程服务器，从而防止应用程序不断地尝试执行可能会失败的操作，使得应用程序继续执行而不用等待修正错误，或者浪费CPU时间去等到长时间的超时产生。熔断器也可以使应用程序能够诊断错误是否已经修正，如果已经修正，应用程序会再次尝试调用操作。
+
+
+
+# 作用
+
+- 隔离（线程隔离、信号量隔离）：主要是限制调用分布式服务的资源，避免个别服务出现问题时对其他服务产生影响
+- 熔断（容错）：当失败率达到一定阈值时，熔断器触发快速失败
+- 降级（超时降级、熔断降级）：触发降级时可以使用回调方法返回托底数据
+- 缓存：请求缓存、请求合并
+- 实时监控、报警
+
+
+
+# 配置
+
+## HystrixCommand 属性
+
+这类属性是控制 HystrixCommand 行为。
+
+## Execution(执行)
+
+这些属性是控制 HystrixCommand.run()的执行。
+
+1. hystrix.command.default.execution.isolation.strategy
+
+   用于设置 HystrixCommand.run() 执行所采用的隔离策略，有两种选择：
+
+   - THREAD：默认值，线程隔离，在单独的线程上执行，并发请求受线程池中线程数的控制。
+   - SEMAPHORE：信号量隔离，在调用线程上执行，并发请求受信号量计数器的限制。
+
+   ```java
+   // to use thread isolation
+   HystrixCommandProperties.Setter()
+      .withExecutionIsolationStrategy(ExecutionIsolationStrategy.THREAD)
+   // to use semaphore isolation
+   HystrixCommandProperties.Setter()
+      .withExecutionIsolationStrategy(ExecutionIsolationStrategy.SEMAPHORE)
+   ```
+
+2. hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds
+
+   用于设置 HystrixCommand 执行的超时时长，超时后执行回退逻辑。单位：毫秒，默认值：1000。
+
+   ```java
+   HystrixCommandProperties.Setter()
+       .withExecutionTimeoutInMilliseconds(int value)
+   ```
+
+3. hystrix.command.default.execution.timeout.enabled
+
+   用于设置 HystrixCommand.run() 超时(hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds)是否启用，默认值：true；如果设置为 false，则 hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds 也失效。
+
+   ```java
+   HystrixCommandProperties.Setter()
+       .withExecutionTimeoutEnabled(boolean value)
+   ```
+
+4. hystrix.command.default.execution.isolation.thread.interruptOnTimeout
+
+   用于设置 HystrixCommand 执行超时后是否中断 HystrixCommand.run() 的执行，默认值：true。
+
+   ```java
+   HystrixCommandProperties.Setter()
+       .withExecutionIsolationThreadInterruptOnTimeout(boolean value)
+   ```
+
+5. hystrix.command.default.execution.isolation.thread.interruptOnCancel
+
+   用于设置 HystrixCommand 执行被取消时，是否中断 HystrixCommand.run() 执行。默认值：false。
+
+   ```java
+   HystrixCommandProperties.Setter()
+       .withExecutionIsolationThreadInterruptOnCancel(boolean value)
+   ```
+
+6. hystrix.command.default.execution.isolation.semaphore.maxConcurrentRequests
+
+   用于设置当使用信号量(SEMAPHORE)策略时 HystrixCommand.run() 充许最大的请求数(并发)。默认值为：10。
+
+   ```java
+   HystrixCommandProperties.Setter()
+      .withExecutionIsolationSemaphoreMaxConcurrentRequests(int value)
+   ```
+
+## Fallback(回退)
+
+这些属性控制 HystrixCommand.getFallback()的执行。这些属性对 **THREAD** 和 **SEMAPHORE** 隔离级别都适用。
+
+1. hystrix.command.default.fallback.isolation.semaphore.maxConcurrentRequests
+
+   此属性设置允许 HystrixCommand.getFallback（）方法从调用线程发出的最大请求数。
+
+   如果达到最大并发限制，则随后的请求将被拒绝，并引发异常，因为无法检索到 fallback ，fallback 不会被调用。默认值：10。
+
+   ```java
+   HystrixCommandProperties.Setter()
+      .withFallbackIsolationSemaphoreMaxConcurrentRequests(int value)
+   ```
+
+2. hystrix.command.default.fallback.enabled
+
+   此属性确定在发生故障或拒绝时是否将尝试调用 HystrixCommand.getFallback()。默认值：true。
+
+   ```java
+   HystrixCommandProperties.Setter()
+      .withFallbackEnabled(boolean value)
+   ```
+
+## Circuit Breaker(熔断器)
+
+以下熔断器属性用于控制 HystrixCircuitBreaker的行为。
+
+1. hystrix.command.default.circuitBreaker.enabled
+
+   此属性确定断路器是否用于跟踪运行状况，以及在其断开时是否用于短路请求。默认值：true。
+
+   ```java
+   HystrixCommandProperties.Setter()
+      .withCircuitBreakerEnabled(boolean value)
+   ```
+
+2. hystrix.command.default.circuitBreaker.requestVolumeThreshold
+
+   此属性设置在一个窗口期内触发熔断的最的最小请求数。默认值：20。
+
+   例如：如果值为 20，那么如果在窗口期内仅接收到19个请求（比如10秒的窗口期），即使全部19个失败，也不是触发熔断器断开。
+
+   ```java
+   HystrixCommandProperties.Setter()
+      .withCircuitBreakerRequestVolumeThreshold(int value)
+   ```
+
+3. hystrix.command.default.circuitBreaker.sleepWindowInMilliseconds
+
+   此属性设置触发熔断器后拒绝请求的时长；达到时长后关闭 circuit 。单位：毫秒，默认值：5000。
+
+   ```java
+   HystrixCommandProperties.Setter()
+      .withCircuitBreakerSleepWindowInMilliseconds(int value)
+   ```
+
+4. hystrix.command.default.circuitBreaker.errorThresholdPercentage
+
+   此属性设置错误率阀值(百分比)，大于该值，熔断器断开并启动对回退逻辑的短路请求(执行 fallback )。
+
+   ```java
+   HystrixCommandProperties.Setter()
+      .withCircuitBreakerErrorThresholdPercentage(int value)
+   ```
+
+5. hystrix.command.default.circuitBreaker.forceOpen
+
+   此属性设置熔断器是否强制打开，如果设置为 true，则拒绝所有请求。默认值：false。
+
+   ```java
+   HystrixCommandProperties.Setter()
+      .withCircuitBreakerForceOpen(boolean value)
+   ```
+
+6. hystrix.command.default.circuitBreaker.forceClosed
+
+   此属性设置熔断器是否强制关闭，如果设置为 true，则不管错误率的阀值，将允许所有请求。
+
+   circuitBreaker.forceClosed 属性优化，如果为 true，则不做任何操作。
+
+   ```java
+   HystrixCommandProperties.Setter()
+      .withCircuitBreakerForceClosed(boolean value)
+   ```
+
+## Metrics(指标)
+
+以下属性与从 HystrixCommand 和 HystrixObservableCommand 执行中捕获的指标有关。
+
+1. hystrix.command.default.metrics.rollingStats.timeInMilliseconds
+
+   此属性设置统计的时间窗口时长，这是Hystrix 为断路器使用和发布指标的时间(窗口期)。单位：毫秒，默认值：10000。
+
+   一个窗口期会被分成多个 bucket，每个 bucket 都有 Success、Failure、Timeout、Rejection 指标。
+
+   ```java
+   HystrixCommandProperties.Setter()
+      .withMetricsRollingStatisticalWindowInMilliseconds(int value)
+   ```
+
+2. hystrix.command.default.metrics.rollingStats.numBuckets
+
+   设置一个统计窗口期内被划分为 bucket 的数量。若窗口时长(timeInMilliseconds)= 10 000 毫秒 ，numBuckets= 10，那么一个 bucket 的时间为 1 秒。必须符合 metrics.rollingStats.timeInMilliseconds % metrics.rollingStats.numBuckets == 0，否则会报错。默认值：10。
+
+   ```java
+   HystrixCommandProperties.Setter()
+      .withMetricsRollingStatisticalWindowBuckets(int value)
+   ```
+
+3. hystrix.command.default.metrics.rollingPercentile.enabled
+
+   此属性设置是否开启指标百分比的计算和跟踪，默认值：true。
+
+   ```java
+   HystrixCommandProperties.Setter()
+      .withMetricsRollingPercentileEnabled(boolean value)
+   ```
+
+4. hystrix.command.default.metrics.rollingPercentile.timeInMilliseconds
+
+   此属性设置计算百分比的窗口时长，默认值：60000。
+
+   ```java
+   HystrixCommandProperties.Setter()
+      .withMetricsRollingPercentileWindowInMilliseconds(int value)
+   ```
+
+5. hystrix.command.default.metrics.rollingPercentile.numBuckets
+
+   此属性设置 rollingPercentile 窗口时长被划分为 bucket 的数量。默认值：6。
+
+   注意：必须满足 metrics.rollingPercentile.timeInMillisecond % metrics.rollingPercentile.numBuckets == 0，否则报异常。
+
+   ```java
+   HystrixCommandProperties.Setter()
+      .withMetricsRollingPercentileWindowBuckets(int value)
+   ```
+
+6. hystrix.command.default.metrics.rollingPercentile.bucketSize
+
+   此属性设置每个 bucket 保留的最大执行次数。 默认值：100。
+   例如，如果 bucketSize = 100，一个 bucket 窗口期为 10秒，在此期间发生了 500 次收集指标，则只记录 10 秒期间内最近的 100 次的指标。
+
+   如果增加此值，还将增加存储值所需的内存量，并增加排序列表进行百分位数计算所需的时间。
+
+   ```java
+   HystrixCommandProperties.Setter()
+      .withMetricsRollingPercentileBucketSize(int value)
+   ```
+
+7. hystrix.command.default.metrics.healthSnapshot.intervalInMilliseconds
+
+   此属性设置执行计算成功和错误百分比的健康快照时影响断路器状态的时长，单位：毫秒，默认值：500。
+
+   ```java
+   HystrixCommandProperties.Setter()
+      .withMetricsHealthSnapshotIntervalInMilliseconds(int value)
+   ```
+
+## Request Context(请求上下文)
+
+这些属性涉及 HystrixCommand 使用 HystrixRequestContext的使用。
+
+1. hystrix.command.default.requestCache.enabled
+
+   此属性指示是否将 hystrixcommand.getcachekey() 与 HystrixRequestCache 一起使用，来开启请求缓存功能。默认值：true。
+
+   ```java
+   HystrixCommandProperties.Setter()
+      .withRequestCacheEnabled(boolean value)
+   ```
+
+2. hystrix.command.default.requestLog.enabled
+
+   此属性设置是否开启将 HystrixCommand 执行和事件记录日志(HystrixRequestLog)，默认值：true。
+
+   ```java
+   HystrixCommandProperties.Setter()
+      .withRequestLogEnabled(boolean value)
+   ```
+
+## Collapser(批处理)
+
+该属性用于控制 HystrixCollapser行为。
+
+1. Hystrix.collapser.default.maxRequestsInBatch
+
+   此属性设置在触发批处理执行之前允许的最大批处理请求数。默认值：Integer.MAX_VALUE。
+
+   ```java
+   HystrixCollapserProperties.Setter()
+      .withMaxRequestsInBatch(int value)
+   ```
+
+2. hystrix.collapser.default.timerDelayInMilliseconds
+
+   此属性设置创建批处理后触发执行的毫秒数(执行延迟时长)。单位：毫秒，默认值：10。
+
+   ```java
+   HystrixCollapserProperties.Setter()
+      .withTimerDelayInMilliseconds(int value)
+   ```
+
+3. hystrix.collapser.default.requestCache.enabled
+
+   此属性指示是否为 HystrixCollapser.execute() 和 HystrixCollapser.queue() 调用启用请求缓存。默认值：true
+
+   ```java
+   HystrixCollapserProperties.Setter()
+      .withRequestCacheEnabled(boolean value)
+   ```
+
+## ThreadPool (线程池)
+
+以下属性控制 Hystrix Commands 执行线程池的行为。
+大多数情况下，默认值是 10 个线程是较好的(通过可以减小)。
+
+要确定是否需要更大，计算线程池大小的基本公式是：
+
+1. hystrix.threadpool.default.coreSize
+
+   设置线程池核心大小，默认值：10。
+
+   ```java
+   HystrixThreadPoolProperties.Setter()
+      .withCoreSize(int value)
+   ```
+
+2. hystrix.threadpool.default.maximumSize
+
+   设置线程池最大值，在不开始拒绝 HystrixCommands 的情况下支持的最大并发数。默认值：10。
+
+   ```java
+   HystrixThreadPoolProperties.Setter()
+      .withMaximumSize(int value)
+   ```
+
+3. hystrix.threadpool.default.maxQueueSize
+
+   设置实现 BlockingQueue 的队列最大值。默认值：-1。
+
+   如果设置为 -1，则使用 SynchronousQueue；否则其它正数值，则使用LinkedBlockingQueue。
+
+   ```java
+   HystrixThreadPoolProperties.Setter()
+      .withMaxQueueSize(int value)
+   ```
+
+   如果想覆盖此限制并允许动配修改此队列大小，参数 queueSizeRejectionThreshold 属性。
+
+4. hystrix.threadpool.default.queueSizeRejectionThreshold
+
+   此属性设置队列拒绝阈值，即使未达到 MaxQueueSize，也会发生拒绝的最大队列。默认值：5。
+
+   此属性的存在是因为无法动态更改 BlockingQueue的 MaxQueueSize。
+
+   当线程排队等待执行时，HystrixCommand 将使用属性。当 maxQueueSize == -1 时不适用。
+
+   ```java
+   HystrixThreadPoolProperties.Setter()
+      .withQueueSizeRejectionThreshold(int value)
+   ```
+
+5. hystrix.threadpool.default.keepAliveTimeMinutes
+
+   此属性设置 keep-alive 的时间，单位：分种，默认值：1。
+
+   如果 coreSize < maximumSize，则此属性控制线程在释放之前空闲时长。
+
+   ```java
+   HystrixThreadPoolProperties.Setter()
+      .withKeepAliveTimeMinutes(int value)
+   ```
+
+6. hystrix.threadpool.default.allowMaximumSizeToDivergeFromCoreSize
+
+   此属性允许 maximumSize 的配置生效。maximumSize 值可以等于或大于 coreSize。默认值：false。
+
+   当 coreSize < maximumSize 时会创建一个可以维持 maximumSize 并发性的线程池，但会在相对不活动期间将线程返回到系统。(以 KeepaliveTimeinMinutes 为准)
+
+   ```java
+   HystrixThreadPoolProperties.Setter()
+      .withAllowMaximumSizeToDivergeFromCoreSize(boolean value)
+   ```
+
+7. hystrix.threadpool.default.metrics.rollingStats.timeInMilliseconds
+
+   此属性设置线程池统计窗口期的时长，即为线程池保留指标的时长。单分：毫秒，默认值：10000。
+
+   ```java
+   HystrixThreadPoolProperties.Setter()
+      .withMetricsRollingStatisticalWindowInMilliseconds(int value)
+   ```
+
+8. hystrix.threadpool.default.metrics.rollingStats.numBuckets
+
+   此属性设置线程指标统计窗口期划分的 bucket 数。
+
+
 
 # Hystrix Dashboard
 
@@ -14,7 +404,7 @@ http://www.gxitsky.com/2019/03/31/springcloud-07-Hystrix-circuit-breaker-propert
 
 2.创建一个模块，`cloud-hystrix-dashboard`
 
-## 引入3个依赖
+## 引入依赖
 
 ```xml
 <dependency>
@@ -31,7 +421,7 @@ http://www.gxitsky.com/2019/03/31/springcloud-07-Hystrix-circuit-breaker-propert
 </dependency>
 ```
 
-## @EnableHystrixDashboard
+## 开启注解
 
 在启动类上加上 `@EnableHystrixDashboard` 注解，开启Hystrix Dashboard功能。
 

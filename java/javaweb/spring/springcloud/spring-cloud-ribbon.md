@@ -317,7 +317,7 @@ ribbon-config-demo.ribbon.ReadTimeout=5000
 ```java
 protected static int getRibbonTimeout(IClientConfig config, String commandKey) {
 	int ribbonTimeout;
-	// 这是比较异常的情况，不说
+	// 这是比较异常的情况
 	if (config == null) {
 		ribbonTimeout = RibbonClientConfiguration.DEFAULT_READ_TIMEOUT + RibbonClientConfiguration.DEFAULT_CONNECT_TIMEOUT;
 	} else {
@@ -339,6 +339,8 @@ protected static int getRibbonTimeout(IClientConfig config, String commandKey) {
 ```
 
 
+
+**计算公式：**`ribbonTimeout = (ribbonReadTimeout + ribbonConnectTimeout) * (maxAutoRetries + 1) * (maxAutoRetriesNextServer + 1)`
 
 可以看到`ribbonTimeout`是一个总时间，所以从逻辑上来讲，作者希望<font color=##00dd00> hystrixTimeout要大于ribbonTimeout</font>，否则`hystrix`熔断了以后，`ribbon`的重试就都没有意义了。
 
