@@ -3329,7 +3329,7 @@ public interface Delayed extends Comparable<Delayed> {
 
 ### SynchronousQueue
 
- 实现了`BlockingQueue`接口的阻塞队列，底层基于**栈**和**队列**实现。特点简要概括如下：
+同步队列，实现了`BlockingQueue`接口的阻塞队列，底层基于**栈**和**队列**实现。特点简要概括如下：
 
 1. 入队线程和出队线程**必须一一匹配**，否则任意先到达的线程会阻塞。比如ThreadA进行入队操作，在有其它线程执行出队操作之前，ThreadA会一直等待，反之亦然；
 2. `SynchronousQueue`内部不保存任何元素，也就是说它的容量为0，数据直接在配对的生产者和消费者线程之间传递，不会将数据缓冲到队列中。（在内部通过栈或队列结构保存阻塞线程）
