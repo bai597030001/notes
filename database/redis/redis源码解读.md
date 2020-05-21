@@ -453,9 +453,9 @@ typedef struct dictType {
 
 ### 疑问
 
-① 如何计算 key 的 hash 值，如何计算该key 在 hashtable 中的 index？-> 泊松分布
+① 如何计算 key 的 hash 值，如何计算该key 在 hash table 中的 index？-> 泊松分布
 
-② Redis 是如何解决 key 冲突问题？-> 头插法解决
+② Redis 是如何解决 key 冲突问题？-> 拉链法，头插解决
 
 ③ 每次扩容的大小是多少？扩容的时候有新的命令请求到底去哪个 ht中找数据？
 
@@ -767,7 +767,7 @@ int dictRehashMilliseconds(dict *d, int ms) {
     return rehashes;
 }
 
-server.c:
+// server.c:
 int incrementallyRehash(int dbid) {
     /* Keys dictionary */
     if (dictIsRehashing(server.db[dbid].dict)) {

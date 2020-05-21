@@ -1183,7 +1183,7 @@ public class Hashtable<K,V>
 
 ### ConcurrentHashMap
 
-
+- hashMap的线程安全版本
 
 
 
