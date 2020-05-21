@@ -1445,11 +1445,11 @@ dictEntry **dictFindEntryRefByPtrAndHash(dict *d, const void *oldptr, uint64_t h
 
 ## set
 
-set底层存储使用了intset和hashtable两种数据结构。
+set底层存储使用了`intset`和`hashtable`两种数据结构。
 
-intset我们可以理解为数组，hashtable就是普通的哈希表。
+`intset`我们可以理解为数组，`hashtable`就是普通的哈希表。
 
-set的底层存储intset和hashtable是存在编码转换的，使用**intset**存储必须满足下面两个条件，否则使用hashtable，条件如下：
+`set`的底层存储`intset`和`hashtable`是存在编码转换的，使用**intset**存储必须满足下面两个条件，否则使用`hashtable`，条件如下：
 
 - 结合对象保存的所有元素都是整数值
 - 集合对象保存的元素数量不超过512个
@@ -1504,7 +1504,7 @@ Intset 中升级整数集合并添加新元素共分为三步进行：
 
 
 
-### skiplist
+## skiplist
 
 redis中把跳表抽象成如下
 
@@ -1710,6 +1710,9 @@ typedef struct zset {
     // 跳跃表
     zskiplist *zsl;
 } zset;
+/*
+dict用来查询数据到分数的对应关系，skiplist用来根据分数查询数据（可能是范围查找）。
+*/
 ```
 
 
@@ -1723,13 +1726,13 @@ typedef struct zset {
 - 元素数量小于128个
 - 所有member的长度都小于64字节
 
-以上两个条件的上限值可通过zset-max-ziplist-entries和zset-max-ziplist-value来修改。
+以上两个条件的上限值可通过`zset-max-ziplist-entries`和`zset-max-ziplist-value`来修改。
 
 
 
-`ziplist`编码的有序集合使用紧挨在一起的压缩列表节点来保存，第一个节点保存member，第二个保存score。ziplist内的集合元素按score从小到大排序，score较小的排在表头位置。
+`ziplist`编码的有序集合使用紧挨在一起的压缩列表节点来保存，第一个节点保存`member`，第二个保存`score`。`ziplist`内的集合元素按`score`从小到大排序，`score`较小的排在表头位置。
 
-`skiplist`编码的有序集合底层是一个命名为`zset`的结构体，而一个zset结构同时包含一个字典和一个跳跃表。跳跃表按score从小到大保存所有集合元素。而字典则保存着从member到score的映射，这样就可以用O(1)的复杂度来查找member对应的score值。虽然同时使用两种结构，但它们会通过指针来共享相同元素的member和score，因此不会浪费额外的内存。
+`skiplist`编码的有序集合底层是一个命名为`zset`的结构体，而一个`zset`结构同时包含一个字典和一个跳跃表。跳跃表按`score`从小到大保存所有集合元素。而字典则保存着从`member`到`score`的映射，这样就可以用O(1)的复杂度来查找`member`对应的`score`值。虽然同时使用两种结构，但它们会通过指针来共享相同元素的member和`score`，因此不会浪费额外的内存。
 
 
 
