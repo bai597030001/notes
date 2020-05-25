@@ -4,7 +4,7 @@
 
 
 
-[Toc]
+[TOC]
 
 
 
@@ -167,6 +167,19 @@ public class MyPartitioner implements Partitioner {
 
 
 # 实例讲解
+
+## 启动停止
+
+```shell
+#启动：
+$ kafka/bin/kafka-server-start.sh -daemon kafka/config/server.properties
+#通过jps查看Kafka进程是否启动。
+
+#查看kafka状态
+$ kafka-topics --describe --zookeeper hadoop-cluster01:2181
+```
+
+
 
 ## 创建话题
 

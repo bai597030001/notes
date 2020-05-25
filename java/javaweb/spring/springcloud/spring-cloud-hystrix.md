@@ -6,18 +6,100 @@
 
 
 
+![](img/cloud-hystrix1.jpg)
+
+
+
 ## 熔断器（CircuitBreaker）
 
-可以实现快速失败，如果它在一段时间内侦测到许多类似的错误，会强迫其以后的多个调用快速失败，不再访问远程服务器，从而防止应用程序不断地尝试执行可能会失败的操作，使得应用程序继续执行而不用等待修正错误，或者浪费CPU时间去等到长时间的超时产生。熔断器也可以使应用程序能够诊断错误是否已经修正，如果已经修正，应用程序会再次尝试调用操作。
+**为了解决以上问题**,spring cloud中为我们提供了 **hystrix** 断路器来保护我们的应用程序。
+
+
+
+### 断路器机制
+
+> `hystrix`存在三种状态：`CLOSED`、`OPEN`和`HALF_OPEN`。
+
+默认情况下为`CLOSED`；
+
+当一个服务在一定的时间内(`metrics.rollingStats.timeInMilliseconds`默认<font color=#dd0000>10s</font>)，
+
+请求次数达到了某个阀值(`circuitBreaker.requestVolumeThreshold`默认<font color=#dd0000>20次</font>)，
+
+并且错误率也达到了某个阀值(`circuitBreaker.errorThresholdPercentage`默认><font color=#dd0000>50%</font>)，
+
+此时断路器变成了`OPEN`的状态；
+
+当断路器打开，过了一定的时(`circuitBreaker.sleepWindowInMilliseconds`默认为<font color=#dd0000>5s</font>)将会放行一个请求，此时变成`HALF_OPEN`状态，如果可以访问就变成`CLOSED`，否则变成`OPEN`状态
+
+
+
+### 资源隔离
+
+`hystrix`为每个依赖都提供了一个线程池或信号量。当线程池满了之后，发往该依赖的请求会被直接拒绝，从而加速失败。
+
+
+
+# 注意点
+
+1. 进入`fallback`方法并不意味着断路器一定是打开的，请求失败、超时、被拒绝以及断路器打开时都会执行回退逻辑。
+
+2. 被`@HystrixCommand`修饰的方法错误累积到一定门槛的时候，就会启动断路器，后续所有调用该方法的请求都会失败，而会临时调用`fallbackMethod`指定的方法，然后当服务恢复正常时，断路器就会关闭。
+
+3. 在feign中也可以使用hystrix 
+
+   ```java
+   @FeignClient(name="service-pri-server",fallback=UserFeignClientFallBack.class)
+   ```
+
+4. 可以使用回调工厂检查原因
+
+   > 改变不是太大，在接口的地方回调的是一个工厂类
+
+```java
+import org.springframework.stereotype.Component;
+import feign.hystrix.FallbackFactory;
+
+@Component
+public class UserFeignClientFactory implements FallbackFactory<UserFeignClient> {
+
+    @Override
+    public UserFeignClient create(Throwable cause) {
+        return new UserFeignClient(){
+            @Override
+            public User findById(Integer id) {
+
+                // cause就是调用失败的原因, 因此此处可以看到该原因
+                //这里打印输出错误
+                System.out.println(cause);
+
+                User user=new User();
+                user.setId(0);
+                user.setName("NULL");
+                user.setNickName("默认用户-Factory");
+                user.setPassword("");
+                user.setLastLoginDt(null);
+                return user;
+            }
+        };
+    }
+}
+```
+
+```yaml
+feign.hystrix.enabled: true
+```
+
+
 
 
 
 # 作用
 
-- 隔离（线程隔离、信号量隔离）：主要是限制调用分布式服务的资源，避免个别服务出现问题时对其他服务产生影响
+- 资源隔离（线程隔离、信号量隔离）：主要是限制调用分布式服务的资源，避免个别服务出现问题时对其他服务产生影响
 - 熔断（容错）：当失败率达到一定阈值时，熔断器触发快速失败
-- 降级（超时降级、熔断降级）：触发降级时可以使用回调方法返回托底数据
-- 缓存：请求缓存、请求合并
+- 降级回退（超时降级、熔断降级）：触发降级时可以使用回调方法返回托底数据
+- 自我修复
 - 实时监控、报警
 
 
