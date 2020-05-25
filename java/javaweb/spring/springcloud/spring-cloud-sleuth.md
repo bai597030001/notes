@@ -1,6 +1,10 @@
 # sleuth
 
-`Spring Cloud Sleuth` 的主要功能就是为 **分布式系统** 提供 **追踪解决方案**，并且兼容支持了 `Zipkin`，只需要在 `pom.xml` 文件中引入相应的 **依赖** 即可。本文主要讲述 **服务追踪组件** `Zipkin`，`Spring Cloud Sleuth` 集成了 `Zipkin` 组件。它主要用于 **聚集** 来自各个 **异构系统** 的 **实时监控数据**，用来追踪 **微服务架构** 下的 **系统延时问题**。
+目前开源的链路追踪组件有Google的Dapper，Twitter 的Zipkin，以及阿里的Eagleeye （鹰眼）等。
+
+`Spring Cloud Sleuth` 的主要功能就是为 **分布式系统** 提供 **追踪解决方案**，并且兼容支持了 `Zipkin`，只需要在 `pom.xml` 文件中引入相应的 **依赖** 即可。
+
+**服务追踪组件** `Zipkin`，`Spring Cloud Sleuth` 集成了 `Zipkin` 组件。它主要用于 **聚集** 来自各个 **异构系统** 的 **实时监控数据**，用来追踪 **微服务架构** 下的 **系统延时问题**。
 
 
 

@@ -17,6 +17,23 @@ https://www.cnblogs.com/jmcui/p/11218824.html
 - `Feign` 默认集成了 `Ribbon`，并和 `Eureka` 结合，实现了默认的负载均衡功能。
 - 整合了 `Hystrix`，具有熔断能力。
 
+
+
+## Feign和OpenFeign两者区别
+
+```properties
+Feign：
+Feign内置了Ribbon，用来做客户端负载均衡，去调用服务注册中心的服务。
+feign的使用方式是：使用Feign注解定义一个接口，调用这个接口，就可以调用服务注册中心的服务。
+
+OpenFeign
+OpenFeign是springcloud在feign的基础上支持了springmvc注解，如@RequestMapping等等。openFeign的@FeignClient注解可以解析springmvc的@RequestMapping注解下的接口，并通过动态代理的方式产生实现类，实现类中做负载均衡并调用其他服务
+```
+
+
+
+
+
 ## 准备
 
 继续启用 `eureka-srv` 端口为 8761、`eureka-srv-cli, eureka-srv-cli1` 两个实例 端口为 8762、8763.
