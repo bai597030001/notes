@@ -386,12 +386,12 @@ Sentinel 和 Hystrix 的熔断降级功能本质上都是基于熔断器模式�
 
 
 
-| dubbo/feign    | dubbo                   | feign             |
-| :------------- | :---------------------- | :---------------- |
-| 通讯协议       | TCP，高效               | HTTP，扩展性强    |
-| 序列化协议     | 多协议支持，默认hessian | JSON              |
-| 负载均衡       | 内置多种负载均衡策略    | 基于内置的ribbon  |
-| 服务降级、熔断 | 内置                    | 基于内置的hystrix |
+| dubbo/feign  | dubbo                   | feign             |
+| :----------- | :---------------------- | :---------------- |
+| 通讯协议     | 多协议支持，默认Dubbo   | HTTP，扩展性强    |
+| 序列化协议   | 多协议支持，默认hessian | JSON              |
+| 负载均衡     | 内置多种负载均衡策略    | 基于内置的ribbon  |
+| 集群容错模式 | 内置多种容错模式        | 基于内置的hystrix |
 
 
 
@@ -415,7 +415,7 @@ Feign 集成了Ribbon，并且嵌入了Spring cloud全家桶 ，通过简单配�
 
 空闲策略；
 
-响应时间策略。
+响应时间策略
 
 
 
@@ -427,11 +427,15 @@ Hystix 提供了服务降级，服务熔断，依赖隔离，监控（Hystrix Da
 
 ## dubbo
 
+### 协议
+
+dubbo，rmi，Hessian，http，webservice，thrift，memcached，redis，rest（标准的Java REST API），grpc
+
 Dubbo协议可选，大部分情况使用Dubbo传输协议，也可以使用http协议。
 
 
 
-**Dubbo 的负载均衡策略**
+### 负载均衡策略
 
 ```properties
 随机
@@ -445,7 +449,15 @@ Dubbo协议可选，大部分情况使用Dubbo传输协议，也可以使用http
 
 
 
+### 集群容错模式
+
 Dubbo 提供了一整套 FailOver、FailFast、Failsafe、FailBack、Aviailable、Broadcast、Forking 策略，以及Mock
+
+
+
+### 序列化
+
+dubbo, hessian2, java, json
 
 
 
