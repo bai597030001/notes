@@ -192,7 +192,7 @@ feign.hystrix.enabled: true
 
 2. hystrix.command.default.fallback.enabled
 
-   此属性确定在发生故障或拒绝时是否将尝试调用 HystrixCommand.getFallback()。默认值：true。
+   此属性确定在发生故障或拒绝时是否将尝试调用 HystrixCommand.getFallback()。SEMAPHORE模式有效。默认值：true。
 
    ```java
    HystrixCommandProperties.Setter()
@@ -476,9 +476,107 @@ feign.hystrix.enabled: true
 
 
 
+# Command Properties
+
+以下属性控制HystrixCommand行为：
+
+## Execution
+
+以下属性控制HystrixCommand.run()如何执行。
+
+| **参数**                                            | **描述**                                                     | **默认值**                                                   |
+| --------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| execution.isolation.strategy                        | 隔离策略，有THREAD和SEMAPHORETHREAD - 它在单独的线程上执行，并发请求受线程池中的线程数量的限制 SEMAPHORE - 它在调用线程上执行，并发请求受到信号量计数的限制 | 默认使用THREAD模式，以下几种场景可以使用SEMAPHORE模式：只想控制并发度外部的方法已经做了线程隔离调用的是本地方法或者可靠度非常高、耗时特别小的方法（如medis） |
+| execution.isolation.thread.timeoutInMilliseconds    | 超时时间                                                     | 默认值：1000在THREAD模式下，达到超时时间，可以中断在SEMAPHORE模式下，会等待执行完成后，再去判断是否超时设置标准：有retry，99meantime+avg meantime没有retry，99.5meantime |
+| execution.timeout.enabled                           | HystrixCommand.run（）执行是否应该有超时。                   | 默认值：true                                                 |
+| execution.isolation.thread.interruptOnTimeout       | 在发生超时时是否应中断HystrixCommand.run（）执行。           | 默认值：trueTHREAD模式有效                                   |
+| execution.isolation.thread.interruptOnCancel        | 当发生取消时，执行是否应该中断。                             | 默认值为falseTHREAD模式有效                                  |
+| execution.isolation.semaphore.maxConcurrentRequests | 设置在使用时允许到HystrixCommand.run（）方法的最大请求数。   | 默认值：10SEMAPHORE模式有效                                  |
+
+## Fallback
+
+以下属性控制HystrixCommand.getFallback()如何执行。这些属性适用于ExecutionIsolationStrategy.THREAD和ExecutionIsolationStrategy.SEMAPHORE。
+
+| **参数**                                           | **描述**                                                     | **默认值**                  |
+| -------------------------------------------------- | ------------------------------------------------------------ | --------------------------- |
+| fallback.isolation.semaphore.maxConcurrentRequests | 设置从调用线程允许HystrixCommand.getFallback（）方法的最大请求数。 | SEMAPHORE模式有效默认值：10 |
+| fallback.enabled                                   | 确定在发生失败或拒绝时是否尝试调用HystrixCommand.getFallback（）。 | 默认值为true                |
+
+## Circuit Breaker
+
+断路器属性控制HystrixCircuitBreaker的行为。
+
+| **参数**                                 | **描述**                                                     | **默认值**                                                   |
+| ---------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| circuitBreaker.enabled                   | 确定断路器是否用于跟踪运行状况和短路请求（如果跳闸）。       | 默认值为true                                                 |
+| circuitBreaker.requestVolumeThreshold    | 熔断触发的最小个数/10s                                       | 默认值：20                                                   |
+| circuitBreaker.sleepWindowInMilliseconds | 熔断多少秒后去尝试请求                                       | 默认值：5000                                                 |
+| circuitBreaker.errorThresholdPercentage  | 失败率达到多少百分比后熔断                                   | 默认值：50主要根据依赖重要性进行调整                         |
+| circuitBreaker.forceOpen                 | 属性如果为真，强制断路器进入打开（跳闸）状态，其中它将拒绝所有请求。 | 默认值为false此属性优先于circuitBreaker.forceClosed          |
+| circuitBreaker.forceClosed               | 该属性如果为真，则迫使断路器进入闭合状态，其中它将允许请求，而不考虑误差百分比。 | 默认值为false如果是强依赖，应该设置为truecircuitBreaker.forceOpen属性优先，因此如果forceOpen设置为true，此属性不执行任何操作。 |
+
+## Metrics
+
+以下属性与从HystrixCommand和HystrixObservableCommand执行捕获指标有关。
+
+| **参数**                                      | **描述**                                                     | **默认值**    |
+| --------------------------------------------- | ------------------------------------------------------------ | ------------- |
+| metrics.rollingStats.timeInMilliseconds       | 此属性设置统计滚动窗口的持续时间（以毫秒为单位）。对于断路器的使用和发布Hystrix保持多长时间的指标。 | 默认值：10000 |
+| metrics.rollingStats.numBuckets               | 此属性设置rollingstatistical窗口划分的桶数。以下必须为true - “metrics.rollingStats.timeInMilliseconds%metrics.rollingStats.numBuckets == 0” -否则将抛出异常。 | 默认值：10    |
+| metrics.rollingPercentile.enabled             | 此属性指示是否应以百分位数跟踪和计算执行延迟。 如果禁用它们，则所有摘要统计信息（平均值，百分位数）都将返回-1。 | 默认值为true  |
+| metrics.rollingPercentile.timeInMilliseconds  | 此属性设置滚动窗口的持续时间，其中保留执行时间以允许百分位数计算，以毫秒为单位。 | 默认值：60000 |
+| metrics.rollingPercentile.numBuckets          | 此属性设置rollingPercentile窗口将划分的桶的数量。以下内容必须为true - “metrics.rollingPercentile.timeInMilliseconds%metrics.rollingPercentile.numBuckets == 0” -否则将抛出异常。 | 默认值：6     |
+| metrics.rollingPercentile.bucketSize          | 此属性设置每个存储桶保留的最大执行次数。如果在这段时间内发生更多的执行，它们将绕回并开始在桶的开始处重写。 | 默认值：100   |
+| metrics.healthSnapshot.intervalInMilliseconds | 此属性设置在允许计算成功和错误百分比并影响断路器状态的健康快照之间等待的时间（以毫秒为单位）。 | 默认值：500   |
+
+## Request Context
+
+这些属性涉及HystrixCommand使用的HystrixRequestContext功能。
+
+| **参数**             | **描述**                                                     | **默认值**   |
+| -------------------- | ------------------------------------------------------------ | ------------ |
+| requestCache.enabled | HystrixCommand.getCacheKey（）是否应与HystrixRequestCache一起使用，以通过请求范围的缓存提供重复数据删除功能。 | 默认值为true |
+| requestLog.enabled   | HystrixCommand执行和事件是否应记录到HystrixRequestLog。      | 默认值为true |
+
+# Collapser Properties
+
+下列属性控制HystrixCollapser行为。
+
+| **参数**                 | **描述**                                                     | **默认值**        |
+| ------------------------ | ------------------------------------------------------------ | ----------------- |
+| maxRequestsInBatch       | 此属性设置在触发批处理执行之前批处理中允许的最大请求数。     | Integer.MAX_VALUE |
+| timerDelayInMilliseconds | 此属性设置创建批处理后触发其执行的毫秒数。                   | 默认值：10        |
+| requestCache.enabled     | 此属性指示是否为HystrixCollapser.execute（）和HystrixCollapser.queue（）调用启用请求高速缓存。 | 默认值：true      |
+
+ThreadPool Properties
+
+以下属性控制Hystrix命令在其上执行的线程池的行为。
+
+大多数时候，默认值为10的线程会很好（通常可以做得更小）。
+
+| **参数**                                | **描述**                                                     | **默认值**                                                   |
+| --------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| coreSize                                | 线程池coreSize                                               | 默认值：10设置标准：qps*99meantime+breathing room            |
+| maximumSize                             | 此属性设置最大线程池大小。 这是在不开始拒绝HystrixCommands的情况下可以支持的最大并发数。 请注意，此设置仅在您还设置allowMaximumSizeToDivergeFromCoreSize时才会生效。 | 默认值：10                                                   |
+| maxQueueSize                            | 请求等待队列                                                 | 默认值：-1如果使用正数，队列将从SynchronizeQueue改为LinkedBlockingQueue |
+| queueSizeRejectionThreshold             | 此属性设置队列大小拒绝阈值 - 即使未达到maxQueueSize也将发生拒绝的人为最大队列大小。 此属性存在，因为BlockingQueue的maxQueueSize不能动态更改，我们希望允许您动态更改影响拒绝的队列大小。 | 默认值：5注意：如果maxQueueSize == -1，则此属性不适用。      |
+| keepAliveTimeMinutes                    | 此属性设置保持活动时间，以分钟为单位。                       | 默认值：1                                                    |
+| allowMaximumSizeToDivergeFromCoreSize   | 此属性允许maximumSize的配置生效。 那么该值可以等于或高于coreSize。 设置coreSize <maximumSize会创建一个线程池，该线程池可以支持maximumSize并发，但在相对不活动期间将向系统返回线程。 （以keepAliveTimeInMinutes为准） | 默认值：false                                                |
+| metrics.rollingStats.timeInMilliseconds | 此属性设置statistical rolling窗口的持续时间（以毫秒为单位）。 这是为线程池保留多长时间。 | 默认值：10000                                                |
+| metrics.rollingStats.numBuckets         | 此属性设置滚动统计窗口划分的桶数。 注意：以下必须为true - “metrics.rollingStats.timeInMilliseconds%metrics.rollingStats.numBuckets == 0” -否则将引发异常。 | 默认值：10                                                   |
+
+# 其他
+
+| **参数**   | **描述**                             | **默认值**                          |
+| ---------- | ------------------------------------ | ----------------------------------- |
+| groupKey   | 表示所属的group，一个group共用线程池 | 默认值：getClass().getSimpleName(); |
+| commandKey |                                      | 默认值：当前执行方法名              |
+
+
+
 # Hystrix Dashboard
 
-1.新建一个服务模块，`service-a`，提供`controller`功能（注意，需要在服务的`service`层提供`@HystrixCommand`注解）
+1.新建一个服务模块，`service-a`，提供`controller`功能（注意，需要在服务的`controller`层提供`@HystrixCommand`注解）
 
 ```java
 @HystrixCommand(fallbackMethod = "myFallback")
@@ -533,7 +631,7 @@ server.port=5566
 
 ## 测试
 
-启动`cloud-hystrix-dashboard`，在浏览器访问： http://localhost:2019/hystrix
+启动`cloud-hystrix-dashboard`，在浏览器访问： http://localhost:5566/hystrix
 
 ## Hystrix Dashboard访问规则
 
@@ -604,17 +702,13 @@ Hystrix Dashboard共支持三种不同的监控方式
     }
     ```
 
-- 其他的配置和代码保持不变。
-
 - 在`application.properties`中增加配置： `hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds=2000` 。
 
-- 启动 `service-a`服务。
+- 启动 `service-a`服务、启动 `cloud-hystrix-dashboard` 服务。
 
-- 启动 `cloud-hystrix-dashboard` 服务。
+- 在浏览器输入http://localhost:5566/hystrix 。
 
-- 在浏览器输入http://localhost:2019/hystrix 。
-
-- 在`Hystrix-Dashboard`的主界面上输入: http://localhost:8766/acturator/hystrix.stream ， 然后点击 `Monitor Stream`按钮
+- 在`Hystrix-Dashboard`的主界面上输入: http://localhost:8084/actuator/hystrix.stream ， 然后点击 `Monitor Stream`按钮
 
 可以看到：
 
@@ -658,7 +752,7 @@ data: {"type":"HystrixCommand","name":"getPriDataPage","group":"ASignalControlle
 
 
 
-这时再去http://localhost:8766/acturator/hystrix.stream填入url，点击Monitor Stream，可以看到监控界面
+这时再去http://localhost:8766/actuator/hystrix.stream填入url，点击Monitor Stream，可以看到监控界面
 
 ![](img/cloud-hystrix-dashboard1.png)
 
@@ -778,11 +872,11 @@ public class CloudTurbineDashboardApplication {
 
 参见 [Hystrix Dashboard访问规则]
 
-1.访问http://host-application:8084/actuator/hystrix.stream，http://host-application:8084/actuator/hystrix.stream，看是否在ping
+1.访问http://host-application:8084/actuator/hystrix.stream，看是否在ping
 
 2.如果在ping，访问一下服务提供的url，http://host-application:8084/a/dataPage，http://host-application:8084/a/dataPage，触发
 
-3.http://host-application:5566/hystrix填入url：http://host-application:5566/turbine.stream，点击Monitor Stream，可以看到监控界面。这时随意触发http://host-application:8084/a/dataPage，http://host-application:8084/a/dataPage其中任意一个，都可以从界面看到界面变化
+3.http://host-application:5566/hystrix填入url：http://host-application:5566/turbine.stream，点击Monitor Stream，可以看到监控界面。这时随意触发http://host-application:8084/a/dataPage，http://host-application:8084/a/dataPage其中任意一个，都可以从界面看到变化
 
 
 
