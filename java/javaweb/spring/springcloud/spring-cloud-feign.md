@@ -32,13 +32,15 @@ OpenFeign是springcloud在feign的基础上支持了springmvc注解，如@Reques
 
 
 
+## 示例
 
 
-## 准备
+
+### 准备
 
 继续启用 `eureka-srv` 端口为 8761、`eureka-srv-cli, eureka-srv-cli1` 两个实例 端口为 8762、8763.
 
-## 创建一个 Feign 服务
+### 创建一个 Feign 服务
 
 工程为 service-feign，引入依赖：
 
@@ -57,7 +59,7 @@ OpenFeign是springcloud在feign的基础上支持了springmvc注解，如@Reques
 </dependency>
 ```
 
-## 修改配置信息
+### 修改配置信息
 
 配置文件中指定服务名伪： service-feign， 端口伪 8765， 注册到注册中心： http://localhost:8761/eureka/。 `application.properties`:
 
@@ -72,7 +74,7 @@ eureka.instance.hostname=localhost
 eureka.client.serviceUrl.defaultZone=http://${eureka.instance.hostname}:${registry.port}/eureka/
 ```
 
-## 修改启动类，添加注解 `@EnableFeignClients`
+### 注解 `@EnableFeignClients`
 
 ```java
 @EnableFeignClients  // 开启Feign的功能
@@ -87,7 +89,7 @@ public class ServiceFeignApplication {
 }
 ```
 
-## 定义一个Feign接口
+### 定义一个Feign接口
 
 定义一个接口使用，使用 `@ FeignClient("服务名"")`，来指定调用哪个服务。 比如，我们调用 eureka-srv-cli1 应用的 /hi 接口，代码示例如下：
 
@@ -101,7 +103,7 @@ public interface IFeignServiceHi {
 }
 ```
 
-## 向外层暴露一个Controller，调用Feign接口定义的服务来消费
+### 向外层暴露一个Controller，调用Feign接口定义的服务来消费
 
 ```java
 @RestController
@@ -117,7 +119,7 @@ public class HiController {
 }
 ```
 
-## 测试
+### 测试
 
 当然，测试之前，请先关闭Ribbon负载均衡实例，以免干扰； 再启动本例的Feign启动类，然后访问： `http://localhost:8765/hi?name=forezp`，也看到了和Ribbon负载均衡一样的效果：
 
@@ -129,9 +131,87 @@ public class HiController {
 >
 > hi forezp,i am from port:8762
 
-## 总结
+### 总结
 
 - 引入依赖: `spring-cloud-starter-openfeign`
 - 启用Feign注解: 在启动类中使用 `@EnableFeignClients` 注解开启Feign的功能
 - 编写Feign接口： 编写接口，并使用 `@FeignClient("eureka-srv-cli1")` 用于指定需要进行负载均衡的服务应用名
+
+
+
+## Feign的Fallback机制
+
+如同hystrix和ribbon中针对于方法的fallback机制，feign中针对一个类，使用fallback机制
+
+
+
+### 方式一 fallback形式
+
+- 这种方式无法捕获降级原因
+
+```java
+@FeignClient(name = "hello", fallback = HystrixClientFallback.class)
+```
+
+代码示例
+
+```java
+@FeignClient(name = "microservice-provider-user", fallback = HystrixClientFallback.class)
+public interface UserFeignClient {
+	@RequestMapping(method = RequestMethod.GET, value = "/user/{id}", consumes = "application/json")
+    public User findById(@PathVariable("id") Long id);
+}
+
+
+static class HystrixClientFallback implements UserFeignClient {
+	@Override
+	public User findById(Long id) {
+		User user = new User();
+		user.setId(1L);
+		return user;
+    }
+}
+```
+
+### 方式二 fallbackFactory形式
+
+- 这种方式可以捕获降级的具体原因，即下述的`Throwable cause`
+
+```java
+@FeignClient(name = "microservice-provider-user", fallbackFactory = HystrixClientFallbackFactory.class)
+```
+
+代码示例
+
+```java
+@FeignClient(name = "microservice-provider-user", fallbackFactory = HystrixClientFallbackFactory.class)
+public interface UserFeignClient {
+	@RequestMapping(method = RequestMethod.GET, value = "/user/{id}", consumes = "application/json")
+    public User findById(@PathVariable("id") Long id);
+}    
+    
+
+@Component
+static class HystrixClientFallbackFactory implements FallbackFactory<UserFeignClient> {
+	
+	private static Logger LOGGER = LoggerFactory.getLogger(HystrixClientFallbackFactory.class);
+	
+	@Override
+	public UserFeignClient create(Throwable cause) {
+		//打印日志
+		HystrixClientFallbackFactory.LOGGER.info("fallback; reason was: " + cause.getMessage());
+		
+		return new UserFeignClient() {
+			@Override
+			public User findById(Long id) {
+				User user = new User();
+				user.setId(-1L);
+				user.setUsername("我是HystrixClientFallbackFactory");
+				
+				return user;
+			}
+		};
+	}	
+}
+```
 

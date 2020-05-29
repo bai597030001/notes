@@ -303,8 +303,6 @@ ribbon.ConnectTimeout=2000
 # 请求处理的超时时间
 ribbon.ReadTimeout=5000
 
-
-
 # 局部设置
 
 # 也可以为每个Ribbon客户端设置不同的超时时间, 通过服务名称进行指定：
