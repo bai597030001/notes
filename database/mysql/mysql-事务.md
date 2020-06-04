@@ -509,6 +509,78 @@ commit;
 
 
 
+# innodb purge
+
+## 为什么MySQL InnoDB需要Purge操作
+
+InnoDB中delete所做删除只是标记为删除的状态，实际上并没有删除掉，因为MVCC机制的存在，要保留之前的版本为并发所使用。最终的删除由purge线程来决定的什么时候来真正删除文件的。
+
+
+
+## 参数
+
+```properties
+# 用来设置每次purge操作需要清理的undo log page的数量。【默认300，表示每次清理300个page，支持动态修改】
+
+# 设置的越大，表示每次回收的页也就越多，可供重用的undo page也就越多，就能减少磁盘存储空间与分配的开销。不过该参数设置得太大，则每次需要purge处理更多的undo page，从而导致CPU和磁盘IO过于集中于对undo log的处理，使性能下降。普通用户不建议调整这个参数。
+innodb_purge_batch_size
+
+
+# 当有很多的表进行DML操作时候， 增大 innodb_purge_threads 能提高purge的效率(清理掉MVCC机制导致的老旧数据)。
+
+# 现在的MySQL版本中。purge线程已经从master线程中独立出来,使用单独的线程提高了可伸缩性。
+
+# 从MySQL5.7.8开始，这个参数默认是4，最大可以设置为32.【老版本里面这个值默认是1】
+innodb_purge_threads
+
+
+# 当InnoDB存储引擎的压力非常大时，并不能高效地进行purge操作。那么history list(undo log page数量)的长度会变得越来越长。
+# innodb_max_purge_lag 就是控制history list的长度，若长度大于该值，就会延缓DML的操作。该值默认为0，表示不做任何限制。
+#【不建议修改这个参数值!! 】
+innodb_max_purge_lag 
+
+
+#  表示当上面innodb_max_purge_lag的delay超时时间太大，超过这个参数时，将delay设置为该参数值，防止purge线程操作缓慢导致其他SQL线程长期处于等待状态。默认为0，一般不用修改。
+innodb_max_purge_lag_delay
+```
+
+
+
+## 示例
+
+会话1：
+
+```shell
+$ use test;
+
+$ CREATE TABLE `t1` (`a` int(11) NOT NULL AUTO_INCREMENT, `b` int(11) DEFAULT '100', `c` varchar(10) NOT NULL DEFAULT 'cccc', PRIMARY KEY (`a`)) ;
+
+
+$ insert into t1 (b,c) select 111,'cccccc';
+```
+
+会话2：
+
+```shell
+cd /data/mysql/test/
+
+watch -n 1 'ls -lh t1.ibd'
+```
+
+然后再到会话1去多次执行插入数据的操作 `insert into t1 (b,c) select b,c from t1 ;`  重复执行多次，可以看到会话2的`t1.ibd`在不断在的增大。
+
+假设等到`t1.ibd`增大到112MB时候，我们到会话1去一个全量的删除操作`delete from t1 where 1=1;` 然后少等片刻(等purge线程自动清理数据、master线程将数据落盘)。
+
+这时候去观察到会话2窗口，可以看到的`t1.ibd`文件体积一点也没有减少。
+
+再次到t会话1窗口去执行少量的插入操作，并观察会话2的`t1.ibd`文件体积。
+
+可以看到`t1.ibd`文件的体积没有再次增长，(原因：purge线程将上述实验中被删除数据部分对应的磁盘空间标记为可用，可以被后续写入操作使用，这样就不用再次分配磁盘空间了)。
+
+
+
+
+
 # InnoDB之LBCC
 
 - Lock-Based Concurrency Control，基于锁的并发控制

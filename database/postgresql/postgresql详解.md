@@ -239,6 +239,16 @@ JSONB通常是首选的格式因为它需要更少的空间存储对象，可以
 
 
 
+Pg 对 json 的支持已经比较成熟, 除了把结果转换成 json 外, 还可以:
+
+- 按 json field 的内容作为查询条件
+- 以 json field 的内容建立索引
+- 把 json 和 result row 相互转换
+- 甚至还能把 json 当成数据集和视图
+- 甚至迭代 json 内容做循环
+
+
+
 官方文档上说:
 
 > 有两个JSON数据类型：json和jsonb。它们接受几乎 相同的值组作为输入。它们实际的主要差别是效率。json 数据类型存储输入文本的精确拷贝，处理函数必须在每个执行上重新解析；而jsonb数据以分解的二进制格式存储，这使得它由于添加了转换机制而在输入上稍微慢些，但是在处理上明显更快，因为不需要重新解析。jsonb也支持索引，这也是一个明显的优势。
@@ -435,9 +445,35 @@ PostgreSQL可以处理大量的数据。下面列出了当前的大小限制：
 
 ## 索引类型
 
-PostgreSQL中有几种索引类型，如`B-tree`，`Hash`，`GiST`（[几何函数、地理位置相关](http://bigsec.net/b52/postgresql/functions-geometry.html)），`SP-GiST`和`GIN`（[倒排序索引，数组函数和操作符](http://bigsec.net/b52/postgresql/functions-array.html)）、brin等。
+PostgreSQL中有几种索引类型，如`B-tree`，`Hash`，`GiST`（[几何函数、地理位置相关](http://bigsec.net/b52/postgresql/functions-geometry.html)），`SP-GiST`和`GIN`（[倒排序索引，数组函数和操作符](http://bigsec.net/b52/postgresql/functions-array.html)）、`brin`、条件索引、函数索引。
 
-每种索引类型根据不同的查询使用不同的算法。 默认情况下，`CREATE INDEX`命令使用**B树**索引。
+> 默认情况下，`CREATE INDEX`命令使用`B-tree`索引。
+
+### hash索引
+
+等值查询
+
+### GIST索引
+
+通用搜索树，高效支持地理查询，KNN查询
+
+### GIN索引
+
+倒排索引
+
+### brin索引
+
+大幅优化顺序访问
+
+### 条件索引
+
+能大幅减小索引大小
+
+### 函数索引
+
+能优雅替代冗余字段
+
+
 
 ## 列存索引
 
@@ -447,11 +483,43 @@ PostgreSQL 列存索引（Column Store Index），CSI
 
 [列存索引](https://juejin.im/entry/5c7c9c55e51d4559875009ce)
 
+> 在数据分析场景下，列存比行存更有优势。Oracle 从 12c 开始引入 in-memory组件，使其在数据实时分析和混合负载情况下的性能大幅提升，其主要特性是 In-Memory Column Store (IM column store) ，在存储中持久化的数据依然是行存，在内存中维护行存和列存两种模式的数据，行存用于 OLTP 场景，列存用于 OLAP 场景。SQL Server 同样支持 Columnstore indexes，其性能较行存有高达10倍的提升。
+>
+> PostgreSQL 在列存方面提出的一种 PostgreSQL 列存索引（Column Store Index）实现方法，该索引以列存形式组织数据，数据表的 INSERT/UPDATE/DELETE 操作均被同步到列存索引中，以下将从列存索引结构，并发控制，查询执行等方面介绍其如何增强 PostgreSQL 的 OLAP 处理能力。
+
+### 创建列存索引
+
+```shell
+# 创建一个 CSI 索引，索引中每个列对应的数据存储在一个文件中，本例中的索引对应三个文件。
+
+$ CREATE INDEX indexname ON tablename USING csi (a, b, c);
+```
+
+### 列存索引结构
+
+[列存索引](https://juejin.im/entry/5c7c9c55e51d4559875009ce)
+
+
+
+
+
+# fdw功能
+
+`foreign-data wrapper`，就是将外部数据包装为sql可操作数据的模块。现在支持的外部数据源有上百种，从文件系统、到关系型数据库，nosql数据库、大数据平台都可以Wrap方式访问。[官方详细信息](https://wiki.postgresql.org/wiki/Foreign_data_wrappers)
+
+需要下载编译安装对应的插件，如`mysql_fdw`，`mongo_fdw`等
+
+
+
+# VACUUM
+
+[参考链接](http://blog.itpub.net/31556440/viewspace-2375109/)
+
+[官方中文使用手册关于VACUUM](https://docs.postgresql.tw/reference/sql-commands/vacuum)
+
 
 
 # 命令行
-
-登录
 
 ```shell
 $ su postgres  # 切换用户, postgres为安装postgresql后的默认用户
@@ -560,90 +628,90 @@ $ CREATE SCHEMA schema_name;
 
 
 
-
-
 # 对比mysql
 
-|                             特性                             |                          Postgresql                          |                            MySQL                             |
-| :----------------------------------------------------------: | :----------------------------------------------------------: | :----------------------------------------------------------: |
-|                             描述                             |      The world’s most **advanced** open source database      |      The world’s most **popular** open source database       |
-|                             发展                             |           PostgreSQL is an open source **project**           |             MySQL is an open-source **product**              |
-|                           实现语言                           |                              C                               |                            C、C++                            |
-|                          图形化工具                          |                           PgAdmin                            |                       MySQL Workbench                        |
-|                             ACID                             |                             Yes                              |                             Yes                              |
-|                           存储引擎                           |                  **Single** storage engine                   | **Multiple** [storage engines](http://www.mysqltutorial.org/understand-mysql-table-types-innodb-myisam.aspx) e.g., InnoDB and MyISAM |
-|                           全文检索                           |                             Yes                              |                             Yes                              |
-| Drop a [temporary table](http://www.postgresqltutorial.com/postgresql-temporary-table/)（删除一个临时表） | No `TEMP` or `TEMPORARY` keyword in `DROP TABLE` statement（随着数据库的连接的断开而被删除） | MySQL supports the `TEMP` or `TEMPORARY`keyword in the `DROP TABLE` statement that allows you to remove the temporary table only.（需要手动删除） |
-| [`DROP TABLE`](http://www.postgresqltutorial.com/postgresql-drop-table/)（删除表） | Support `CASCADE` option to drop table’s dependent objects e.g., tables, views, etc.,（级联操作：也就是更新、删除父表，将会同步更新、删除子表；而反过来则不变） |              Does not support `CASCADE` option               |
-| [`TRUNCATE TABLE`](http://www.postgresqltutorial.com/postgresql-truncate-table/)（删除表） | PostgreSQL `TRUNCATE TABLE`supports more features like `CASCADE`, `RESTART IDENTITY`, `CONTINUE IDENTITY`, transaction-safe, etc.（对于移除表中的数据，delete是可以的，但是对于一个大表，truncate是更加有效的方式，因为truncate删除表中所有行的时候不需要扫表整个表） | [MySQL `TRUNCATE TABLE`](http://www.mysqltutorial.org/mysql-truncate-table/) does not support `CASCADE` and transaction safe i.e,. once data is deleted, it cannot be rolled back.（永久性删除，不可以撤销） |
-|                          自动增加列                          | [`SERIAL`](http://www.postgresqltutorial.com/postgresql-serial/) | [`AUTO_INCREMENT`](http://www.mysqltutorial.org/mysql-sequence/) |
-|                           解析功能                           |                             Yes                              |                              No                              |
-| [Data types](http://www.postgresqltutorial.com/postgresql-data-types/) | Support many advanced types such as [array](http://www.postgresqltutorial.com/postgresql-array/), [hstore](http://www.postgresqltutorial.com/postgresql-hstore/), and user-defined type. |                      SQL-standard types                      |
-| Unsigned [integer](http://www.postgresqltutorial.com/postgresql-integer/) |                              No                              |                             Yes                              |
-| [Boolean type](http://www.postgresqltutorial.com/postgresql-boolean/) |                             Yes                              | Use `TINYINT(1)` internally for [Boolean](http://www.mysqltutorial.org/mysql-boolean/) |
-|                     IP address data type                     |                             Yes                              |                              No                              |
-|                         设置列默认值                         |           Support both constant and function call            | Must be a constant or `CURRENT_TIMESTAMP` for `TIMESTAMP` or `DATETIME` columns |
-|               CTE（Common Table Expressions）                |                             Yes                              |                              No                              |
-|                       `EXPLAIN`output                        |                        More detailed                         |                        Less detailed                         |
-| [Materialized views](http://www.postgresqltutorial.com/postgresql-materialized-views/)（物化视图） | Yes（Postgresql将视图概念扩展到下一个级别，允许视图在物理上存储数据，我们将这些视图称为物化视图，物化视图会缓存复杂的查询结果，然后允许定期刷新此结果） |                              No                              |
-| [CHECK constraint](http://www.postgresqltutorial.com/postgresql-check-constraint/)（检查约束） |                             Yes                              | No (MySQL ignores the [CHECK constraint](http://www.mysqltutorial.org/mysql-check-constraint/)) |
-|                 Table inheritance（表继承）                  |                             Yes                              |                              No                              |
-| Programming languages for [stored procedures](http://www.postgresqltutorial.com/postgresql-stored-procedures/) |   Ruby, Perl, Python, TCL, PL/pgSQL, SQL, JavaScript, etc.   | SQL:2003 syntax for [stored procedures](http://www.mysqltutorial.org/mysql-stored-procedure-tutorial.aspx) |
-| [`FULL OUTER JOIN`](http://www.postgresqltutorial.com/postgresql-full-outer-join/)（全外连接） |                             Yes                              |                              No                              |
-| [`INTERSECT`](http://www.postgresqltutorial.com/postgresql-intersect/) | Yes（Postgresql的INTERSECT运算符将两个或多个SELECT语句的结果集合并到一个结果集中） |                              No                              |
-| [`EXCEPT`](http://www.postgresqltutorial.com/postgresql-tutorial/postgresql-except/) | Yes（Except运算符通过比较两个或多个quires的结果集来返回行，此返回行存在于第一查询子句而不存在第二查询子句中） |                              No                              |
-|                 Partial indexes（部分索引）                  |                             Yes                              |                              No                              |
-|                  Bitmap indexes（位图索引）                  |                             Yes                              |                              No                              |
-|               Expression indexes（表达式索引）               |                             Yes                              |                              NO                              |
-|                 Covering indexes（覆盖索引）                 | Yes (since version 9.2)[例子1](http://flacro.me/covering-index/)、[例子2](http://getby.cn/sql__db/2016/0928/93.html) | Yes. MySQL supports covering indexes that allow data to be retrieved by scanning the index alone without touching the table data. This is advantageous in case of large tables with millions of rows. |
-|                Common table expression (CTE)                 |                             Yes                              | Yes. (since version 8.0, MySQL has supported [CTE](http://www.mysqltutorial.org/mysql-cte/)) |
-| [Triggers](http://www.postgresqltutorial.com/postgresql-triggers/)（触发器） | Support triggers that can fire on most types of command, except for ones affecting the database globally e.g., roles and tablespaces. |                   Limited to some commands                   |
-|                     Partitioning（分区）                     |                         RANGE, LIST                          | RANGE, LIST, HASH, KEY, and composite partitioning using a combination of RANGE or LIST with HASH or KEY subpartitions |
-|                  Task Schedule（任务定时）                   |                           pgAgent                            | [Scheduled event](http://www.mysqltutorial.org/mysql-triggers/working-mysql-scheduled-event/) |
-|              Connection Scalability（连接规模）              |         Each new connection is an OS process（进程）         |         Each new connection is an OS thread（线程）          |
-|                  SQL compliant（SQL兼容性）                  |             PostgreSQL is largely SQL compliant.             | MySQL is partially SQL compliant. For example, it does not support check constraint. |
-|                         Best suited                          | PostgreSQL performance is utilized when executing complex queries. | MySQL performs well in OLAP& OLTP systems when only read speeds are needed. |
-|                       Support for JSON                       | Support JSON and other NoSQL features like native XML support. It also allows indexing JSON data for faster access. | MySQL has a JSON data type support but does not support any other NoSQL feature. |
-|                        Default values                        |  The default values can be changed at the system level only  | The default values can be overwritten at the session level and the statement level |
-|                        B-tree Indexes                        | B-tree indexes merged at runtime to evaluate are dynamically converted predicates. | Two or more B-tree indexes can be used when it is appropriate. |
-|                      Object statistics                       |                 Very good object statistics                  |                Fairly good object statistics                 |
+## pg优势
+
+1.按照SQL 标准, 做 null 判断不能用 = null, 只能用 is null
+
+> pg 可以设置 transform_null_equals 把 = null 翻译成 is null 
+
+2.隔离级别
+
+> MySQL 的事务隔离级别 repeatable read 并不能阻止常见的并发更新, 得加锁才可以, 但悲观锁会影响性能, 手动实现乐观锁又复杂. 
+>
+> Pg 的列里有隐藏的乐观锁 version 字段, 默认的 repeatable read 级别就能保证并发更新的正确性, 并且又有乐观锁的性能
+
+3.OVER 子句
+
+> MySQL 不支持 OVER 子句, 而 Pg 支持. OVER 子句能简单的解决 "每组取 top 5" 的这类问题.
+
+4.pg实现文档数据库的功能
+
+> 为了实现文档数据库的功能, 设计了 jsonb 的存储结构,性能优于 BSON.
+
+5.pg有地理信息处理扩展 
+
+> GIS 扩展可以用于游戏里的地形等，可以用 Pg 搭寻路服务器和地图服务器。因为它有丰富的几何类型
+
+6.SQL 编程能力
+
+> PG有极其强悍的 SQL 编程能力，有非常丰富的统计函数和统计语法支持，比如分析函数
+>
+> 这一点上MYSQL就差的很远，很多分析功能都不支持
+
+7.索引
+
+> PG 可以使用函数和条件索引，这使得PG数据库的调优非常灵活
+>
+> mysql就没有这个功能，条件索引在web应用中很重要。
+
+8.复制特性
+
+> 对于WEB应用来说，复制的特性很重要，mysql是异步复制；pgsql可以做到同步，异步，半同步复制。WAL段复制，流复制（v9出现，同步、半同步、异步），逻辑复制（v10出现：订阅/发布），触发器复制，第三方复制。
+>
+> mysql的同步是基于binlog复制，类似oracle golden gate,是基于stream的复制，做到同步很困难，这种方式更加适合异地复制，pgsql的复制基于wal，可以做到同步复制。同时，pgsql还提供stream复制。
 
 
 
-## MySQL的缺点
+## mysql优势
 
-1.与系统目录相关的事务不符合ACID
+1.内存使用率
 
-2.有时服务器崩溃可能会破坏系统目录
+> mysql的innodb引擎，可以充分优化利用系统所有内存，超大内存下PG对内存使用的不那么充分
 
-3.没有可插入的身份验证模块阻止集中管理账户
+2.覆盖索引
 
-4.不支持角色，因此很难为许多用户维护权限
+> mysql innodb支持覆盖索引
+>
+> pg由于索引中完全没有版本信息，不能实现Coverage index scan（即查询只扫描索引，直接从索引中返回所需的属性，还需要访问表）。
 
-5.存储过程不可缓存
-
-6.用于程序或触发器的表始终是预先锁定的
-
-
-
-## Postgresql的缺点
-
-1.当前的外部解决方案需要很高的学习曲线
-
-2.没有主要版本的升级工具
-
-3.升级过程中需要双重存储
-
-4.索引不能用于直接返回查询结果
-
-5.不缓存查询执行计划
-
-6.批量加载操作可能会受CPU限制
+3.用户量巨大，相关文档和社区较丰富
 
 
 
 ## 总结
 
-PG具备更高的可靠性，对数据一致性完整性的支持高于MySQL，因此PG更加适合严格的企业应用场景（比如金融、电信、ERP、CRM）；而MySQL查询速度较快，更加适合业务逻辑相对简单、数据可靠性要求较低的互联网场景（比如google、facebook、alibaba）。
+PG具备更高的可靠性和稳定性，对数据一致性完整性的支持高于MySQL，因此PG更加适合严格的企业应用场景（比如金融、电信、ERP、CRM）；而MySQL查询速度较快，更加适合业务逻辑相对简单、数据可靠性要求较低的互联网场景（比如google、facebook、alibaba）。
 
 PostgreSQL和MySQL是从底层设计原理开始就不一样的两种数据库，在数据量小的时候，数据库更趋于轻量化，MySQL会更适合。但是一旦数据量稍涨，计算量上升，PostgreSQL会是更好的选择。
+
+
+
+# 堆表与索引组织表
+
+Oracle支持堆表，也支持索引组织表
+
+PostgreSQL只支持堆表，不支持索引组织表
+
+Innodb只支持索引组织表
+
+索引组织表的优势：
+
+> 表内的数据就是按索引的方式组织，数据是有序的，如果数据都是按主键来访问，那么访问数据比较快。而堆表，按主键访问数据时，是需要先按主键索引找到数据的物理位置。
+
+索引组织表的劣势：
+
+> 索引组织表中上再加其它的索引时，其它的索引记录的数据位置不再是物理位置，而是主键值，所以对于索引组织表来说，主键的值不能太大，否则占用的空间比较大。
+> 对于索引组织表来说，如果每次在中间插入数据，可能会导致索引分裂，索引分裂会大大降低插入的性能。所以对于使用innodb来说，我们一般最好让主键是一个无意义的序列，这样插入每次都发生在最后，以避免这个问题。
+> 由于索引组织表是按一个索引树，一般它访问数据块必须按数据块之间的关系进行访问，而不是按物理块的访问数据的，所以当做全表扫描时要比堆表慢很多，这可能在OLTP中不明显，但在数据仓库的应用中可能是一个问题。
