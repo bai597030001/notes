@@ -73,7 +73,7 @@ $ git commit -m [message]
 # 提交时显示所有diff信息
 $ git commit -v
 # 使用一次新的commit，替代上一次提交
-如果代码没有任何新变化，则用来改写上一次commit的提交信息
+# 如果代码没有任何新变化，则用来改写上一次commit的提交信息
 $ git commit --amend -m [message]
 # 重做上一次commit，并包括指定文件的新变化
 $ git commit --amend [file1] [file2] ...
@@ -318,18 +318,18 @@ $ git brach -d temp
 [原文链接](https://www.cnblogs.com/videring/articles/6962005.html)
 
 ```shell
-$ git branch 创建分支
-$ git branch -b 创建并切换到新建的分支上
-$ git checkout 切换分支
-$ git branch 查看分支列表
-$ git branch -v 查看所有分支的最后一次操作
-$ git branch -vv 查看当前分支
-$ git brabch -b 分支名 origin/分支名 创建远程分支到本地
-$ git branch --merged 查看别的分支和当前分支合并过的分支
-$ git branch --no-merged 查看未与当前分支合并的分支
-$ git branch -d 分支名 删除本地分支
-$ git branch -D 分支名 强行删除分支
-$ git branch origin :分支名 删除远处仓库分支
+$ git branch # 创建分支
+$ git branch -b # 创建并切换到新建的分支上
+$ git checkout # 切换分支
+$ git branch # 查看分支列表
+$ git branch -v # 查看所有分支的最后一次操作
+$ git branch -vv # 查看当前分支
+$ git brabch -b ##  分支名 origin/分支名 创建远程分支到本地
+$ git branch --merged#  # 查看别的分支和当前分支合并过的分支
+$ git branch --no-merged # 查看未与当前分支合并的分支
+$ git branch -d 分支名 # 删除本地分支
+$ git branch -D 分支名 # 强行删除分支
+$ git branch origin :分支名 # 删除远处仓库分支
 ```
 
 
@@ -344,17 +344,18 @@ $ git rebase
 
 
 
-
-
 # 暂存
 
 ```shell
-$ git stash 暂存当前修改
-$ git stash apply 恢复最近的一次暂存
-$ git stash pop 恢复暂存并删除暂存记录
-$ git stash list 查看暂存列表
-$ git stash drop 暂存名(例：stash@{0}) 移除某次暂存
-$ git stash clear 清除暂存
+$ git stash # 暂存当前修改
+$ git stash apply # 恢复最近的一次暂存
+$ git stash apply stash@{0}
+$ git stash pop # 恢复暂存并删除暂存记录
+$ git stash list # 查看暂存列表
+$ git stash drop # 暂存名(例：stash@{0}) 移除某次暂存
+$ git stash clear # 清除暂存
+$ git stash save # 查看对应的所有的修改
+$ git stash show -p stash@{1} # 不输入对应的 stash@{} 内容则将最近的 stash 与当前分支做比较，如果加了则用指定的暂存
 ```
 
 
@@ -378,10 +379,74 @@ $ git push origin :refs/tags/标签名 从远程仓库中删除标签
 # 回退操作
 
 ```shell
-$ git reset --hard HEAD^ 回退到上一个版本
-$ git reset --hard ahdhs1(commit_id) 回退到某个版本
-$ git checkout -- file撤销修改的文件(如果文件加入到了暂存区，则回退到暂存区的，如果文件加入到了版本库，则还原至加入版本库之后的状态)
-$ git reset HEAD file 撤回暂存区的文件修改到工作区
+$ git reset --hard HEAD^ # 回退到上一个版本
+$ git reset --hard ahdhs1(commit_id) # 回退到某个版本
+$ git checkout -- file #撤销修改的文件(如果文件加入到了暂存区，则回退到暂存区的，如果文件加入到了版本库，则还原至加入版本库之后的状态)
+$ git reset HEAD file # 撤回暂存区的文件修改到工作区
+```
+
+
+
+# 合并分支
+
+假如我们现在在dev分支上，刚开发完项目，执行了下列命令
+
+```shell
+$ git  add .
+$ git  commit -m '提交的备注信息'
+$ git  push -u origin dev
+```
+
+现在想将dev分支合并到master分支：
+
+```shell
+# 1、首先切换到master分支上
+$ git  checkout master
+
+# 2.如果是多人开发的话 需要把远程master上的代码pull下来
+$ git pull origin master
+
+# 3.然后把dev分支的代码合并到master上
+$ git merge dev
+
+# 4.解决冲突
+不同分支的内容会被分开显示
+<<<<<<<<<<
+yyy
+==========
+xxx
+>>>>>>>>>>
+
+为了解决冲突你需要把不要的去掉，把要的保留下来。箭头和等号必须删掉。做完后保存退出，
+执行 git merge --continue。会生成新的commit，merge结束。
+
+# 4.然后查看状态及执行提交命令
+git status
+
+On branch master
+Your branch is ahead of 'origin/master' by 12 commits.
+  (use "git push" to publish your local commits)
+nothing to commit, working tree clean
+
+# 上面的意思就是你有12个commit，需要push到远程master上 
+# 最后执行下面提交命令
+$ git push origin master
+```
+
+其他
+
+```shell
+# 更新远程分支列表
+$ git remote update origin --prune
+
+# 查看所有分支
+$ git branch -a
+
+# 删除远程分支Chapater6
+$ git push origin --delete Chapater6
+
+# 删除本地分支 Chapater6
+$ git branch -d  Chapater6
 ```
 
 
@@ -393,8 +458,8 @@ $ git reset HEAD file 撤回暂存区的文件修改到工作区
 ```shell
 # windows中的换行符为 CRLF， 而在linux下的换行符为LF，所以在执行add . 时出现提示
 
-$ rm -rf .git  // 删除.git
-$ git config --global core.autocrlf false  //禁用自动转换  
+$ rm -rf .git  # 删除.git
+$ git config --global core.autocrlf false  # 禁用自动转换  
 ```
 
 
