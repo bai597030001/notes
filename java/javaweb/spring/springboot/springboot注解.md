@@ -111,9 +111,6 @@ public @interface ConfigurationProperties {
 # @Value
 
 
-# 比较
-
-
 							@ConfigurationProperties					@value
 	功能						批量注入配置文件中的属性						一个个指定
 	松散绑定（松散语法）		支持											不支持
@@ -121,34 +118,26 @@ public @interface ConfigurationProperties {
 	JSR303数据校验			支持											不支持
 	复杂类型封装				支持											不支持
 
-
-### 松散语法
+## 松散语法
 
 - 属性命名规则
 
-  person.firstName:使用标准方式  
-  person.first-name:大写用-   
-  person.first_name:大写用_  
+  person.firstName:使用标准方式
+  person.first-name:大写用- 
+  person.first_name:大写用_ 
   PERSON_FIRST_NAME: 系统属性推荐使用这种写法
 
-### JSR303数据校验
+## JSR303数据校验
 
 - @Validated注解
 
   eg: @NotNull, @Email
 
-### SpEL
+## SpEL
 
-application.properties文件中  
-userAge = 12   //可以  
+application.properties文件中 
+userAge = 12   //可以 
 userAge = #{2*6}  //EL表达式不支持
-
-
-# 4.使用原则
-
-在某个业务逻辑中需要获取一下配置文件中的某项值，使用@Value；  
-
-如果专门编写了一个javaBean来和配置文件进行映射，我们就直接使用@ConfigurationProperties；
 
 
 
@@ -158,7 +147,7 @@ userAge = #{2*6}  //EL表达式不支持
 
 ### 以前的做法：
 
-> 我们自己定义一个类  假如叫做HelloService.java  
+> 我们自己定义一个类  假如叫做HelloService.java
 > 然后定义一个xml文件  就叫beans.xml
 
 ```xml
@@ -176,8 +165,11 @@ userAge = #{2*6}  //EL表达式不支持
 @RunWith(SpringRunner.class)
 @SpringBootTestpublic 
 class Springboot02ApplicationTests {		
-	@Autowired	ApplicationContext ioc; 	
-	@Test	
+	
+    @Autowired
+    ApplicationContext ioc; 	
+	
+    @Test	
 	public void testHelloService(){		
 		boolean b = ioc.containsBean("helloService");		
 		System.out.println(b);	
@@ -187,35 +179,40 @@ class Springboot02ApplicationTests {
 
 结果显示不存在
 
-- 然后我们把@ImportResource标注在一个配置类上
+- 然后我们把`@ImportResource`标注在一个配置类上
 
-  @ImportResource(locations = {"classpath:beans.xml"})
-  		@SpringBootApplicationpublic class Springboot02Application { 	
-  		public static void main(String[] args) {		
-  		SpringApplication.run(Springboot02Application.class, args);	
-  		}
-  	}
+  
+
+```java
+@ImportResource(locations = {"classpath:beans.xml"})
+@SpringBootApplication
+public class Springboot02Application { 	
+    public static void main(String[] args) {		
+        SpringApplication.run(Springboot02Application.class, args);	
+    }
+}
+```
+
+
 
 我们再测试一下，就说ioc容器中存在。
 
 - **以上就是以前的做法，但是SpringBoot推荐的做法是给容器中添加组件的方式**
 
-- 推荐使用全注解的方式  
-  1.创建一个config包。  
-  2.创建一个配置类MyAppConfig.java  
+- 推荐使用全注解的方式 
+  1.创建一个`config`包。 
+  2.创建一个配置类`MyAppConfig.java`
   添加一个注解  
 
 ```java
-	@Configuration
-	public class MyAppConfig  {
-	
-	    @Bean
-	    public Person getPerson() {
-	        return new Person();
-	    }
-	}
+@Configuration
+public class MyAppConfig  {
 
-
+    @Bean
+    public Person getPerson() {
+        return new Person();
+    }
+}
 ```
 
 
@@ -225,25 +222,26 @@ class Springboot02ApplicationTests {
 - @PropertySource注解: 加载指定的配置文件
 
 ```java
-	@Component  
-	@PropertySource(value = {"classpath:person.properties"})  
-	@ConfigurationProperties(prefix = "person")  
-	@Validated  
-	public class Person { 
-	
-	    @NotNull
-	    private String name;
-	
-	    private Integer age;
-	
-	    private String address;
-	
-	    private Map<String, Object> map;
-	
-	    private List<Object> list;
-		
-		...
+@Component  
+@PropertySource(value = {"classpath:person.properties"})  
+@ConfigurationProperties(prefix = "person")  
+@Validated  
+public class Person { 
 
+    @NotNull
+    private String name;
+
+    private Integer age;
+
+    private String address;
+
+    private Map<String, Object> map;
+
+    private List<Object> list;
+
+    // ...
+}
 ```
 
-- 将全局配置文件(application.properties,application.yaml)中person对应的内容拷贝到person.properties文件中，然后将全局配置文件中关于person的信息都**注销**掉。就会读取person.properties配置文件中的信息。
+- 将全局配置文件(`application.properties`,`application.yaml`)中`person`对应的内容拷贝到`person.properties`文件中，然后将全局配置文件中关于`person`的信息都**注销**掉。就会读取`person.properties`配置文件中的信息。
+

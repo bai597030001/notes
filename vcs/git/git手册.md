@@ -376,6 +376,61 @@ $ git push origin :refs/tags/标签名 从远程仓库中删除标签
 
 
 
+# cherry-pick
+
+使用 cherry-pick，可以从其他分支复制指定的一个或几个commit，然后导入到现在的分支。
+
+```shell
+$ git cherry-pick <commit id> # 单独合并一个提交
+$ git cherry-pick -x <commit id> # 同上，不同点：保留原提交者信息。
+
+# Git从1.7.2版本开始支持批量cherry-pick，就是一次可以cherry-pick一个区间的commit。
+
+$ git cherry-pick <start-commit-id>..<end-commit-id>
+$ git cherry-pick <start-commit-id>^..<end-commit-id>
+# 前者表示把<start-commit-id>到<end-commit-id>之间(左开右闭，不包含start-commit-id)的提交cherry-pick到当前分支；
+# 后者有"^"标志的表示把<start-commit-id>到<end-commit-id>之间(闭区间，包含start-commit-id)的提交cherry-pick到当前分支。
+
+# 其中，<start-commit-id>到<end-commit-id>只需要commit-id的前6位即可，并且<start-commit-id>在时间上必须早于<end-commit-id>
+
+# 注：以上合并，需要手动push代码。
+```
+
+## 使用的场合
+
+- 把弄错分支的提交移动到正确的地方
+- 把其他分支的提交添加到现在的分支
+
+## 示例
+
+例如，我们想把 learn-cherry-pick 这个分支上的第二个提交提取出来，然后添加到 master 上。
+
+![](img/git-cherry-pick1.png)
+
+从图右部分可以找到我们想提取 commit 的 commit id 为 `c3f0d9a`，在 master 分支上执行 cherry-pick
+
+```shell
+$ git checkout master
+$ git pull
+$ git cherry-pick c3f0d9a
+[master 573066e] add a new line
+ Date: Sun Jan 14 18:50:20 2018 +0800
+ 1 file changed, 1 insertion(+)
+```
+
+![](img/git-cherry-pick2.png)
+
+cherry-pick 过程中也是可能会产生冲突的，解决冲突后先 add，然后使用 `git cherry-pick --continue`。
+如果想放弃 cherry-pick，使用 `git cherry-pick --abort`
+
+```shell
+$ git cherry-pick --continue
+$ git cherry-pick --quit
+$ git cherry-pick --abort
+```
+
+
+
 # 回退操作
 
 ```shell
@@ -401,7 +456,7 @@ $ git  push -u origin dev
 
 ```shell
 # 1、首先切换到master分支上
-$ git  checkout master
+$ git checkout master
 
 # 2.如果是多人开发的话 需要把远程master上的代码pull下来
 $ git pull origin master
