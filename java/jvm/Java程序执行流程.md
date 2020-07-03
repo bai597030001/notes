@@ -22,7 +22,7 @@
 
 ## 2.运行
 
-- 命令行中输入**java xxx**这个命令，就**启动了一个java虚拟机**，然后加载xxx.class字节码文件到内存，然后运行内存中的字节码指令了。
+- 命令行中输入**java xxx**这个命令，就**启动了一个java虚拟机**，然后类加载器加载xxx.class字节码文件到内存，然后运行内存中的字节码指令了。
 
 ### 2.1JVM基本结构介绍
 
@@ -204,9 +204,9 @@ protected Class<?> loadClass(String name, boolean resolve)
 }
 ```
 
-- 正如loadClass方法所展示的，当类加载请求到来时，先从缓存中查找该类对象，如果存在直接返回，如果不存在则交给该类加载去的父加载器去加载，倘若没有父加载则交给顶级启动类加载器去加载，最后倘若仍没有找到，则使用findClass()方法去加载（关于findClass()稍后会进一步介绍）。
+- 正如`loadClass`方法所展示的，当类加载请求到来时，先从缓存中查找该类对象，如果存在直接返回，如果不存在则交给该类加载器的父加载器去加载，倘若没有父加载则交给顶级启动类加载器去加载，最后倘若仍没有找到，则使用`findClass()`方法去加载（关于`findClass`()稍后会进一步介绍）。
 
-- 从loadClass实现也可以知道如果不想重新定义加载类的规则，也没有复杂的逻辑，只想在运行时加载自己指定的类，那么我们可以直接使用this.getClass().getClassLoder.loadClass("className")，这样就可以直接调用ClassLoader的loadClass方法获取到class对象。
+- 从`loadClass`实现也可以知道如果不想重新定义加载类的规则，也没有复杂的逻辑，只想在运行时加载自己指定的类，那么我们可以直接使用`this.getClass().getClassLoder.loadClass("className")`，这样就可以直接调用`ClassLoader`的`loadClass`方法获取到`class`对象。
 
 #### 3.3.2findClass(String) 
 
