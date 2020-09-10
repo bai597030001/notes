@@ -1225,7 +1225,7 @@ Channel 经常翻译为通道，类似 IO 中的流，用于读取和写入。�
 
 ![](img/nio6.jpg)
 
-至少读者应该记住一点，这两个方法都是 channel 实例的方法。
+至少应该记住一点，这两个方法都是 channel 实例的方法。
 
 
 
@@ -1238,15 +1238,17 @@ Channel 经常翻译为通道，类似 IO 中的流，用于读取和写入。�
 **初始化：**
 
 ```java
-FileInputStream inputStream = new FileInputStream(new File("/data.txt"));FileChannel fileChannel = inputStream.getChannel();
+FileInputStream inputStream = new FileInputStream(new File("/data.txt"));
+FileChannel fileChannel = inputStream.getChannel();
 ```
 
-当然了，我们也可以从 RandomAccessFile#getChannel 来得到 FileChannel。
+当然了，我们也可以从 `RandomAccessFile#getChannel()` 来得到 FileChannel。
 
 **读取文件内容：**
 
 ```java
-ByteBuffer buffer = ByteBuffer.allocate(1024);int num = fileChannel.read(buffer);
+ByteBuffer buffer = ByteBuffer.allocate(1024);
+int num = fileChannel.read(buffer);
 ```
 
 前面我们也说了，所有的 Channel 都是和 Buffer 打交道的。
@@ -1404,7 +1406,8 @@ while(true) {
         continue;  
     // 遍历  
     Set<SelectionKey> selectedKeys = selector.selectedKeys();  
-    Iterator<SelectionKey> keyIterator = selectedKeys.iterator();  				  			while(keyIterator.hasNext()) {    
+    Iterator<SelectionKey> keyIterator = selectedKeys.iterator();  				  			
+    while(keyIterator.hasNext()) {    
         SelectionKey key = keyIterator.next();    
         if(key.isAcceptable()) {        
             // a connection was accepted by a ServerSocketChannel.    

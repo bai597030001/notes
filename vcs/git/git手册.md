@@ -324,7 +324,7 @@ $ git checkout # 切换分支
 $ git branch # 查看分支列表
 $ git branch -v # 查看所有分支的最后一次操作
 $ git branch -vv # 查看当前分支
-$ git brabch -b ##  分支名 origin/分支名 创建远程分支到本地
+$ git branch -b ##  分支名 origin/分支名 创建远程分支到本地
 $ git branch --merged#  # 查看别的分支和当前分支合并过的分支
 $ git branch --no-merged # 查看未与当前分支合并的分支
 $ git branch -d 分支名 # 删除本地分支
