@@ -252,6 +252,18 @@ tips：多个后置处理器指定顺序
 
 
 
+## BeanDefinitionRegistryPostProcessor
+
+手动往容器中注入bean，即编程方式注入bean。
+
+> Spring 中用BeanDefinition接口描述一个bean，Spring容器中用Map<String, BeanDefinition> beanDefinitionMap
+>
+> 存储beanName和BeanDefinition对象的映射关系【beanDefinitionMap 可参考DefaultListableBeanFactory】。Spring在实例化一个bean，都是先从 beanDefinitionMap 中获取beanDefinition对象，进而构造出对应的bean。因此，我们手动注册bean的问题，就演化为如何往这个 beanDefinitionMap 放入我们要注册bean对应的 BeanDefinition 对象。
+>
+> Spring 提供了 BeanDefinitionRegistry 接口来操作底层beanFactory实现的beanDefinitionMap。
+
+
+
 # Aware系列接口
 
 在 Spring 中，有一个特殊的约定，就是被 Spring 容器管理的 bean，如果实现了 Spring 提供的以 Aware 结尾的接口，那么在对 bean 进行实例化的过程中，容器会调用相应的接口方法，通过这个特性，我们可以获取容器或者 bean 相关的一些属性。
@@ -453,3 +465,200 @@ public class MyApplicationContext implements BeanNameAware,ApplicationContextAwa
 ## 总结
 
 这里只是以 `BeanNameAware`、`ApplicationContextAware` 接口进行了说明，其他的 Aware 结尾的接口的使用方法类似，表示获取到某种属性的能力。不仅如此，Spring 中的其他很多的接口的设计也是采用了这种思想，比如 `ServiceBean` 实现的 `DisposableBean`,`ApplicationListener` 接口。这是一种很优秀的设计思想，Spring 容器在其初始化的特殊时刻将会统一调用实现了对应接口的实例的对应方法。
+
+
+
+# Import系列
+
+Spring 3.0之前，我们的Bean可以通过xml配置文件与扫描特定包下面的类来将类注入到Spring IOC容器内。
+
+Spring 3.0之后提供了JavaConfig的方式，也就是将IOC容器里Bean的元信息以java代码的方式进行描述。我们可以通过@Configuration与@Bean这两个注解配合使用来将原来配置在xml文件里的bean通过java代码的方式进行描述。
+
+@Import注解提供了**@Bean注解的功能，同时还有xml配置文件里\<import>标签组织多个分散的xml文件的功能，当然在这里是组织多个分散的@Configuration**。
+
+```java
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+public @interface Import {
+    /**
+     * 这里说了可以配合 Configuration , ImportSelector, ImportBeanDefinitionRegistrar 来使用
+     * 
+     * {@link Configuration}, {@link ImportSelector}, {@link ImportBeanDefinitionRegistrar}
+     * or regular component classes to import.
+     */
+    Class<?>[] value();
+
+}
+```
+
+
+
+注入bean示例：
+
+```java
+import com.ivan.entity.User;
+import com.ivan.service.UserService;
+
+public class UserServiceImpl implements UserService {
+
+    public int save(User user) {
+        System.out.println("调用了当前方法");
+        return 1;
+    }
+
+}
+```
+
+
+
+方式一：
+
+```java
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+
+import com.ivan.service.impl.UserServiceImpl;
+
+@Configuration
+@Import(value={UserServiceImpl.class})
+public class Config {
+
+}
+```
+
+
+
+方式二：通过ImportBeanDefinitionRegistrar将类注入到Spring IOC容器
+
+```java
+import org.springframework.beans.factory.support.BeanDefinitionBuilder;
+import org.springframework.beans.factory.support.BeanDefinitionRegistry;
+import org.springframework.context.annotation.ImportBeanDefinitionRegistrar;
+import org.springframework.core.type.AnnotationMetadata;
+
+import com.ivan.service.impl.UserServiceImpl;
+
+public class UserServiceBeanDefinitionRegistrar implements ImportBeanDefinitionRegistrar {
+
+    public void registerBeanDefinitions(AnnotationMetadata importingClassMetadata,
+                                        BeanDefinitionRegistry registry) {
+        BeanDefinitionBuilder userService = BeanDefinitionBuilder.rootBeanDefinition(UserServiceImpl.class);
+        //通过registry就可以注入到容器里啦
+        registry.registerBeanDefinition("userService", userService.getBeanDefinition());
+    }
+
+}
+```
+
+
+
+```java
+package com.ivan.config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+
+import com.ivan.bean.registrar.UserServiceBeanDefinitionRegistrar;
+
+@Configuration(value="ivan_test")
+@Import(value={UserServiceBeanDefinitionRegistrar.class})
+public class Config {
+
+}
+```
+
+
+
+方式三：通过ImportSelector方式注入Bean
+
+上面通过ImportBeanDefinitionRegistrar的方式注入的实例需要我们操作BeanDefinitionRegistry 对象，而通过ImportSelector方式我们可以不操作BeanDefinitionRegistry 对象，只需要告诉容器我们需要注入类的完整类名就好。
+
+```java
+public interface ImportSelector {
+
+    /**
+     * Select and return the names of which class(es) should be imported based on
+     * the {@link AnnotationMetadata} of the importing @{@link Configuration} class.
+     */
+    String[] selectImports(AnnotationMetadata importingClassMetadata);
+
+}
+```
+
+
+
+
+
+
+
+# applicationcontextinitializer
+
+ApplicationContextInitializer是Spring框架原有的东西，这个类的主要作用就是在ConfigurableApplicationContext类型(或者子类型)的ApplicationContext做refresh之前，允许我们对ConfiurableApplicationContext的实例做进一步的设置和处理。
+
+## 扩展实现方式
+
+### 编程方式
+
+```java
+//@Order的value值越小->越早执行。注：在类上标注，不是方法上
+@Order(111)
+public class ApplicationContextInitializer1 implements ApplicationContextInitializer {
+
+    @Override
+    public void initialize(ConfigurableApplicationContext applicationContext) {
+
+        // 打印容器里面有多少个bean
+        System.out.println("bean count=====" + applicationContext.getBeanDefinitionCount());
+
+        // 打印人所有 beanName
+        System.out.println(applicationContext.getBeanDefinitionCount() + "个Bean的名字如下：");
+        String[] beanDefinitionNames = applicationContext.getBeanDefinitionNames();
+        for (String beanName : beanDefinitionNames) {
+            System.out.println(beanName);
+        }
+
+    }
+}
+```
+
+启动类里手动增加initializer
+
+```java
+@SpringBootApplication
+@EnableConfigServer
+@EnableDiscoveryClient
+public class ConfigServer {
+    public static void main(String[] args) {
+        SpringApplication springApplication = new SpringApplication(ConfigServer.class);
+
+        // 方法一：添加自定义的 ApplicationContextInitializer 实现类的实例(注册ApplicationContextInitializer)
+        springApplication.addInitializers(new ApplicationContextInitializer1());
+
+        ConfigurableApplicationContext context = springApplication.run(args);
+
+        context.close();
+    }
+}
+```
+
+### application.properties添加配置方式
+
+通过DelegatingApplicationContextInitializer这个初始化类中的initialize方法获取到application.properties中context.initializer.classes对应的类并执行对应的initialize方法。
+
+只需要将实现了ApplicationContextInitializer的类添加到application.properties即可。
+
+```properties
+org.springframework.context.ApplicationContextInitializer=com.dxz.ApplicationContextInitializer1
+```
+
+### 使用spring.factories方式
+
+在项目下的resources下新建META-INF文件夹，文件夹下新建spring.factories文件
+
+```factories
+org.springframework.context.ApplicationContextInitializer=com.dxz.ApplicationContextInitializer1
+```
+
+
+
