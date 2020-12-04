@@ -1,4 +1,4 @@
-[kafka����](<https://kafka.apache.org/>)
+[kafka官网](<https://kafka.apache.org/>)
 
 [confluent](<https://www.confluent.io/>)
 
@@ -8,116 +8,116 @@
 
 
 
-# ��ظ���
+# 相关概念
 
-- `broker`�� ��Ϣ������㣬���broker���kafka��Ⱥ��
+- `broker`： 消息处理结点，多个broker组成kafka集群。
 
-- `topic`�����⣬���� һ����Ϣ����page view��click��Ϊ�ȡ�
+- `topic`：话题，代表 一类消息，如page view，click行为等。
 
-- `partition`�� topic���������飬ÿ��partition����һ��������С�
+- `partition`： topic的物理分组，每个partition都是一个有序队列。
 
-- `segment`�� �����С��ȵĶ������һ��partition��
+- `segment`： 多个大小相等的段组成了一个partition。
 
-- `massage`�� kafka��������Ĵ��ݶ����й̶���ʽ�� 
+- `massage`： kafka中最基本的传递对象，有固定格式。 
 
-- `offset`�� һ�����������ڶ�λ��׷�ӵ�������ÿһ����Ϣ�����кţ����ֵΪ64λ��long��С��19λ�����ַ����ȡ�
+- `offset`： 一个连续的用于定位被追加到分区的每一个消息的序列号，最大值为64位的long大小，19位数字字符长度。
 
-- `producer`�� ������Ϣ�����壬�����Ƿ�������־��Ϣ�ȡ�
+- `producer`： 产生信息的主体，可以是服务器日志信息等。
 
-- `consumer`�� ����producer����������Ϣ�����塣
+- `consumer`： 消费producer产生话题消息的主体。
 
-- `Consumer Group`��ÿ�� Consumer ����һ���ض��� Consumer Group����Ϊÿ�� Consumer ָ�� group name������ָ�� group name ������Ĭ�ϵ� group����
-
-
-
-## topic��partition��segment��offset�Ĺ�ϵ
+- `Consumer Group`：每个 Consumer 属于一个特定的 Consumer Group（可为每个 Consumer 指定 group name，若不指定 group name 则属于默认的 group）。
 
 
 
-![](img/kafka1.webp)
+## topic、partition、segment、offset的关系
 
-- ÿ��`topic`���Է�Ϊ���`partition`��һ��`partition`�൱��һ����Ŀ¼��ÿ��`partition`�����ж��**��С���**��`segment`�ļ������`segment`����`message`��ɵģ���ÿһ����`segment`��һ���ɴ�С��ȵ�`message`��ɡ�`segment`��С������������`server.properties`�ļ������á�`offset`���ڶ�λλ�ڶ����Ψһ��Ϣ��
+
+
+![](./img/kafka1.webp)
+
+- 每个`topic`可以分为多个`partition`，一个`partition`相当于一个大目录，每个`partition`下面有多个**大小相等**的`segment`文件，这个`segment`是由`message`组成的，而每一个的`segment`不一定由大小相等的`message`组成。`segment`大小及生命周期在`server.properties`文件中配置。`offset`用于定位位于段里的唯一消息。
 
   ```properties
-  # �������ÿ�����־�� segments �Ĵ��������Կ��Խ�������Ϊ��һ��ʱ��֮�󣬻��ڸ�����С�ۻ�֮��ɾ���Ρ�
-  # ֻҪ����*����*һ���������ξͻᱻɾ����ɾ�����Ƿ�������־�����
+  # 以下配置控制日志段 segments 的处理。策略可以将其设置为在一段时间之后，或在给定大小累积之后删除段。
+  # 只要满足*其中*一个条件，段就会被删除。删除总是发生在日志的最后。
   
-  # ��־�ļ�����Сɾ������
+  # 日志文件的最小删除年龄
   log.retention.hours=168
   
-  # ������־��С�ı������ԡ�����ʣ�µ�Ƭ�α�����־��ɾ��
-  # ��λ�� log.retention.bytes. ���ܶ����� log.retention.hours.
+  # 基于日志大小的保留策略。除非剩下的片段被从日志中删除
+  # 段位于 log.retention.bytes. 功能独立于 log.retention.hours.
   log.retention.bytes=1073741824
   
-  # ��־���ļ�������С�����ﵽ�����Сʱ��������һ���µ���־�Ρ�
+  # 日志段文件的最大大小。当达到这个大小时，将创建一个新的日志段。
   log.segment.bytes=1073741824
   
   # The interval at which log segments are checked to see if they can be deleted according to the retention policies
-  # ʱ������ �����־segments�Բ鿴�Ƿ���Ը��ݱ�������ɾ������ �� ʱ����
+  # 时间间隔： 检查日志segments以查看是否可以根据保留策略删除它们 的 时间间隔
   log.retention.check.interval.ms=300000
   ```
 
   
 
 - `segment`
-  
-  - `segment`��`index`��`data`�ļ���ɣ������ļ��ɶԳ��֣��ֱ�洢���������ݡ�
-  - `segment`�ļ��������򣺶������е�`partition`��˵��`segment`���ƴ�0��ʼ��֮���ÿһ��`segment`����Ϊ��һ��`segment`�ļ����һ����Ϣ��`offset`ֵ��
-  
+
+  - `segment`由`index`和`data`文件组成，两个文件成对出现，分别存储索引和数据。
+  - `segment`文件命名规则：对于所有的`partition`来说，`segment`名称从0开始，之后的每一个`segment`名称为上一个`segment`文件最后一条消息的`offset`值。
+
 - `offset`
 
-  ���ڷ����е�һ��`offset`�������345552��ôȥ������Ӧ��`message`�أ�
+  对于分区中的一个`offset`例如等于345552怎么去查找相应的`message`呢？
 
-  > ���ҵ���message���ڵ�segment�ļ���ͨ�����ֲ��ҵķ�ʽѰ��С�ڵ���345552��offset�������S��segment����Ҫ�����S����345552��S��һ��segment�����һ��message��Ϊ�������SС��345552�����α�����ǰsegment�����ҵ���
+  > 先找到该message所在的segment文件，通过二分查找的方式寻找小于等于345552的offset，假如叫S的segment符合要求，如果S等于345552则S上一个segment的最后一个message即为所求；如果S小于345552则依次遍历当前segment即可找到。
 
-- `topic` �� `partition`
+- `topic` 和 `partition`
 
-![](img/kafka2.png)
-
-
-
-## ΪʲôҪ��topic�����partitions�ĸ���
-
-topic���߼��ĸ��partition�������ĸ�����û���˵��͸���ġ�producerֻ��Ҫ������Ϣ�����ĸ�topic����consumerֻ�����Լ������ĸ�topic����������ÿ����Ϣ����������Ⱥ���ĸ�broker��
-
-Ϊ�����ܿ��ǣ����topic�ڵ���Ϣֻ����һ��broker�������broker���Ϊƿ�����޷�����<font color=#dd0000>ˮƽ��չ</font>�����԰�topic�ڵ����ݷֲ���������Ⱥ����һ����Ȼ��Ȼ����Ʒ�ʽ��Partition��������ǽ��ˮƽ��չ�����һ��������
+![](./img/kafka2.png)
 
 
 
-- kafka��Ϣ��������
+## 为什么要在topic里加入partitions的概念
 
-```properties
-# ����ô���ֿ��ܵ� delivery guarantee��
-At most once ��Ϣ���ܻᶪ�����������ظ�����
-At least one ��Ϣ�����ᶪ�������ܻ��ظ�����
-Exactly once ÿ����Ϣ�϶��ᱻ����һ���ҽ�����һ�Σ��ܶ�ʱ�������û�����Ҫ�ġ�
-```
+topic是逻辑的概念，partition是物理的概念，对用户来说是透明的。producer只需要关心消息发往哪个topic，而consumer只关心自己订阅哪个topic，并不关心每条消息存于整个集群的哪个broker。
 
-- offset���µķ�ʽ
+为了性能考虑，如果topic内的消息只存于一个broker，那这个broker会成为瓶颈，无法做到<font color=#dd0000>水平扩展</font>。所以把topic内的数据分布到整个集群就是一个自然而然的设计方式。Partition的引入就是解决水平扩展问题的一个方案。
+
+
+
+- kafka消息传递语义
 
 ```properties
-�Զ��ύ������enable.auto.commit=true
-# ���µ�Ƶ�ʸ��ݲ�����auto.commit.interval.ms�����������ַ�ʽҲ����Ϊ��at most once����fetch ����Ϣ��Ϳ��Ը���offset�������Ƿ����ѳɹ���
+# 有这么几种可能的 delivery guarantee：
+At most once 消息可能会丢，但绝不会重复传输
+At least one 消息绝不会丢，但可能会重复传输
+Exactly once 每条消息肯定会被传输一次且仅传输一次，很多时候这是用户所想要的。
+```
 
-�ֶ��ύ������enable.auto.commit=false
-# ���ַ�ʽ��Ϊ��at least once����fetch����Ϣ�󣬵���������ٵ��÷�����consumer.commitSync()�����ֶ�����offset���������ʧ�ܣ���offsetҲ������£�������Ϣ�ᱻ�ظ�����һ�Ρ�
+- offset更新的方式
+
+```properties
+自动提交，设置enable.auto.commit=true
+# 更新的频率根据参数【auto.commit.interval.ms】来定。这种方式也被称为【at most once】，fetch 到消息后就可以更新offset，无论是否消费成功。
+
+手动提交，设置enable.auto.commit=false
+# 这种方式称为【at least once】。fetch到消息后，等消费完成再调用方法【consumer.commitSync()】，手动更新offset；如果消费失败，则offset也不会更新，此条消息会被重复消费一次。
 ```
 
 
 
-## kafka��Ϣ�ַ�
+## kafka消息分发
 
-Ĭ�ϵķ��������ǣ�
+默认的分区策略是：
 
-- ����ڷ���Ϣ��ʱ��ָ���˷���������ϢͶ�ݵ�ָ���ķ���
-- ���û��ָ��������������Ϣ��key��Ϊ�գ������key�Ĺ�ϣֵ��ѡ��һ������
-- �����û��ָ������������Ϣ��keyҲ�ǿգ�������ѯ�ķ�ʽѡ��һ������
+- 如果在发消息的时候指定了分区，则消息投递到指定的分区
+- 如果没有指定分区，但是消息的key不为空，则基于key的哈希值来选择一个分区
+- 如果既没有指定分区，且消息的key也是空，则用轮询的方式选择一个分区
 
-> Kafka ������������ݵ�Ԫ������Ϣ����һ����Ϣ��ʵ���� Key + Value ��ɵģ�Key �ǿ�ѡ��ɴ���ֵ��Value Ҳ���Դ���ֵ�����ڷ���һ����Ϣʱ�����ǿ���ָ����� Key����ô Producer ����� Key �� partition �������жϵ�ǰ������ϢӦ�÷��Ͳ��洢���ĸ� partition �У�����͸���Ƭ�������ƣ������ǿ��Ը�����Ҫ������չ Producer �� partition ���ƣ�Ĭ���㷨�� hash ȡ %����
+> Kafka 中最基本的数据单元就是消息，而一条消息其实是由 Key + Value 组成的（Key 是可选项，可传空值，Value 也可以传空值）。在发送一条消息时，我们可以指定这个 Key，那么 Producer 会根据 Key 和 partition 机制来判断当前这条消息应该发送并存储到哪个 partition 中（这个就跟分片机制类似）。我们可以根据需要进行扩展 Producer 的 partition 机制（默认算法是 hash 取 %）。
 
 
 
-��չ�Լ��� partition��
+扩展自己的 partition：
 
 ```java
 import org.apache.kafka.clients.producer.Partitioner;
@@ -129,7 +129,7 @@ import java.util.Map;
 import java.util.Random;
  
 /**
- * ��Ϣ���ͺ������Զ���Ĳ���
+ * 消息发送后会调用自定义的策略
  *
  * @author Dongguabai
  * @date 2019/1/18 15:40
@@ -138,17 +138,17 @@ public class MyPartitioner implements Partitioner {
  
     @Override
     public int partition(String topic, Object key, byte[] keyBytes, Object value, byte[] valueBytes, Cluster cluster) {
-        //��ȡ��ǰ topic �ж��ٸ������������б���
+        //获取当前 topic 有多少个分区（分区列表）
         List<PartitionInfo> partitions = cluster.partitionsForTopic(topic);
         int partitionNum = 0;
-        if (key == null) { //֮ǰ���ܹ� Key �ǿ��Դ���ֵ��
-            partitionNum = new Random().nextInt(partitions.size());   //���
+        if (key == null) { //之前介绍过 Key 是可以传空值的
+            partitionNum = new Random().nextInt(partitions.size());   //随机
         } else {
-            //ȡ %
+            //取 %
             partitionNum = Math.abs((key.hashCode()) % partitions.size());
         }
-        System.out.println("key��" + key + "��value��" + value + "��partitionNum��" + partitionNum);
-        //���͵�ָ������
+        System.out.println("key：" + key + "，value：" + value + "，partitionNum：" + partitionNum);
+        //发送到指定分区
         return partitionNum;
     }
  
@@ -166,31 +166,31 @@ public class MyPartitioner implements Partitioner {
 
 
 
-# ʵ������
+# 实例讲解
 
-## ����ֹͣ
+## 启动停止
 
 ```shell
-#������
+#启动：
 $ kafka/bin/kafka-server-start.sh -daemon kafka/config/server.properties
-#ͨ��jps�鿴Kafka�����Ƿ�������
+#通过jps查看Kafka进程是否启动。
 
-#�鿴kafka״̬
+#查看kafka状态
 $ kafka-topics --describe --zookeeper hadoop-cluster01:2181
 ```
 
 
 
-## ��������
+## 创建话题
 
-- ����һ�� test2 test-demo��ע������� partitions ����Ϊ 3����
+- 创建一个 test2 test-demo（注意这里的 partitions 参数为 3）：
 
 ```shell
-# --topic�����test0��topic������
-# --zookeeperӦ�ú�server.properties�ļ��е�zookeeper.connectһ��
-# --configָ����ǰtopic����Ч�Ĳ���ֵ
-# --partitionsָ��topic��partition�����������ָ����������Ĭ����server.properties�ļ��е�num.partitions����ֵ
-# --replication-factorָ��ÿ��partition�ĸ���������Ĭ��1��
+# --topic后面的test0是topic的名称
+# --zookeeper应该和server.properties文件中的zookeeper.connect一样
+# --config指定当前topic上有效的参数值
+# --partitions指定topic的partition数量，如果不指定该数量，默认是server.properties文件中的num.partitions配置值
+# --replication-factor指定每个partition的副本个数，默认1个
 
 $ kafka-topics --create --partitions 3 --replication-factor 2  --zookeeper spark-master:2181 --topic test-demo
 
@@ -199,41 +199,41 @@ Created topic "test-demo".
 
 
 
-## ɾ������
+## 删除话题
 
 ```shell
-# �Ƴ����⣬���Ƴ�����ʧ����Ҫ��Kafka����������������趨 
+# 移除话题，若移除话题失败需要在Kafka服务端配置中添加设定 
 # delete.topic.enble = true
-$ kafka-topics --delete --topic [��������] --zookeeper [Zookeeper��ȺIP:�˿�]
+$ kafka-topics --delete --topic [话题名称] --zookeeper [Zookeeper集群IP:端口]
 
 # eg:
 $ kafka-topics --delete --topic test-demo --zookeeper hadoop-cluster01:2181
 
-#ɾ��zookeeper�и�topic��ص�Ŀ¼���
+#删除zookeeper中该topic相关的目录命令：
 $ rm -r /kafka/config/topics/test-demo0
 $ rm -r /kafka/brokers/topics/test-demo0
 ```
 
 
 
-## �޸Ļ���
+## 修改话题
 
 ```shell
 $ kafka-topics --zookeeper zk_host:port --alter --topic my_topic_name --partitions 3
 ```
 
-�����޸�partition��������������Ҫע�⣺
+关于修改partition数量，有两点需要注意：
 
-1. partitionֻ�����ӣ���֧�ּ���
-2. ������partitionֻ��Խ���д������������ã���ǰ���ڵ����ݲ��ᱻ�ƶ����µ�partition��
+1. partition只能增加，不支持减少
+2. 新增的partition只会对将来写入的数据起作用，以前存在的数据不会被移动到新的partition中
 
-�����޸�partition���������ǻ������޸�topic��������ã����������
+除了修改partition数量，我们还可以修改topic层面的配置，增加配置项：
 
 ```shell
 $ kafka-topics --zookeeper zk_host:port/chroot --alter --topic my_topic_name --config x=y
 ```
 
-ɾ�������
+删除配置项：
 
 ```shell
 $ kafka-topics --zookeeper zk_host:port/chroot --alter --topic my_topic_name --delete-config x
@@ -241,9 +241,9 @@ $ kafka-topics --zookeeper zk_host:port/chroot --alter --topic my_topic_name --d
 
 
 
-## �鿴����
+## 查看话题
 
-- �鿴`test-demo`
+- 查看`test-demo`
 
 ```shell
 [root@spark-master ~]# kafka-topics --describe  --zookeeper spark-master:2181 | grep test-demo
@@ -253,22 +253,22 @@ Topic:test-demo PartitionCount:3        ReplicationFactor:2     Configs:
       Topic: test-demo        Partition: 2    Leader: 3       Replicas: 3,2   Isr: 3,2
 ```
 
-> PartitionCount:3 ��ʾ�û�����3��������0��1��2����
+> PartitionCount:3 表示该话题有3个分区（0，1，2）；
 >
-> Leader1��2��3��ʾ3�������ֱ�Ϊbroker1��2��3��
+> Leader1，2，3表示3个分区分别为broker1，2，3；
 >
-> Replicas��ʾ�÷����ı���broker id
+> Replicas表示该分区的备份broker id
 
 
 
 ```shell
-#�鿴topic��
+#查看topic：
 $ kafka-topics --list --zookeeper 172.16.0.126:2181
 ```
 
 
 
-- ����kafka����Ŀ¼�鿴
+- 进入kafka数据目录查看
 
 ```shell
 # broker 1
@@ -290,9 +290,9 @@ test-demo-2
 
 
 
-## ��������
+## 生产数据
 
-- �������ݣ�producer��
+- 生产数据（producer）
 
 ```shell
 [root@spark-slave0 ~]# kafka-console-producer --broker-list spark-slave1:9092 --topic test-demo
@@ -303,16 +303,16 @@ test-demo-2
 
 
 
-## ��������
+## 消费数据
 
-- �������ݣ�consumer��
+- 消费数据（consumer）
 
 ```shell
-#������Ϣ��
-#ʹ�� --from-beginning ��������û���Ӵ�����ʼ�����Ϣ
-#ʹ�� --consumer.config ����ָ�����Ѷ�ʹ�õ������ļ�
-#ʹ�� --offset [ƫ����] --partion [�������] �����Զ����ȡ��Ϣʱ��ƫ����
-$ kafka-console-consumer --bootstrap-server [listeners IP:�˿�] --topic [��������] [--consumer-property group.id=group_test]
+#消费消息：
+#使用 --from-beginning 参数输出该话题从创建开始后的消息
+#使用 --consumer.config 参数指定消费端使用的配置文件
+#使用 --offset [偏移量] --partion [分区编号] 参数自定义读取消息时的偏移量
+$ kafka-console-consumer --bootstrap-server [listeners IP:端口] --topic [话题名称] [--consumer-property group.id=group_test]
 
 # eg:
 
@@ -324,7 +324,7 @@ hello:world
 
 
 
-- �鿴����Щ������
+- 查看有哪些消费者
 
 ```shell
 $ kafka-consumer-groups  --bootstrap-server 172.16.0.200:9092 --list
@@ -338,7 +338,7 @@ console-consumer-27024
 
 
 
-- �鿴Group����
+- 查看Group详情
 
 ```shell
 $ kafka-consumer-groups  --bootstrap-server 172.16.0.200:9092 --group group_test  --describe
@@ -352,7 +352,7 @@ test                           0          2               8               6     
 
 
 
-- ɾ��group
+- 删除group
 
 ```shell
 $ kafka-consumer-groups  --bootstrap-server 172.16.0.200:9092 --group group_test  --delete
@@ -360,9 +360,9 @@ $ kafka-consumer-groups  --bootstrap-server 172.16.0.200:9092 --group group_test
 
 
 
-## ƫ��������
+## 偏移量操作
 
-### �鿴Offset
+### 查看Offset
 
 ```shell
 $ kafka-run-class kafka.tools.GetOffsetShell --broker-list 172.16.0.200:9092 --topic test --time -1
@@ -383,14 +383,14 @@ test-demo                      2          2               2               0     
 test-demo                      1          2               2               0          -                                                 -                              -
 test-demo                      0          4               4               0          -                                                 -                              -
 
-# current-offset ��ǰ�Ѿ����ѵ�ƫ����Ϊ2,��������Ϊ�Ѿ�����2����
-# log-end-offset��������Ϊ�ܹ�2����¼��
-# lag��������Ϊδ���Ѽ�¼������
+# current-offset 当前已经消费到偏移量为2,可以理解为已经消费2条。
+# log-end-offset可以理解为总共2条记录。
+# lag可以理解为未消费记录条数。
 ```
 
 
 
-### �鿴partition״̬
+### 查看partition状态
 
 ```shell
 $ bin/kafka-run-class kafka.tools.GetOffsetShell --broker-list spark-slave1:9092 --topic test-demo --time -1
@@ -402,9 +402,9 @@ test-demo:0:4
 
 
 
-### ����offset
+### 调整offset
 
-ǰ���ǣ�consumer group״̬������inactive�ģ��������Ǵ������ڹ����е�״̬��
+前提是：consumer group状态必须是inactive的，即不能是处于正在工作中的状态。
 
 ```shell
 # kafka-consumer-groups --bootstrap-server spark-slave1:9092 --reset-offsets --group group_test --topic test-demo --to-offset 20 --execute
@@ -417,41 +417,41 @@ test-demo                      1          20
 test-demo                      0          20
 ```
 
-���⣺
+讲解：
 
-![](img/kafka6.png)
+![](./img/kafka6.png)
 
-- ȷ��topic�����򡪡���ǰ��3��������ָ����ʽ��--all-topics��Ϊconsumer group������topic�����з�������λ�ƣ���--topic t1 --topic t2��Ϊָ�������ɸ�topic�����з�������λ�ƣ���--topic t1:0,1,2��Ϊָ����topic��������λ�ƣ�
+- 确定topic作用域——当前有3种作用域指定方式：--all-topics（为consumer group下所有topic的所有分区调整位移），--topic t1 --topic t2（为指定的若干个topic的所有分区调整位移），--topic t1:0,1,2（为指定的topic分区调整位移）
 
-- ȷ��λ��������ԡ�����ǰ֧��8�����ù���
+- 确定位移重设策略——当前支持8种设置规则：
 
-  - --to-earliest����λ�Ƶ�����������ǰ��Сλ��
-  - --to-latest����λ�Ƶ�����������ǰ����λ��
-  - --to-current����λ�Ƶ�����������ǰλ��
-  - --to-offset <offset>�� ��λ�Ƶ�����ָ��λ�ƴ�
-  - --shift-by N�� ��λ�Ƶ�������ǰλ�� + N����ע��N�����Ǹ�������ʾ��ǰ�ƶ�
-  - --to-datetime <datetime>����λ�Ƶ��������ڸ���ʱ�������λ�ƴ���datetime��ʽ��yyyy-MM-ddTHH:mm:ss.xxx������2017-08-04T00:00:00.000
-  - --by-duration <duration>����λ�Ƶ��������뵱ǰʱ��ָ�������λ�ƴ���duration��ʽ��PnDTnHnMnS������PT0H5M0S
-  - --from-file <file>����CSV�ļ��ж�ȡ��������
+  - --to-earliest：把位移调整到分区当前最小位移
+  - --to-latest：把位移调整到分区当前最新位移
+  - --to-current：把位移调整到分区当前位移
+  - --to-offset <offset>： 把位移调整到指定位移处
+  - --shift-by N： 把位移调整到当前位移 + N处，注意N可以是负数，表示向前移动
+  - --to-datetime <datetime>：把位移调整到大于给定时间的最早位移处，datetime格式是yyyy-MM-ddTHH:mm:ss.xxx，比如2017-08-04T00:00:00.000
+  - --by-duration <duration>：把位移调整到距离当前时间指定间隔的位移处，duration格式是PnDTnHnMnS，比如PT0H5M0S
+  - --from-file <file>：从CSV文件中读取调整策略
 
-- ȷ��ִ�з���������ǰ֧��3�ַ�����
+- 确定执行方案——当前支持3种方案：
 
-- - ʲô���������ӣ�ֻ�Ǵ�ӡ��λ�Ƶ���������������ִ��
-  - --execute��ִ��������λ�Ƶ���
-  - --export����λ�Ƶ�����������CSV��ʽ��ӡ�������û���csv�ļ���������ֱ��ʹ��
+- - 什么参数都不加：只是打印出位移调整方案，不具体执行
+  - --execute：执行真正的位移调整
+  - --export：把位移调整方案按照CSV格式打印，方便用户成csv文件，供后续直接使用
 
 
 
-## �鿴�����ļ�
+## 查看数据文件
 
 ```shell
-# --print-data-log �Ǳ�ʾ�鿴��Ϣ���ݵģ����Ӵ����ǲ鿴������ϸ����Ϣ���ݡ����Ҫ�鿴���log�ļ������ö��ŷָ���
+# --print-data-log 是表示查看消息内容的，不加此项是查看不到详细的消息内容。如果要查看多个log文件可以用逗号分隔。
 $ kafka-run-class kafka.tools.DumpLogSegments --files /home/data/kafka/kafkadata/test-demo-1/00000000000000000000.log --print-data-log
 ```
 
 
 
-## �鿴�����ļ�
+## 查看索引文件
 
 ```shell
 $ kafka-run-class kafka.tools.DumpLogSegments --files /home/data/kafka/kafkadata/test-demo-1/00000000000000000000.index
@@ -459,147 +459,147 @@ $ kafka-run-class kafka.tools.DumpLogSegments --files /home/data/kafka/kafkadata
 
 
 
-## ��չ��Ⱥ
+## 扩展集群
 
 
 
-# �ļ��洢����
+# 文件存储机制
 
 
 
-## topic�洢
+## topic存储
 
-- topic��partition�ķ�ʽ�洢
+- topic以partition的方式存储
 
-- �������partitionֵ
+- 如何设置partition值
 
-  topic�µ�һ������ֻ�ܱ�ͬһ��consumer group�µ�һ��consumer�߳������ѡ�������֮������������һ��consumer�߳̿������Ѷ�����������ݣ�����Kafka�ṩ��ConsoleConsumer��Ĭ�Ͼ�ֻ��һ���߳����������з��������ݣ���
+  topic下的一个分区只能被同一个consumer group下的一个consumer线程来消费。（但反之并不成立，即一个consumer线程可以消费多个分区的数据，比如Kafka提供的ConsoleConsumer，默认就只是一个线程来消费所有分区的数据）。
 
-  ��ˣ�������õ�partition������С��consumer���������ͻ������������Ѳ������ݡ����ԣ��Ƽ�partition������һ��Ҫ����ͬʱ���е�consumer��������
+  因此，如果设置的partition的数量小于consumer的数量，就会有消费者消费不到数据。所以，推荐partition的数量一定要大于同时运行的consumer的数量。
 
-  <font color=#dd0000>�ܽ᣺������������ͬ�������߸��������ޡ�</font>
+  <font color=#dd0000>总结：分区数决定了同组消费者个数的上限。</font>
 
-  ����partition���������ڼ�Ⱥbroker������������leader partition�Ϳ��Ծ��ȵķֲ��ڸ���broker�У�����ʹ�ü�Ⱥ���ؾ��⡣
+  建议partition的数量大于集群broker的数量，这样leader partition就可以均匀的分布在各个broker中，最终使得集群负载均衡。
 
 
 
-## partiton�洢
+## partiton存储
 
-- ÿ��partion(Ŀ¼)�൱��һ�������ļ���ƽ�����䵽�����С���segment(��)�����ļ��С���ÿ����segment file��Ϣ������һ����ȣ��������Է���old segment file���ٱ�ɾ����
-- ÿ��partitonֻ��Ҫ֧��˳���д�����ˣ�segment�ļ���С������������**��������ò���**������
+- 每个partion(目录)相当于一个巨型文件被平均分配到多个大小相等segment(段)数据文件中。但每个段segment file消息数量不一定相等，这种特性方便old segment file快速被删除。
+- 每个partiton只需要支持顺序读写就行了，segment文件大小和生命周期由**服务端配置参数**决定。
 
 ```properties
-# �������ÿ�����־�� segments �Ĵ��������Կ��Խ�������Ϊ��һ��ʱ��֮�󣬻��ڸ�����С�ۻ�֮��ɾ���Ρ�
-# ֻҪ����*����*һ���������ξͻᱻɾ����ɾ�����Ƿ�������־�����
+# 以下配置控制日志段 segments 的处理。策略可以将其设置为在一段时间之后，或在给定大小累积之后删除段。
+# 只要满足*其中*一个条件，段就会被删除。删除总是发生在日志的最后。
 
-# ��־�ļ�����Сɾ������
+# 日志文件的最小删除年龄
 log.retention.hours=168
 
-# ������־��С�ı������ԡ�����ʣ�µ�Ƭ�α�����־��ɾ��
-# ��λ�� log.retention.bytes. ���ܶ����� log.retention.hours.
+# 基于日志大小的保留策略。除非剩下的片段被从日志中删除
+# 段位于 log.retention.bytes. 功能独立于 log.retention.hours.
 log.retention.bytes=1073741824
 
-# ��־���ļ�������С�����ﵽ�����Сʱ��������һ���µ���־�Ρ�
+# 日志段文件的最大大小。当达到这个大小时，将创建一个新的日志段。
 log.segment.bytes=1073741824
 
 # The interval at which log segments are checked to see if they can be deleted according to the retention policies
-# ʱ������ �����־segments�Բ鿴�Ƿ���Ը��ݱ�������ɾ������ �� ʱ����
+# 时间间隔： 检查日志segments以查看是否可以根据保留策略删除它们 的 时间间隔
 log.retention.check.interval.ms=300000
 ```
 
 
 
-## segment�洢
+## segment存储
 
-producer��message��ĳ��topic��message�ᱻ���ȵķֲ������partition�ϣ����������û�ָ���Ļص��������зֲ�����kafka broker�յ�message������Ӧpartition�����һ��segment�����Ӹ���Ϣ����ĳ��segment�ϵ���Ϣ�����ﵽ����ֵ����Ϣ����ʱ�䳬����ֵʱ��segment�ϵ���Ϣ�ᱻflush�����̣�ֻ��flush�������ϵ���Ϣconsumer�������ѣ�segment�ﵽһ���Ĵ�С�󽫲���������segmentд���ݣ�broker�ᴴ���µ�segment��
-
-
-
-ÿ��partition���ڴ��ж�Ӧһ��index����¼ÿ��segment�еĵ�һ����Ϣƫ�ơ�
-
-- segment file��ɣ���2�󲿷���ɣ��ֱ�Ϊindex file��data file����2���ļ�һһ��Ӧ���ɶԳ��֣���׺".index"�͡�.log���ֱ��ʾΪsegment�����ļ��������ļ�.
-- segment�ļ���������partionȫ�ֵĵ�һ��segment��0��ʼ������ÿ��segment�ļ���Ϊ��һ��ȫ��partion�����offset(ƫ��message��)����ֵ���Ϊ64λlong��С��19λ�����ַ����ȣ�û��������0��䡣
+producer发message到某个topic，message会被均匀的分布到多个partition上（随机或根据用户指定的回调函数进行分布），kafka broker收到message后，往对应partition的最后一个segment上添加该消息。当某个segment上的消息条数达到配置值或消息发布时间超过阈值时，segment上的消息会被flush到磁盘，只有flush到磁盘上的消息consumer才能消费，segment达到一定的大小后将不会再往该segment写数据，broker会创建新的segment。
 
 
 
-ÿ��segment�д洢�ܶ�����Ϣ����Ϣid�����߼�λ�þ�����������Ϣid��ֱ�Ӷ�λ����Ϣ�Ĵ洢λ�ã�����id��λ�õĶ���ӳ�䡣
+每个partition在内存中对应一个index，记录每个segment中的第一条消息偏移。
 
-�����ļ��б��Ǳ�����Kafka broker������һ��ʵ�飬����һ��topicXXX����1 partition������ÿ��segment��СΪ500MB,������producer��Kafka brokerд��������ݣ�����ͼ2��ʾsegment�ļ��б�����˵��������2������
+- segment file组成：由2大部分组成，分别为index file和data file，此2个文件一一对应，成对出现，后缀".index"和“.log”分别表示为segment索引文件、数据文件.
+- segment文件命名规则：partion全局的第一个segment从0开始，后续每个segment文件名为上一个全局partion的最大offset(偏移message数)。数值最大为64位long大小，19位数字字符长度，没有数字用0填充。
 
-![](img/kafka3.png)
 
-������ͼ2��һ��segment file�ļ�Ϊ����˵��segment��index<��->data file��Ӧ��ϵ�����ṹ���£�
 
-![](img/kafka4.png)
+每个segment中存储很多条消息，消息id由其逻辑位置决定，即从消息id可直接定位到消息的存储位置，避免id到位置的额外映射。
 
-����ͼ3�������ļ��洢����Ԫ���ݣ������ļ��洢������Ϣ�������ļ���Ԫ����ָ���Ӧ�����ļ���message������ƫ�Ƶ�ַ�������������ļ��� Ԫ����3,497Ϊ���������������ļ��б�ʾ��3��message(��ȫ��partiton��ʾ��368772��message)���Լ�����Ϣ������ƫ�� ��ַΪ497��
+下面文件列表是笔者在Kafka broker上做的一个实验，创建一个topicXXX包含1 partition，设置每个segment大小为500MB,并启动producer向Kafka broker写入大量数据，如下图2所示segment文件列表形象说明了上述2个规则：
 
-������ͼ3�˽⵽segment data file������message��ɣ�������ϸ˵��message�����ṹ���£�
+![](./img/kafka3.png)
 
-![](img/kafka5.png)
+以上述图2中一对segment file文件为例，说明segment中index<—->data file对应关系物理结构如下：
 
-**����˵��**��
+![](./img/kafka4.png)
 
-| �ؼ���              | ����˵��                                                     |
+上述图3中索引文件存储大量元数据，数据文件存储大量消息，索引文件中元数据指向对应数据文件中message的物理偏移地址。其中以索引文件中 元数据3,497为例，依次在数据文件中表示第3个message(在全局partiton表示第368772个message)、以及该消息的物理偏移 地址为497。
+
+从上述图3了解到segment data file由许多message组成，下面详细说明message物理结构如下：
+
+![](./img/kafka5.png)
+
+**参数说明**：
+
+| 关键字              | 解释说明                                                     |
 | :------------------ | :----------------------------------------------------------- |
-| 8 byte offset       | ��parition(����)�ڵ�ÿ����Ϣ����һ�������id�ţ����id�ű���Ϊƫ��(offset),������Ψһȷ��ÿ����Ϣ��parition(����)�ڵ�λ�á���**offset��ʾpartiion�ĵڶ���message** |
-| 4 byte message size | message��С                                                  |
-| 4 byte CRC32        | ��crc32У��message                                           |
-| 1 byte ��magic"      | ��ʾ���η���Kafka�������Э��汾��                          |
-| 1 byte ��attributes" | ��ʾΪ�����汾�����ʶѹ�����͡���������͡�                 |
-| 4 byte key length   | ��ʾkey�ĳ���,��keyΪ-1ʱ��K byte key�ֶβ���                |
-| K byte key          | ��ѡ                                                         |
-| value bytes payload | ��ʾʵ����Ϣ���ݡ�                                           |
+| 8 byte offset       | 在parition(分区)内的每条消息都有一个有序的id号，这个id号被称为偏移(offset),它可以唯一确定每条消息在parition(分区)内的位置。即**offset表示partiion的第多少message** |
+| 4 byte message size | message大小                                                  |
+| 4 byte CRC32        | 用crc32校验message                                           |
+| 1 byte “magic"      | 表示本次发布Kafka服务程序协议版本号                          |
+| 1 byte “attributes" | 表示为独立版本、或标识压缩类型、或编码类型。                 |
+| 4 byte key length   | 表示key的长度,当key为-1时，K byte key字段不填                |
+| K byte key          | 可选                                                         |
+| value bytes payload | 表示实际消息数据。                                           |
 
 
 
-## ͨ��offset����message
+## 通过offset查找message
 
-�����ȡoffset=368776��message����Ҫͨ������2��������ҡ�
+例如读取offset=368776的message，需要通过下面2个步骤查找。
 
-- ��һ������segment file
+- 第一步查找segment file
 
-  ����ͼ2Ϊ��������00000000000000000000.index��ʾ�ʼ���ļ�����ʼƫ����(offset)Ϊ0.�ڶ����ļ� 00000000000000368769.index����Ϣ����ʼƫ����Ϊ368770 = 368769 + 1.ͬ�����������ļ�00000000000000737337.index����ʼƫ����Ϊ737338=737337 + 1�����������ļ��������ƣ�����ʼƫ����������������Щ�ļ���ֻҪ����offset **���ֲ���**�ļ��б����Ϳ��Կ��ٶ�λ�������ļ���
+  上述图2为例，其中00000000000000000000.index表示最开始的文件，起始偏移量(offset)为0.第二个文件 00000000000000368769.index的消息量起始偏移量为368770 = 368769 + 1.同样，第三个文件00000000000000737337.index的起始偏移量为737338=737337 + 1，其他后续文件依次类推，以起始偏移量命名并排序这些文件，只要根据offset **二分查找**文件列表，就可以快速定位到具体文件。
 
-  ��offset=368776ʱ��λ��00000000000000368769.index|log
+  当offset=368776时定位到00000000000000368769.index|log
 
-- �ڶ���ͨ��segment file����messageͨ����һ����λ��segment file����offset=368776ʱ�����ζ�λ��00000000000000368769.index��Ԫ��������λ�ú� 00000000000000368769.log������ƫ�Ƶ�ַ��Ȼ����ͨ��00000000000000368769.log˳�����ֱ�� offset=368776Ϊֹ��
+- 第二步通过segment file查找message通过第一步定位到segment file，当offset=368776时，依次定位到00000000000000368769.index的元数据物理位置和 00000000000000368769.log的物理偏移地址，然后再通过00000000000000368769.log顺序查找直到 offset=368776为止。
 
-segment index file��ȡϡ�������洢��ʽ�������������ļ���С��ͨ��mmap����ֱ���ڴ������ϡ������Ϊ�����ļ���ÿ����Ӧmessage����һ��Ԫ����ָ��,�� �ȳ���������ʡ�˸���Ĵ洢�ռ䣬������������Ҫ���ĸ����ʱ�䡣
-
-
-
-# ����
-
-## ����
-
-1��һ��partition�ĸ��Ƹ�����replication factor���������partition��leader������
-
-2�����ж�partition�Ķ���д��ͨ��leader��
-
-3��Followersͨ��pull��ȡleader��log��message��offset��
-
-4�����һ��follower�ҵ�����ס����ͬ��̫����leader������follower�ӡ�in sync replicas����ISR���б���ɾ����
-
-5�������еġ�in sync replicas����follower��һ����Ϣд�뵽�Լ���log��ʱ�������Ϣ�ű���Ϊ�ǡ�committed���ġ�
-
-6��������ĳ��partition�����и��ƽڵ㶼���ˣ�KafkaĬ��ѡ�����ȸ�����Ǹ��ڵ���Ϊleader������ڵ㲻һ����ISR���
+segment index file采取稀疏索引存储方式，它减少索引文件大小，通过mmap可以直接内存操作，稀疏索引为数据文件的每个对应message设置一个元数据指针,它 比稠密索引节省了更多的存储空间，但查找起来需要消耗更多的时间。
 
 
 
-## Leaderѡ��
+# 复制
 
-Kafka��Zookeeper��Ϊÿһ��partition��̬��ά����һ��ISR�����ISR�������replica��������leader��ֻ��ISR��ĳ�Ա�����б�ѡΪleader�Ŀ��ܣ�unclean.leader.election.enable=false����
+## 特性
 
-������ģʽ�£�����f+1��������һ��Kafka topic���ڱ�֤����ʧ�Ѿ�commit��Ϣ��ǰ��������f��������ʧ�ܣ��ڴ����ʹ�ó����£�����ģʽ��ʮ�������ġ���ʵ�ϣ�Ϊ������f��������ʧ�ܣ����������Ӷ������ķ�ʽ��ISR��commitǰ��Ҫ�ȴ��ĸ�����������һ���ģ�����ISR��Ҫ���ܵĸ����ĸ��������ǡ��������Ӷ������ķ�ʽ��һ�롣
+1）一个partition的复制个数（replication factor）包括这个partition的leader本身。
+
+2）所有对partition的读和写都通过leader。
+
+3）Followers通过pull获取leader上log（message和offset）
+
+4）如果一个follower挂掉、卡住或者同步太慢，leader会把这个follower从”in sync replicas“（ISR）列表中删除。
+
+5）当所有的”in sync replicas“的follower把一个消息写入到自己的log中时，这个消息才被认为是”committed“的。
+
+6）如果针对某个partition的所有复制节点都挂了，Kafka默认选择最先复活的那个节点作为leader（这个节点不一定在ISR里）。
 
 
 
-# ������-������
+## Leader选举
+
+Kafka在Zookeeper中为每一个partition动态的维护了一个ISR，这个ISR里的所有replica都跟上了leader，只有ISR里的成员才能有被选为leader的可能（unclean.leader.election.enable=false）。
+
+在这种模式下，对于f+1个副本，一个Kafka topic能在保证不丢失已经commit消息的前提下容忍f个副本的失败，在大多数使用场景下，这种模式是十分有利的。事实上，为了容忍f个副本的失败，“少数服从多数”的方式和ISR在commit前需要等待的副本的数量是一样的，但是ISR需要的总的副本的个数几乎是“少数服从多数”的方式的一半。
+
+
+
+# 生产者-消费者
 
 ## Producers
 
-![](img/kafka5.webp)
+![](./img/kafka5.webp)
 
 
 
@@ -614,7 +614,7 @@ public class ProducerRecord<K, V> {
 }
 ```
 
-ע��ProducerRecord�����û��ڴ�����Ϣ�����ʱ���ֱ��ָ��Ҫ���͵ķ���������producer�������͸���Ϣʱ����ֱ�ӷ��͵�ָ����������������ͨ��Partitioner����Ŀ������ˡ����⣬���ǻ�����ֱ��ָ����Ϣ��ʱ���������һ��Ҫ����ʹ��������ܣ���Ϊ���п��ܻ���ʱ�����������ʧЧ��
+注：ProducerRecord允许用户在创建消息对象的时候就直接指定要发送的分区，这样producer后续发送该消息时可以直接发送到指定分区，而不用先通过Partitioner计算目标分区了。另外，我们还可以直接指定消息的时间戳——但一定要慎重使用这个功能，因为它有可能会令时间戳索引机制失效。
 
 
 
@@ -632,35 +632,35 @@ public final class RecordMetadata {
 
 
 
-### ��Ϣ��������
+### 消息发送流程
 
-�û����ȹ��������͵���Ϣ����`ProducerRecord`��
+用户首先构建待发送的消息对象`ProducerRecord`；
 
-Ȼ�����`KafkaProducer#send`�������з��ͣ�
+然后调用`KafkaProducer#send`方法进行发送；
 
-`KafkaProducer`���յ���Ϣ�����ȶ���������л���
+`KafkaProducer`接收到消息后首先对其进行序列化；
 
-Ȼ���ϱ��ػ����Ԫ������Ϣһ���͸�`partitioner`ȥȷ��Ŀ�������
+然后结合本地缓存的元数据信息一起发送给`partitioner`去确定目标分区；
 
-���׷��д�뵽�ڴ��е���Ϣ�����(`accumulator`)����ʱ`KafkaProducer#send`�����ɹ����أ�
+最后追加写入到内存中的消息缓冲池(`accumulator`)。此时`KafkaProducer#send`方法成功返回；
 
-ͬʱ��`KafkaProducer`�л���һ��ר�ŵ�`Sender IO`�̸߳��𽫻�����е���Ϣ�����η��͸���Ӧ��`broker`�������������Ϣ�����߼���
-
-
-
- **�ص㣺**
-
-�ܹ����������̣߳�ִ��KafkaPrducer#send�߼����̡߳������ǳ�֮Ϊ���û����̡߳���
-
-?									  ִ�з����߼���IO�̡߳������ǳ�֮Ϊ��Sender�̡߳��� 
-
-batch���ơ������������͡����ơ�ÿ������(batch)�а��������ɸ�PRODUCE������˾��и��ߵ��������� 
+同时，`KafkaProducer`中还有一个专门的`Sender IO`线程负责将缓冲池中的消息分批次发送给对应的`broker`，完成真正的消息发送逻辑。
 
 
 
-### ��Ϣ���ͷ�ʽ
+ **特点：**
 
-1�����Ͳ�����( fire-and-forget)�����ǰ���Ϣ���͸����������������������Ƿ�����������������£���Ϣ�����������Ϊ Kafka�Ǹ߿��õģ����������߻��Զ������ط���������ʹ�����ַ�ʽ��ʱ��Ҳ�ᶪʧһЩ��Ϣ��
+总共创建两个线程：执行KafkaPrducer#send逻辑的线程——我们称之为“用户主线程”；
+
+?									  执行发送逻辑的IO线程——我们称之为“Sender线程”。 
+
+batch机制——“分批发送“机制。每个批次(batch)中包含了若干个PRODUCE请求，因此具有更高的吞吐量。 
+
+
+
+### 消息发送方式
+
+1、发送并忘记( fire-and-forget)：我们把消息发送给服务器，但井不关心它是否正常到达。大多数情况下，消息会正常到达，因为 Kafka是高可用的，而且生产者会自动尝试重发。不过，使用这种方式有时候也会丢失一些消息。
 
 ```java
 ProducerRecord<String, String> record = new ProducerRecord<String, String>("CustomerCountry", "Precision Products", "France");
@@ -672,7 +672,7 @@ try {
 }
 ```
 
-2��ͬ�����ͣ�����ʹ��send()����������Ϣ�� ���᷵��һ��Future���󣬵���get()�������еȴ��� �Ϳ���֪����Ϣ�Ƿ��ͳɹ���
+2、同步发送：我们使用send()方法发送消息， 它会返回一个Future对象，调用get()方法进行等待， 就可以知道悄息是否发送成功。
 
 ```java
 ProducerRecord<String, String> record = new ProducerRecord<String, String>("CustomerCountry", "Precision Products", "France");
@@ -684,7 +684,7 @@ try {
 }
 ```
 
-3���첽���ͣ����ǵ��� send() ���ӣ���ָ��һ���ص������� �������ڷ�����Ӧʱ���øú�����
+3、异步发送：我们调用 send() 方怯，并指定一个回调函数， 服务器在返回响应时调用该函数。
 
 ```java
 private class DemoProducerCallback implements Callback {
@@ -703,27 +703,27 @@ producer.send(record, new DemoProducerCallback());
 
 
 
-### ��Ϣ�����ڲ�����
+### 消息发送内部流程
 
- ���û�����`KafkaProducer.send(ProducerRecord, Callback)`ʱKafka�ڲ����̷����� 
-
-
-
-#### ���л�+����Ŀ�����
-
- ����`KafkaProducer#send`�߼��ĵ�һ������Ϊ��������Ϣ�������л�������Ŀ�����������ͼ��ʾ�� 
-
-![](img/kafka6.webp)
-
-����ͼ��ʾ��һ������`topic`��"`test`"����Ϣ����"`message`"����Ϣ�����л�֮����`KafkaProducer`�����Ԫ����(�����`topic`��������Ϣ��)��ͬ���������`Partitioner`ʵ�������Ŀ������ļ��㡣
+ 当用户调用`KafkaProducer.send(ProducerRecord, Callback)`时Kafka内部流程分析： 
 
 
 
-#### ׷��д����Ϣ������(accumulator)
+#### 序列化+计算目标分区
 
-`producer`����ʱ�ᴴ��һ��Ĭ��`32MB`(��`buffer.memory`����ָ��)��`accumulator`��������ר�ű�������͵���Ϣ������`linger.ms`��`batch.size`�Ȳ���֮�⣬�����ݽṹ�л�������һ���ر���Ҫ�ļ�����Ϣ����Ϣ������Ϣ(`batches`)���ü��ϱ�������һ��`HashMap`������ֱ𱣴���ÿ��`topic`�����µ�`batch`���У���ǰ��˵�������ǰ���`topic`�������з���ġ�����������ͬ��������Ϣ�����ڶ�Ӧ�����µ�`batch`�����С�
+ 这是`KafkaProducer#send`逻辑的第一步，即为待发送消息进行序列化并计算目标分区，如下图所示： 
 
-�ٸ��򵥵����ӣ�������ϢM1, M2�����͵�test��0���������ڲ�ͬ��`batch`��M3���͵�test��1��������ô`batches`�а�������Ϣ���ǣ�
+![](./img/kafka6.webp)
+
+如上图所示，一条所属`topic`是"`test`"，消息体是"`message`"的消息被序列化之后结合`KafkaProducer`缓存的元数据(比如该`topic`分区数信息等)共同传给后面的`Partitioner`实现类进行目标分区的计算。
+
+
+
+#### 追加写入消息缓冲区(accumulator)
+
+`producer`创建时会创建一个默认`32MB`(由`buffer.memory`参数指定)的`accumulator`缓冲区，专门保存待发送的消息。除了`linger.ms`和`batch.size`等参数之外，该数据结构中还包含了一个特别重要的集合信息：消息批次信息(`batches`)。该集合本质上是一个`HashMap`，里面分别保存了每个`topic`分区下的`batch`队列，即前面说的批次是按照`topic`分区进行分组的。这样发往不同分区的消息保存在对应分区下的`batch`队列中。
+
+举个简单的例子，假设消息M1, M2被发送到test的0分区但属于不同的`batch`，M3分送到test的1分区，那么`batches`中包含的信息就是：
 
 ```java
 {
@@ -734,332 +734,338 @@ producer.send(record, new DemoProducerCallback());
 
 
 
-����`topic`�����µ�`batch`�����б���������ɸ���Ϣ���Ρ�ÿ��`batch`������Ҫ��3�����������
+单个`topic`分区下的`batch`队列中保存的是若干个消息批次。每个`batch`中最重要的3个组件包括：
 
-?	`compressor`: ����ִ��׷��д�����
+?	`compressor`: 负责执行追加写入操作
 
-?	`batch`����������`batch.size`�������ƣ���Ϣ������׷��д�뵽�ĵط�
+?	`batch`缓冲区：由`batch.size`参数控制，消息被真正追加写入到的地方
 
-?	`thunks`��������Ϣ�ص��߼��ļ���
+?	`thunks`：保存消息回调逻辑的集合
 
-��һ����Ŀ�ľ��ǽ������͵���Ϣд����Ϣ������У�������������ͼ��ʾ��
+这一步的目的就是将待发送的消息写入消息缓冲池中，具体流程如下图所示：
 
-![](img/kafka7.webp)
+![](./img/kafka7.webp)
 
- ��һ��ִ�����֮�������Ͻ�`KafkaProducer.send`������ִ������ˣ��û����߳�������������ǵȴ�`Sender`�̷߳�����Ϣ��ִ�з��ؽ���ˡ� 
-
-
-
-#### Sender�߳�Ԥ��������Ϣ����
-
-��ʱ����`Sender`�̵߳ǳ��ˡ��ϸ���˵��`Sender`�߳���`KafkaProducer`�������һֱ���������� �����Ĺ������̻������������ģ�
-
-- ������ѯ������Ѱ�������÷���׼���ķ��� ��
-- ����ѯ��õĸ���`batch`����Ŀ��������ڵ�`leader broker`���з��飻
-- ��������`batch`ͨ���ײ㴴����**Socket����**���͸�����broker��
-- �ȴ��������˷���`response`������
-
-Ϊ��˵���ϵķ��㣬���ǻ���ͼ�ķ�ʽ������`Sender`�̵߳Ĺ���ԭ����
-
-![](img/kafka8.webp)
+ 这一步执行完毕之后理论上讲`KafkaProducer.send`方法就执行完毕了，用户主线程所做的事情就是等待`Sender`线程发送消息并执行返回结果了。 
 
 
 
-#### Sender�̴߳���response
+#### Sender线程预处理及消息发送
 
-��ͼ��`Sender`�̻߳ᷢ��`PRODUCE`�������Ӧ��`broker`��`broker`�������֮���Ͷ�Ӧ��`PRODUCE response`��һ��`Sender`�߳̽��յ�`response`��<font color="#00dd00">����(������Ϣ����˳��)</font>����`batch`�еĻص�����������ͼ��ʾ��
+此时，该`Sender`线程登场了。严格来说，`Sender`线程自`KafkaProducer`创建后就一直都在运行着 。它的工作流程基本上是这样的：
 
-![](img/kafka9.webp)
+- 不断轮询缓冲区寻找已做好发送准备的分区 ；
+- 将轮询获得的各个`batch`按照目标分区所在的`leader broker`进行分组；
+- 将分组后的`batch`通过底层创建的**Socket连接**发送给各个broker；
+- 等待服务器端发送`response`回来。
 
-������һ����`producer`������Ϣ�Ϳ���������100%����ˡ�
+为了说明上的方便，还是基于图的方式来解释`Sender`线程的工作原理：
 
-ͨ����4�����ǿ��Կ����°汾`producer`�����¼���ȫ���첽���̡�**����ڵ���producerǰ���Ǿ���Ҫ���������ƿ�����������û����̻߳�����Sender�߳�**��
+![](./img/kafka8.webp)
 
-����`KafkaProducer`���̰߳�ȫ�ģ������ʹ���������ֻ�����ʹ�÷�����
 
-|                     | ˵��                              | ����                                                         | ����                                                         |
+
+#### Sender线程处理response
+
+上图中`Sender`线程会发送`PRODUCE`请求给对应的`broker`，`broker`处理完毕之后发送对应的`PRODUCE response`。一旦`Sender`线程接收到`response`将<font color="#00dd00">依次(按照消息发送顺序)</font>调用`batch`中的回调方法，如下图所示：
+
+![](./img/kafka9.webp)
+
+做完这一步，`producer`发送消息就可以算作是100%完成了。
+
+通过这4步我们可以看到新版本`producer`发送事件完全是异步过程。**因此在调优producer前我们就需要搞清楚性能瓶颈到底是在用户主线程还是在Sender线程**。
+
+由于`KafkaProducer`是线程安全的，因此在使用上有两种基本的使用方法：
+
+|                     | 说明                              | 优势                                                         | 劣势                                                         |
 | ------------------- | --------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| ��KafkaProducerʵ�� | �����̹߳���һ��KafkaProducerʵ�� | ʵ�ּ򵥣����ܺ�                                             | 1.�����̹߳���һ���ڴ滺��أ�������Ҫ�϶���ڴ�ռ�<br />2.һ�����������û��̶߳��޷����� |
-| ��KafkaProducerʵ�� | ÿ���߳�ά��һ��KafkaProducerʵ�� | 1.ÿ���߳�ӵ��ר����KafkaProducerʵ�����������ռ��Լ�һ�����ò�����֧�ָ�ϸ���ȵĵ���<br />2.����KafkaProducerʵ��������Ӱ������ʵ���Ĺ��� | �ϴ�Ķ�����俪��                                           |
+| 单KafkaProducer实例 | 所有线程共享一个KafkaProducer实例 | 实现简单，性能好                                             | 1.所有线程公用一个内存缓冲池，可能需要较多的内存空间<br />2.一旦崩溃所有用户线程都无法工作 |
+| 多KafkaProducer实例 | 每个线程维护一个KafkaProducer实例 | 1.每个线程拥有专属的KafkaProducer实例、缓冲区空间以及一组配置参数，支持更细粒度的调优<br />2.单个KafkaProducer实例崩溃不影响其他实例的工作 | 较大的对象分配开销                                           |
 
 
 
-### ��ز���
+### 相关参数
 
 ```properties
-# producer���÷������ͻ��ƣ��ò���������һ��batch�Ĵ�С��Ĭ����16KB
+# producer采用分批发送机制，该参数即控制一个batch的大小。默认是16KB
 batch.size
 
-# ָ���������ڷ���������Ϣǰ�ȴ���ʱ�䣬�����ô˲����󣬼���û�дﵽ������Ϣ��ָ����С��
-# ����ʱ���������Ҳ�ᷢ��������Ϣ��broker��Ĭ������£������ߵķ�����Ϣ�߳�ֻҪ�����˾�
-# �ᷢ����Ϣ������ֻ��һ����Ϣ��������������󣬷����̻߳�ȴ�һ����ʱ�䣬����������������
-# ��Ϣ��������������ͬʱҲ�������ӳ١�
+# 指定生产者在发送批量消息前等待的时间，当设置此参数后，即便没有达到批量消息的指定大小，
+# 到达时间后生产者也会发送批量消息到broker。默认情况下，生产者的发送消息线程只要空闲了就
+# 会发送消息，即便只有一条消息。设置这个参数后，发送线程会等待一定的时间，这样可以批量发送
+# 消息增加吞吐量，但同时也会增加延迟。
 linger.ms
 
-# acks���ƶ��ٸ���������д����Ϣ�������߲�����Ϊд��ɹ��������������Ϣ��ʧ�������кܴ�Ӱ�졣�������������ȡֵ��
+# acks控制多少个副本必须写入消息后生产者才能认为写入成功，这个参数对消息丢失可能性有很大影响。这个参数有三种取值：
 
-# 	acks=0�������߰���Ϣ���͵�broker����Ϊ�ɹ������ȴ�broker�Ĵ�����������ַ�ʽ��������ߣ���Ҳ�������׶�ʧ��Ϣ�ġ�
+# 	acks=0：生产者把消息发送到broker即认为成功，不等待broker的处理结果。这种方式的吞吐最高，但也是最容易丢失消息的。
 #
-# 	acks=1�������߻��ڸ÷�����Ⱥ�ף�leader��д����Ϣ�����سɹ�����Ϊ��Ϣ���ͳɹ���
-#	���Ⱥ��д����Ϣʧ�ܣ������߻��յ�������Ӧ���������ԡ����ַ�ʽ�ܹ�һ���̶ȱ�����Ϣ��ʧ��
-#	�����Ⱥ��崻�ʱ����Ϣû�и��Ƶ�������������ô����Ϣ���ǻᶪʧ�����⣬�������ʹ��ͬ����ʽ�����ͣ�
-#	�ӳٻ��ǰһ�ַ�ʽ������ӣ���������һ����������ʱ�䣩�����ʹ���첽��ʽ��Ӧ�ø�֪�����ӳ٣�
-#	������������첽���ڷ����е��������ơ�
+# 	acks=1：生产者会在该分区的群首（leader）写入消息并返回成功后，认为消息发送成功。
+#	如果群首写入消息失败，生产者会收到错误响应并进行重试。这种方式能够一定程度避免消息丢失，
+#	但如果群首宕机时该消息没有复制到其他副本，那么该消息还是会丢失。另外，如果我们使用同步方式来发送，
+#	延迟会比前一种方式大大增加（至少增加一个网络往返时间）；如果使用异步方式，应用感知不到延迟，
+#	吞吐量则会受异步正在发送中的数量限制。
 # 	
-#	acks=-1/all�������߻�ȴ����и����ɹ�д�����Ϣ�����ַ�ʽ���ȫ�ģ��ܹ���֤��Ϣ����ʧ�������ӳ�Ҳ�����ġ�
+#	acks=-1/all：生产者会等待所有副本成功写入该消息，这种方式是最安全的，能够保证消息不丢失，但是延迟也是最大的。
 request.required.acks = 0, 1, n, -1/all
 
-# ���������߻��巢�͵���Ϣ���ڴ��С(����Batch�����ܵĴ�С->accumulator)�����Ӧ�õ���send�������ٶȴ��������߷��͵��ٶȣ�
-# ��ô���û����������׳��쳣��������Ϊȡ����block.on.buffer.full�����������0.9.0.0�汾
-# ��max.block.ms���棬�����׳��쳣ǰ�ȴ�һ��ʱ�䣩������
+# 设置生产者缓冲发送的消息的内存大小(即：Batch缓冲总的大小->accumulator)，如果应用调用send方法的速度大于生产者发送的速度，
+# 那么调用会阻塞或者抛出异常，具体行为取决于block.on.buffer.full（这个参数在0.9.0.0版本
+# 被max.block.ms代替，允许抛出异常前等待一定时间）参数。
 buffer.memory
 
-# ָ��ʹ����Ϣѹ������������ȡֵΪsnappy��gzip����lz4
-# 	snappyѹ���㷨��Google�з��������㷨�����ܺ�ѹ����ȡ�ñȽϺõ�ƽ�⣻
-# 	���֮�£�gzip���ĸ����CPU��Դ������ѹ��Ч��Ҳ����õġ�ͨ��ʹ��ѹ�������ǿ��Խ�ʡ���������Kafka�洢�ɱ���
+# 指定使用消息压缩，参数可以取值为snappy、gzip或者lz4
+# 	snappy压缩算法由Google研发，这种算法在性能和压缩比取得比较好的平衡；
+# 	相比之下，gzip消耗更多的CPU资源，但是压缩效果也是最好的。通过使用压缩，我们可以节省网络带宽和Kafka存储成本。
 compresstion.type
 
-# �������߷�����Ϣ�յ�һ���ɻָ��쳣ʱ����������ԣ��������ָ�������ԵĴ�����
-#	��ʵ������У����������Ҫ���retry.backoff.ms�����Եȴ��������ʹ�ã�
-#	�����ܵ�����ʱ��ȼ�Ⱥ����ѡ��Ⱥ�׵�ʱ�䳤���������Ա��������߹���������Ե���ʧ�ܡ�
+# 当生产者发送消息收到一个可恢复异常时，会进行重试，这个参数指定了重试的次数。
+#	在实际情况中，这个参数需要结合retry.backoff.ms（重试等待间隔）来使用，
+#	建议总的重试时间比集群重新选举群首的时间长，这样可以避免生产者过早结束重试导致失败。
 retries
 
-# ������������������ַ���������broker����ʶ����Ϣ�������ĸ��ͻ��˵ġ���broker���д�ӡ��־������ָ������������ʱ���õ���
+# 这个参数可以是任意字符串，它是broker用来识别消息是来自哪个客户端的。在broker进行打印日志、衡量指标或者配额限制时会用到。
 client.id
 
-# �������ָ�������߿��Է��Ͷ�����Ϣ��broker���ҵȴ���Ӧ.
-# ���ô˲����ϸߵ�ֵ�����������������ͬʱҲ�������ڴ����ġ����⣬������ù��߷����ή����������
-# ��Ϊ������ϢЧ�ʽ��͡�����Ϊ1�����Ա�֤���͵�broker��˳��͵���send����˳��һ�£�
-# �������ʧ�����Ե����Ҳ����ˡ�
+# 这个参数指定生产者可以发送多少消息到broker并且等待响应.
+# 设置此参数较高的值可以提高吞吐量，但同时也会增加内存消耗。另外，如果设置过高反而会降低吞吐量，
+# 因为批量消息效率降低。设置为1，可以保证发送到broker的顺序和调用send方法顺序一致，
+# 即便出现失败重试的情况也是如此。
 max.in.flight.requests.per.connection
 
-# ��Щ�������������ߵȴ�broker����Ӧʱ�䡣
-#	request.timeout.msָ���������ݵĵȴ���Ӧʱ�䣬
-#	metadata.fetch.timeout.msָ����ȡԪ���ݣ������ȡ������Ⱥ����Ϣ���ĵȴ���Ӧʱ�䡣
-#	timeout.ms��ָ��broker�ڷ��ؽ��ǰ�ȴ�������������acks������أ���Ӧ��ʱ�䣬���ʱ�䵽�˵���������û����Ӧ������򷵻���Ϣд��ʧ�ܡ�
+# 这些参数控制生产者等待broker的响应时间。
+#	request.timeout.ms指定发送数据的等待响应时间，
+#	metadata.fetch.timeout.ms指定获取元数据（例如获取分区的群首信息）的等待响应时间。
+#	timeout.ms则指定broker在返回结果前等待其他副本（与acks参数相关）响应的时间，如果时间到了但其他副本没有响应结果，则返回消息写入失败。
 timeout.ms
 request.timeout.ms
 metadata.fetch.timeout.ms
 
-#  ָ��Ӧ�õ���send�������߻�ȡԪ���ݷ���������partitionFor��ʱ������ʱ�䣬������ʱ�����׳�timeout�쳣��
+#  指定应用调用send方法或者获取元数据方法（例如partitionFor）时的阻塞时间，超过此时间则抛出timeout异常。
 max.block.ms
 
-# ���������߷������ݰ��Ĵ�С�����ݰ��Ĵ�С����Ϣ�Ĵ�С����Ϣ����ء��������ָ����������ݰ���СΪ1M��
-# ��ô������Ϣ��СΪ1M�������ܹ������������1000����Ϣ��СΪ1K����Ϣ��
-# ���⣬brokerҲ��message.max.bytes���������ƽ��յ����ݰ���С��
-# ��ʵ���У�������Щ����ֵ��ƥ��ģ����������߷����˳���broker�޶������ݴ�С��
+# 限制生产者发送数据包的大小，数据包的大小与消息的大小、消息数相关。如果我们指定了最大数据包大小为1M，
+# 那么最大的消息大小为1M，或者能够最多批量发送1000条消息大小为1K的消息。
+# 另外，broker也有message.max.bytes参数来控制接收的数据包大小。
+# 在实际中，建议这些参数值是匹配的，避免生产者发送了超过broker限定的数据大小。
 max.request.size
 
-# ����������������������/�������ݵ�TCP���ӵĻ��������������Ϊ-1��ʹ�ò���ϵͳ������Ĭ��ֵ��
-# �����������broker�ڲ�ͬ���������ģ�����������ֵ����Ϊ��ͬ�������������ӳٱȽϴ�
+# 这两个参数设置用来发送/接收数据的TCP连接的缓冲区，如果设置为-1则使用操作系统自身的默认值。
+# 如果生产者与broker在不同的数据中心，建议提高这个值，因为不同数据中心往往延迟比较大。
 receive.buffer.bytes
 send.buffer.bytes
 ```
 
 
 
-### ��֤������˳��
+### 保证分区的顺序
 
-`Kafka`���Ա�֤ͬһ�����������Ϣ������ġ�Ҳ����˵����������߰���һ����˳������Ϣ�� `broker`�ͻᰴ�����˳�������д�������������Ҳ�ᰴ��ͬ����˳���ȡ���ǡ���ĳЩ����� �� ˳���Ƿǳ���Ҫ�ġ������`retries` ��Ϊ����������ͬʱ�� `max.in.flight.requests.per.connection` ��Ϊ�� 1���������ô�������һ��������Ϣд��ʧ�ܣ����ڶ�������д��ɹ��� `broker`������д���һ�����Ρ������ʱ��һ������Ҳд��ɹ����� ô�������ε�˳��ͷ������ˡ�
+`Kafka`可以保证同一个分区里的消息是有序的。也就是说，如果生产者按照一定的顺序发送消息， `broker`就会按照这个顺序把它们写入分区，消费者也会按照同样的顺序读取它们。在某些情况下 ， 顺序是非常重要的。如果把`retries` 设为非零整数，同时把 `max.in.flight.requests.per.connection` 设为比 1大的数，那么，如果第一个批次消息写入失败，而第二个批次写入成功， `broker`会重试写入第一个批次。如果此时第一个批次也写入成功，那 么两个批次的顺序就反过来了。
 
- һ����˵�����ĳЩ����Ҫ����Ϣ������ģ���ô��Ϣ�Ƿ�д��ɹ�Ҳ�� �ܹؼ��ģ����Բ������˳���Ƿǳ���Ҫ�ġ������`retries` ��Ϊ 0�����԰� `max.in.flight.requests.per.connection`��Ϊ 1�������������߳��Է��͵�һ����Ϣʱ���Ͳ�������������Ϣ���͸� broker����������**������Ӱ�������ߵ�������** ������ֻ���� ����Ϣ��˳�����ϸ�Ҫ�������²�����ô����
+ 一般来说，如果某些场景要求消息是有序的，那么消息是否写入成功也是 很关键的，所以不建议把顺序是非常重要的。如果把`retries` 设为 0。可以把 `max.in.flight.requests.per.connection`设为 1，这样在生产者尝试发送第一批消息时，就不会有其他的消息发送给 broker。不过这样**会严重影响生产者的吞吐量** ，所以只有在 对消息的顺序有严格要求的情况下才能这么做。
 
 
 
-### ���л�
+### 序列化
 
- [http://www.dengshenyu.com/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/2017/11/12/kafka-producer.html](http://www.dengshenyu.com/�ֲ�ʽϵͳ/2017/11/12/kafka-producer.html)
+ [http://www.dengshenyu.com/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/2017/11/12/kafka-producer.html](http://www.dengshenyu.com/分布式系统/2017/11/12/kafka-producer.html)
 
 
 
 ## Consumers
 
-- Kafka�ṩ������consumer api����Ϊ`high-level api`��`sample-api`��
+- Kafka提供了两套consumer api，分为`high-level api`和`sample-api`。
 
-  - **Sample-api** ��һ���ײ��API��ͨ��ֱ�Ӳ����ײ�API��ȡ���ݵķ�ʽ��ȡKafka�е����ݣ���Ҫ���и���������ƫ���������ԡ�
+  - **Sample-api** 是一个底层的API，通过直接操作底层API获取数据的方式获取Kafka中的数据，需要自行给定分区、偏移量等属性。
 
-    �ŵ㣺�ɲ�����ǿ��
+    优点：可操作性强；
 
-    ȱ�㣺������Զ��ԱȽϸ��ӡ�(����ࣺ`SimpleConsumer`) 
+    缺点：代码相对而言比较复杂。(入口类：`SimpleConsumer`) 
 
-  - **High Level Consumer API**���߶ȳ����Kafka������API�����ײ�����ȡ���ݡ�����offset������ƫ�����Ȳ������ε���ֱ�ӽ������������Ĵ��������ṩ����д�������Ա��
+  - **High Level Consumer API**：高度抽象的Kafka消费者API；将底层具体获取数据、更新offset、设置偏移量等操作屏蔽掉，直接将操作数据流的处理工作提供给编写程序的人员。
 
-    �ŵ��ǣ������򵥣�
+    优点是：操作简单；
 
-    ȱ�㣺�ɲ�����̫��޷������Լ���ҵ�񳡾�ѡ������ʽ��(����ࣺ`ConsumerConnector`)
+    缺点：可操作性太差，无法按照自己的业务场景选择处理方式。(入口类：`ConsumerConnector`)
 
-- **��kafka�У���ǰ����������Ϣ��offsetֵ����consumer��ά����**����ˣ�consumer�����Լ�������ζ�ȡkafka�е����ݡ����磬consumer����ͨ������offsetֵ���������������ѹ������ݡ�������û�б����ѣ�kafka�ᱣ������һ��ʱ�䣬���ʱ��������**������**�ģ�ֻ�е��˹���ʱ�䣬kafka�Ż�ɾ����Щ���ݡ�
+- **在kafka中，当前读到哪条消息的offset值是由consumer来维护的**，因此，consumer可以自己决定如何读取kafka中的数据。比如，consumer可以通过重设offset值来重新消费已消费过的数据。不管有没有被消费，kafka会保存数据一段时间，这个时间周期是**可配置**的，只有到了过期时间，kafka才会删除这些数据。
 
-- High-level API��װ�˶Լ�Ⱥ��һϵ��broker�ķ��ʣ�����͸��������һ��topic�����Լ�ά������������Ϣ��״̬����ÿ�����ѵĶ�����һ����Ϣ��
+- High-level API封装了对集群中一系列broker的访问，可以透明的消费一个topic。它自己维持了已消费消息的状态，即每次消费的都是下一个消息。
 
-  High-level API��֧���������ʽ����topic�����consumers��ͬһ����������ôkafka���൱��һ��������Ϣ���񣬶�����consumer�����������Ӧpartition�е����ݡ���consumers�в�ͬ����������ô��ʱkafka���൱��һ���㲥���񣬻��topic�е�������Ϣ�㲥��ÿ��consumer��
-
-  
-
-  **High level api��Low level api�����consumer���Եģ���producer�޹ء�**
+  High-level API还支持以组的形式消费topic，如果consumers有同一个组名，那么kafka就相当于一个队列消息服务，而各个consumer均衡的消费相应partition中的数据。若consumers有不同的组名，那么此时kafka就相当与一个广播服务，会把topic中的所有消息广播到每个consumer。
 
   
 
-  High level api��consumer����partition��offsite�Ǵ���zookeeper�ϡ�High level api ����������һ���߳�ȥÿ��һ��ʱ�䣬offsite�Զ�ͬ����zookeeper�ϡ����仰˵�����ʹ����High level api�� ÿ��messageֻ�ܱ���һ�Σ�һ����������message֮��������consumer�Ĵ����Ƿ�ok��High level api������һ���̻߳��Զ��İ�offiste+1ͬ����zookeeper�ϡ����consumer��ȡ���ݳ������⣬offsiteҲ����zookeeper��ͬ������ˣ����consumer����ʧ���ˣ������ִ����һ�����������ǲ��Ե���Ϊ����ˣ�Best Practice��һ��consumer����ʧ�ܣ�ֱ��������conusmer group��Exception��ֹ��������������һ�������Ƕ�ʧ�ˣ���Ϊ��zookeeper�����offsite�Ѿ�+1�ˡ����ٴ�����conusmer group��ʱ���Ѿ�����һ����ʼ��ȡ�����ˡ�
+  **High level api和Low level api是针对consumer而言的，和producer无关。**
 
   
 
-  Low level api��consumer����partition��offsite��consumer�Լ��ĳ�����ά��������ͬ����zookeeper�ϡ�����Ϊ��kafka manager�ܹ�����ļ�أ�һ��Ҳ���ֶ���ͬ����zookeeper�ϡ������ĺô���һ����ȡĳ��message��consumerʧ���ˣ�����message��offsite�����Լ�ά�������ǲ���+1���´���������ʱ�򣬻�������offsite��ʼ����������������exactly once�������ݵ�׼ȷ���б�֤��
+  High level api是consumer读的partition的offsite是存在zookeeper上。High level api 会启动另外一个线程去每隔一段时间，offsite自动同步到zookeeper上。换句话说，如果使用了High level api， 每个message只能被读一次，一旦读了这条message之后，无论我consumer的处理是否ok。High level api的另外一个线程会自动的把offiste+1同步到zookeeper上。如果consumer读取数据出了问题，offsite也会在zookeeper上同步。因此，如果consumer处理失败了，会继续执行下一条。这往往是不对的行为。因此，Best Practice是一旦consumer处理失败，直接让整个conusmer group抛Exception终止，但是最后读的这一条数据是丢失了，因为在zookeeper里面的offsite已经+1了。等再次启动conusmer group的时候，已经从下一条开始读取处理了。
+
+  
+
+  Low level api是consumer读的partition的offsite在consumer自己的程序中维护。不会同步到zookeeper上。但是为了kafka manager能够方便的监控，一般也会手动的同步到zookeeper上。这样的好处是一旦读取某个message的consumer失败了，这条message的offsite我们自己维护，我们不会+1。下次再启动的时候，还会从这个offsite开始读。这样可以做到exactly once对于数据的准确性有保证。
 
   
 
   
 
-### Consumer��Partition�Ĺ�ϵ�� **Consumer Rebalance** ��
+### Consumer与Partition的关系（ **Consumer Rebalance** ）
 
-- ���consumer��partition�࣬���˷ѣ���Ϊkafka���������һ��partition���ǲ����������ģ�����consumer����Ҫ����partition��
-- ���consumer��partition�٣�һ��consumer���Ӧ�ڶ��partitions��������Ҫ��������consumer����partition��������ᵼ��partition��������ݱ�ȡ�Ĳ�����
-- ���consumer�Ӷ��partition�������ݣ�����֤���ݼ��˳���ԣ�kafkaֻ��֤��һ��partition������������ģ������partition�����������˳����в�ͬ
-- ����consumer��broker��partition�ᵼ��rebalance������rebalance��consumer��Ӧ��partition�ᷢ���仯
-- High-level�ӿ��л�ȡ�������ݵ�ʱ���ǻ�block��
+- 如果consumer比partition多，是浪费，因为kafka的设计是在一个partition上是不允许并发的，所以consumer数不要大于partition数
+- 如果consumer比partition少，一个consumer会对应于多个partitions，这里主要合理分配consumer数和partition数，否则会导致partition里面的数据被取的不均匀
+- 如果consumer从多个partition读到数据，不保证数据间的顺序性，kafka只保证在一个partition上数据是有序的，但多个partition，根据你读的顺序会有不同
+- 增减consumer，broker，partition会导致rebalance，所以rebalance后consumer对应的partition会发生变化
+- High-level接口中获取不到数据的时候是会block的
 
 
 
-# ��ϢͶ������
+# 消息投递语义
 
-Kafka֧�ֵ�������ϢͶ������:
+Kafka支持的三种消息投递语义:
 
-- `at most once`:����һ�Σ���Ϣ���ܻᶪ���������ظ�
-- `at least once`:����һ�Σ���Ϣ�϶����ᶪʧ���������ظ�
-- `exactly once`:����ֻ��һ�Σ���Ϣ����ʧ���ظ�����ֻ����һ�Ρ�
+- `at most once`:至多一次，消息可能会丢，但不会重复
+- `at least once`:至少一次，消息肯定不会丢失，但可能重复
+- `exactly once`:有且只有一次，消息不丢失不重复，且只消费一次。
 
 
 
-## 0.11.0֮ǰ�İ汾
+## 0.11.0之前的版本
 
-### Producer ��Ϣ�����߶�
+### Producer 消息生产者端
 
-�� producer �� leader ��������ʱ������ͨ�� `request.required.acks` �������������ݿɿ��Եļ���
+当 producer 向 leader 发送数据时，可以通过 `request.required.acks` 参数来设置数据可靠性的级别：
 
-- acks=1��Ĭ�ϣ������ҽ���leader�յ���Ϣ**����commitȷ���ź�**����Ϊ���ͳɹ������ leader 崻�����ᶪʧ���ݡ�
-- acks=0��producer������Ϣ����ɷ��ͣ�**����ȴ�**���� broker ��ȷ�ϡ�������������ݴ���Ч����ߣ��������ݿɿ���ȷ����͵ġ�
-- acks=-1��ALL�������Ͷ���Ҫ�ȴ� **ISR �б��������б���ȷ�Ͻ�������**�����һ�η�����ɣ��ɿ�����ߣ��ӳ�Ҳ�ϴ�
+- acks=1（默认）：当且仅当leader收到消息**返回commit确认信号**后认为发送成功。如果 leader 宕机，则会丢失数据。
+- acks=0：producer发出消息即完成发送，**无需等待**来自 broker 的确认。这种情况下数据传输效率最高，但是数据可靠性确是最低的。
+- acks=-1（ALL）：发送端需要等待 **ISR 列表中所有列表都确认接收数据**后才算一次发送完成，可靠性最高，延迟也较大。
 
-�����漰��producer�˵�acks���ú�broker�˵ĸ����������Լ�`min.insync.replicas`�����á�
+这里涉及到producer端的acks设置和broker端的副本数量，以及`min.insync.replicas`的设置。
 
 
 
-### Broker ��Ϣ���ն�
+### Broker 消息接收端
 
-acks=1����ʾ��leader��Ƭ����д��Ϣ�ɹ��ͷ�����Ӧ��producer����ʱ��Ϊ��Ϣ���ͳɹ���
-���leaderд�ɹ������Ϲ��ˣ���û�н����д�ɹ�����Ϣͬ���������ķ�Ƭ��������ô�����Ƭ��ʱ��ISR�б�Ϊ�գ�
-���unclean.leader.election.enable=true���ͻᷢ��log truncation����־��ȡ����ͬ���ᷢ����Ϣ��ʧ��
-���unclean.leader.election.enable=false����ô�����Ƭ�ϵķ���Ͳ������ˣ�producer�������Ƭ����Ϣ�ͻ����쳣��
+acks=1，表示当leader分片副本写消息成功就返回响应给producer，此时认为消息发送成功。
+如果leader写成功单马上挂了，还没有将这个写成功的消息同步给其他的分片副本，那么这个分片此时的ISR列表为空，
+如果unclean.leader.election.enable=true，就会发生log truncation（日志截取），同样会发生消息丢失。
+如果unclean.leader.election.enable=false，那么这个分片上的服务就不可用了，producer向这个分片发消息就会抛异常。
 
-������������min.insync.replicas=2��unclean.leader.election.enable=false��producer�˵�acks=all���������ͳɹ�����Ϣ�;����ᶪʧ��
+所以我们设置min.insync.replicas=2，unclean.leader.election.enable=false，producer端的acks=all，这样发送成功的消息就绝不会丢失。
 
 
 
-### Consumer ��Ϣ�����߶�
+### Consumer 消息消费者端
 
-����Ҫ�������߹ر��Զ��ύ(`enable.auto.commit:false`)��ͬʱ��������ÿ�� poll ������ҵ���߼����������ֶ�ͬ���ύ��`commitSync`������������������ѹ����з��� `crash`���´�����ʱ��Ȼ���֮ǰ��λ�ÿ�ʼ���ѣ��Ӷ���֤ÿ���ύ�����ݶ��ܱ����ѡ�
+我们要求消费者关闭自动提交(`enable.auto.commit:false`)，同时当消费者每次 poll 处理完业务逻辑后必须完成手动同步提交（`commitSync`），如果消费者在消费过程中发生 `crash`，下次启动时依然会从之前的位置开始消费，从而保证每次提交的内容都能被消费。
 
 
 
-### ��Ϣȥ��
+### 消息去重
 
-���ǵ� producer,broker,consumer ֮�䶼�п��������Ϣ�ظ�����������Ҫ����ն���Ҫ֧����Ϣȥ�صĹ��ܣ���ý���ҵ����Ϣ�������ݵ���������������Щ������������� hbase��elasticsearch ��Ȼ��֧���ݵȲ�����
+考虑到 producer,broker,consumer 之间都有可能造成消息重复，所以我们要求接收端需要支持消息去重的功能，最好借助业务消息本身的幂等性来做。其中有些大数据组件，如 hbase，elasticsearch 天然就支持幂等操作。
 
-������
-�ڽ��նˣ�����ר�ŵ���������ȡ kafka ���ݴ��� hbase��hbase �� rowkey �������Ҫ����`Id`�� `timestamp`�������̴߳� kafka ��ȡ���ݺ����л���Ȼ���������� hbase��ֻ�в���ɹ������ kafka �г־û� offset�������ĺô��ǣ�������м�����һ���׶η�������������ָ��󶼻����һ�γ־û� offset ��λ�ÿ�ʼ�������ݣ�������������ݶ�ʧ�������;���ظ����ѵ����ݣ������ hbase �� rowkey ����ͬ�ģ�����ֻ�Ḳ�ǲ����ظ������մﵽ����һ�¡�
+举例：
+在接收端，启动专门的消费者拉取 kafka 数据存入 hbase。hbase 的 rowkey 的设计主要包括`Id`和 `timestamp`。消费线程从 kafka 拉取数据后反序列化，然后批量插入 hbase，只有插入成功后才往 kafka 中持久化 offset。这样的好处是，如果在中间任意一个阶段发生报错，程序恢复后都会从上一次持久化 offset 的位置开始消费数据，而不会造成数据丢失。如果中途有重复消费的数据，则插入 hbase 的 rowkey 是相同的，数据只会覆盖不会重复，最终达到数据一致。
 
 
 
-## 0.11.0֮��İ汾
+## 0.11.0之后的版本
 
-### �ݵ��Է���
+### 幂等性发送
 
-��0.11֮ǰ��Ҫ��ͨ������ϵͳ�����ݵ�������֤`Exactly Once`�����������м���ȱ�ݣ�
+在0.11之前主要是通过下游系统具有幂等性来保证`Exactly Once`。但是这样有几个缺陷：
 
-- Ҫ������ϵͳ֧���ݵȲ�����������`Kafka`�����ó���
-- ʵ���ż���Խϸߣ���Ҫ�û���`Kafka`�Ĺ������Ʒǳ��˽�
-- ����`Kafka Stream`���ԣ�`Kafka Producer`�������ǡ����Ρ�ϵͳ������`Producer`�����ݵȴ������ԣ��ǾͿ�����`Kafka Stream`��һ���̶���֧��`Exactly once`���塣
+- 要求下游系统支持幂等操作，限制了`Kafka`的适用场景
+- 实现门槛相对较高，需要用户对`Kafka`的工作机制非常了解
+- 对于`Kafka Stream`而言，`Kafka Producer`本身就是“下游”系统，能让`Producer`具有幂等处理特性，那就可以让`Kafka Stream`在一定程度上支持`Exactly once`语义。
 
-0.11֮��İ汾��������idempotent producer���ƣ�ͨ��**Producer ID��PID����Sequence Number**ʵ��Producer���ݵ����塣
+0.11之后的版本，引入了idempotent producer机制，通过**Producer ID（PID）和Sequence Number**实现Producer的幂等语义。
 
-- `Producer ID`��ÿ���µ�`Producer`�ڳ�ʼ����ʱ��ᱻ����һ��Ψһ��PID
-- `Sequence Number`������ÿ��`PID`����`Producer`�������ݵ�ÿ��`<Topic, Partition>`����Ӧһ����0��ʼ����������`Sequence Number`��
+- `Producer ID`：每个新的`Producer`在初始化的时候会被分配一个唯一的PID
+- `Sequence Number`：对于每个`PID`，该`Producer`发送数据的每个`<Topic, Partition>`都对应一个从0开始单调递增的`Sequence Number`。
 
-`Broker`��Ҳ�����ڴ���Ϊÿ��`<PID, Topic, Partition>`ά��һ����ţ�����ÿ��`Commit`һ����Ϣʱ�����Ӧ��ŵ��������ڽ��յ�ÿ����Ϣ���������ű�`Broker`ά������ţ������һ��`Commit`����Ϣ����ţ���һ����`Broker`��������������䶪����
+`Broker`端也会在内存中为每个`<PID, Topic, Partition>`维护一个序号，并且每次`Commit`一条消息时将其对应序号递增。对于接收的每条消息，如果其序号比`Broker`维护的序号（即最后一次`Commit`的消息的序号）大一，则`Broker`会接受它，否则将其丢弃：
 
-- �����Ϣ��ű�Brokerά������Ŵ�һ���ϣ�˵���м���������δд�룬Ҳ�����򣬴�ʱBroker�ܾ�����Ϣ��Producer�׳�InvalidSequenceNumber
-- �����Ϣ���С�ڵ���Brokerά������ţ�˵������Ϣ�ѱ����棬��Ϊ�ظ���Ϣ��Brokerֱ�Ӷ�������Ϣ��Producer�׳�DuplicateSequenceNumber
+- 如果消息序号比Broker维护的序号大一以上，说明中间有数据尚未写入，也即乱序，此时Broker拒绝该消息，Producer抛出InvalidSequenceNumber
+- 如果消息序号小于等于Broker维护的序号，说明该消息已被保存，即为重复消息，Broker直接丢弃该消息，Producer抛出DuplicateSequenceNumber
 
-���ֻ��ƺܺõ�<font color=#dd0000>����������ظ����������������</font>��
+这种机制很好的<font color=#dd0000>解决了数据重复和数据乱序的问题</font>。
 
 
 
-**���������**��
+**如何设置呢**？
 
-����`producer`�˵��²��� `enable.idempotent=true`��
+设置`producer`端的新参数 `enable.idempotent=true`。
 
 
 
-��������������������Ҫ��֤ԭ���Ե�д������������д�뵽�����������ϢҪôȫ���ɹ���Ҫôȫ���ع���
+而多分区的情况，我们需要保证原子性的写入多个分区，即写入到多个分区的消息要么全部成功，要么全部回滚。
 
-��ʱ�����Ҫʹ��������producer������ transcational.idΪһ��ָ���ַ�����
+这时候就需要使用事务，在producer端设置 transcational.id为一个指定字符串。
 
-<font color=#dd0000>�����ݵ�producerֻ�ܱ�֤�����������ظ���Ϣ��������Ա�֤�����д����Ϣ�������ԡ�</font>
+<font color=#dd0000>这样幂等producer只能保证单分区上无重复消息；事务可以保证多分区写入消息的完整性。</font>
 
 
 
-����producer��ʵ����exactly once����ôconsumer���أ�
+这样producer端实现了exactly once，那么consumer端呢？
 
-consumer�����ڿ����޷�����������������Ϣ��������Ϣ���ܱ�ɾ�����������񲢲��ܽ��consumer��exactly once�����⣬���ǿ��ܻ�����Ҫ�Լ������ⷽ����߼��������Լ�����offset���ύ����Ҫ�Զ��ύ��Ҳ�ǿ���ʵ��exactly once�ġ�
+consumer端由于可能无法消费事务中所有消息，并且消息可能被删除，所以事务并不能解决consumer端exactly once的问题，我们可能还是需要自己处理这方面的逻辑。比如自己管理offset的提交，不要自动提交，也是可以实现exactly once的。
 
-**����һ��ѡ�����ʹ��kafka�Լ������������棬Ҳ����Kafka Streams��**
+**还有一个选择就是使用kafka自己的流处理引擎，也就是Kafka Streams，**
 
-**����processing.guarantee=exactly_once���Ϳ�������ʵ��exactly once�ˡ�**
+**设置processing.guarantee=exactly_once，就可以轻松实现exactly once了。**
 
 
 
-**ע��**
+**注意**
 
-����˵�����ֻ����Ե���Producer��һ��session�ڵ����������Producer���ˣ�����������һ��Producer�����ҷ���������һ��PID�������Ͳ��ܴﵽ���ص�Ŀ���ˣ�����kafka��������Transactional Guarantees�������Ա�֤����
+以上说的这个只是针对单个Producer在一个session内的情况，假设Producer挂了，又重新启动一个Producer被而且分配了另外一个PID，这样就不能达到防重的目的了，所以kafka又引进了Transactional Guarantees（事务性保证）。
 
 
 
-## �ݵ�
+## 幂等
 
-�ݵ��ԣ�
+幂等性：
 
-> һ��ָ producer Ͷ���˶�����Ϣ��consumer �������˶�����Ϣ�����ᷢ����Ϣ��ʧ������Ϣ�ظ��������
+> 一般指 producer 投递了多少消息，consumer 就消费了多少消息，不会发生消息丢失或者消息重复的情况；
 
 
 
-����`producer`�����`broker`������`enable.idempotence = true`,ÿ��`producer`�ڳ�ʼ����ʱ�򶼻ᱻ����һ��Ψһ��`Producer ID`��`producer`��ָ��`topic`��`partition`������Ϣʱ��Я��һ���Լ�ά����������`Sequence Number`��`broker`��ά��һ��`<pid,topic,partition>`��Ӧ��`seqNum`�� ÿ��`broker`���յ�`producer`��������Ϣ�����֮ǰ��`seqNum`���ȶԣ�����պô�һ������ܣ������ȣ�˵����Ϣ�ظ�;���������һ����˵���м���ڶ���Ϣ���ܾ����ܡ�
+对于`producer`，如果`broker`配置了`enable.idempotence = true`,每个`producer`在初始化的时候都会被分配一个唯一的`Producer ID`，`producer`向指定`topic`的`partition`发送消息时，携带一个自己维护的自增的`Sequence Number`。`broker`会维护一个`<pid,topic,partition>`对应的`seqNum`。 每次`broker`接收到`producer`发来的消息，会和之前的`seqNum`做比对，如果刚好大一，则接受；如果相等，说明消息重复;如果相差大于一，则说明中间存在丢消息，拒绝接受。
 
-�����ƽ������������:
+这个设计解决了两个问题:
 
-- `broker`������Ϣ�󣬷���`ACK`ǰ崻���`producer`��Ϊû�з��ͳɹ������ԣ������Ϣ�ظ�
-- ǰһ����Ϣ����ʧ�ܣ���һ���ɹ���ǰһ����Ϣ���Ժ�ɹ��������Ϣ����
+- `broker`保存消息后，发送`ACK`前宕机，`producer`认为没有发送成功并重试，造成消息重复
+- 前一条消息发送失败，后一条成功，前一条消息重试后成功，造成消息乱序
 
-## �����Ա�֤
+## 事务性保证
 
-kafka�������Ա�֤��ͬʱ����`Topic` `Partitions`������Ϣ��Ҫô���ɹ���Ҫô��ʧ�ܡ�
+kafka的事务性保证：同时向多个`Topic` `Partitions`发送消息，要么都成功，要么都失败。
 
-�������ݵȲ�����ֻ�ܱ�֤����`producer`����ͬһ��`<topic,partition>`��`exactly once`,�����ܱ�֤����`topic` `partitions`д����ʱ��ԭ���ԡ������ܱ�֤�����д����ʱ��ԭ���ԡ�
+上述的幂等操作，只能保证单个`producer`对于同一个`<topic,partition>`的`exactly once`,并不能保证向多个`topic` `partitions`写操作时的原子性。更不能保证多个读写操作时的原子性。
 
-����ĳ�������ǣ���ĳ��`topic`������Ϣ������ת�����д����һ��`topic`�С�
+例如某个场景是，从某个`topic`消费消息，处理转换后回写到另一个`topic`中。
 
-�����Ա�֤����ʹӦ�ó����������ݺ��������ݵ���һ��ԭ�ӵ�Ԫ����������ʹ�����������ѿ���`<Topic, Partition>`��Ӧ�ó���Ҳ�����������󣬴���һ�������ָ���Ҳ������ָ���
+事务性保证可以使应用程序将生产数据和消费数据当作一个原子单元来处理，即使该生产或消费跨多个`<Topic, Partition>`。应用程序也可以在重启后，从上一个事物点恢复，也即事物恢复。
 
-��Ϊ��Ϣ�����ǿ�`topic`��`partition`�ģ�����Ϊʵ����һЧ����������Ӧ�ó����ṩһ���ȶ��ģ������󲻱䣩Ψһ��`Transaction ID`��ʹ��`PID` �� `Transaction ID` һһ��Ӧ������
+因为消息可以是跨`topic`和`partition`的，所以为实现这一效果，必须是应用程序提供一个稳定的（重启后不变）唯一的`Transaction ID`，使得`PID` 和 `Transaction ID` 一一对应起来。
 
-## conusmer��
+## conusmer端
 
-���������Ա�ֻ֤�����producer�˵ģ���consumer����Ȼ�޷���֤��
+以上事务性保证只是针对producer端的，对consumer端依然无法保证。
 
-���������kafka�е�topic�����������д����һ��topic����ô���Խ�������Ϣ�ͷ�����Ϣ��Ϊһ������ ���Ҫ��������Ϣ��Ľ�����浽�ⲿϵͳ����Ҫ�õ����׶��ύ�ˡ�
+如果是消费kafka中的topic，并将结果回写到另一个topic，那么可以将消费消息和发送消息绑定为一个事务。 如果要将处理消息后的结果保存到外部系统，就要用到两阶段提交了。
 
+# 顺序消费
 
 
-# �����ļ�
+
+# 重复消费
+
+
+
+# 配置文件
 
 ```properties
 ############################# Server Basics #############################
@@ -1124,43 +1130,43 @@ transaction.state.log.min.isr=3
 
 ############################# Log Flush Policy #############################
 
-# ��Ϣ������д���ļ�ϵͳ��������Ĭ������£�����ֻͬ��fsync()
-# ����ϵͳ�����Ƕ��Եġ��������ÿ������ݵ����̵�ˢ�¡�
-# ������һЩ��Ҫ��Ȩ��:
-# 	1���־���:�����ʹ�ø��ƣ�δˢ�µ����ݿ��ܻᶪʧ��
-# 	2���ӳ�:�ǳ����ˢ�¼�����ܻᵼ���ӳٷ�ֵ����Ϊ���д���������Ҫˢ�¡�
-# 	3��������:ˢ��ͨ�������Ĳ�����һ��С��ˢ�¼�����ܵ��¹��ȵĲ��ҡ�
+# 消息被立即写入文件系统，但是在默认情况下，我们只同步fsync()
+# 操作系统缓存是惰性的。以下配置控制数据到磁盘的刷新。
+# 这里有一些重要的权衡:
+# 	1。持久性:如果不使用复制，未刷新的数据可能会丢失。
+# 	2。延迟:非常大的刷新间隔可能会导致延迟峰值，因为会有大量数据需要刷新。
+# 	3。吞吐量:刷新通常是最昂贵的操作，一个小的刷新间隔可能导致过度的查找。
 
-# �������������������ˢ�²��ԣ��Ա���һ��ʱ���֮��ˢ������
+# 下面的设置允许您配置刷新策略，以便在一段时间或之后刷新数据
 
-#ÿN����Ϣ(�����߶���)���������ȫ�ַ�Χ����ɣ�����ÿ������Ļ����ϸ��ǡ�
+#每N条消息(或两者都有)。这可以在全局范围内完成，并在每个主题的基础上覆盖。
 # every N messages (or both). This can be done globally and overridden on a per-topic basis.
 
 # The number of messages to accept before forcing a flush of data to disk
-# �ڽ�����ˢ�µ�����֮ǰ���Խ��ܵ���Ϣ����
+# 在将数据刷新到磁盘之前可以接受的消息条数
 log.flush.interval.messages=10000
 
 # The maximum amount of time a message can sit in a log before we force a flush
-# ��ǿ��ˢ��֮ǰ����Ϣ����פ������־�е��ʱ��
+# 在强制刷新之前，消息可以驻留在日志中的最长时间
 log.flush.interval.ms=1000
 
 ############################# Log Retention Policy #############################
 
-# �������ÿ�����־�� segments �Ĵ��������Կ��Խ�������Ϊ��һ��ʱ��֮�󣬻��ڸ�����С�ۻ�֮��ɾ���Ρ�
-# ֻҪ����*����*һ���������ξͻᱻɾ����ɾ�����Ƿ�������־�����
+# 以下配置控制日志段 segments 的处理。策略可以将其设置为在一段时间之后，或在给定大小累积之后删除段。
+# 只要满足*其中*一个条件，段就会被删除。删除总是发生在日志的最后。
 
-# ��־�ļ�����Сɾ������
+# 日志文件的最小删除年龄
 log.retention.hours=168
 
-# ������־��С�ı������ԡ�����ʣ�µ�Ƭ�α�����־��ɾ��
-# ��λ�� log.retention.bytes. ���ܶ����� log.retention.hours.
+# 基于日志大小的保留策略。除非剩下的片段被从日志中删除
+# 段位于 log.retention.bytes. 功能独立于 log.retention.hours.
 log.retention.bytes=1073741824
 
-# ��־���ļ�������С�����ﵽ�����Сʱ��������һ���µ���־�Ρ�
+# 日志段文件的最大大小。当达到这个大小时，将创建一个新的日志段。
 log.segment.bytes=1073741824
 
 # The interval at which log segments are checked to see if they can be deleted according to the retention policies
-# ʱ������ �����־segments�Բ鿴�Ƿ���Ը��ݱ�������ɾ������ �� ʱ����
+# 时间间隔： 检查日志segments以查看是否可以根据保留策略删除它们 的 时间间隔
 log.retention.check.interval.ms=300000
 
 ############################# Zookeeper #############################
@@ -1223,7 +1229,7 @@ confluent.support.customer.id=anonymous
 
 
 
-# �ͻ���
+# 客户端
 
 `kafka-manager`
 
@@ -1233,90 +1239,90 @@ https://juejin.im/post/5dd2261df265da0bc3309393
 
 
 
-# kafka�ٶȿ�
+# kafka速度快
 
 
 
-## ˳���д
+## 顺序读写
 
-���̴���������ǻ�е�ṹ��SSD�������۵ķ�Χ�ڣ����������Ϣ�����д�ķ�ʽ������̣�����Ҫ�����桢��ͷ�������ķ�ʽѰַ��Ѱַ��һ������е������Ҳ���ʱ��Ϊ����߶�дӲ�̵��ٶȣ�**Kafka����ʹ��˳��I/O**��
+磁盘大多数都还是机械结构（SSD不在讨论的范围内），如果将消息以随机写的方式存入磁盘，就需要按柱面、磁头、扇区的方式寻址，寻址是一个“机械动作”也最耗时。为了提高读写硬盘的速度，**Kafka就是使用顺序I/O**。
 
-˳��I/O���ǲ���׷�����ݵ��ļ��еģ��������ʹ�����Գ�����ô��̵�˳���д������
+顺序I/O就是不断追加数据到文件中的，这个特性使它可以充分利用磁盘的顺序读写能力。
 
-![](img/kafka-io1.jpeg)
+![](./img/kafka-io1.jpeg)
 
-> ÿ��partition����һ���ļ���ÿ����Ϣ����append ���� partition �У�����˳��д���̣����Ч�ʷǳ��ߡ����ַ�����һ��ȱ�ݡ��� û�а취ɾ������ ������Kafka�ǲ���ɾ�����ݵģ���������е����ݶ�����������ÿ�������ߣ�Consumer����ÿ��Topic����һ��offset������ʾ��ȡ���˵ڼ������� ��
-
-
-
-˳���д������Ӳ�̴�ͷ��Ѱ��ʱ�䣬ֻ��Ҫ���ٵ�������תʱ�䣬�����ٶ�Զ���������д��Kafka �ٷ������Ĳ�������(Raid-5, 7200rpm)
-
-˳��I/O: 600MB/s
-
-���I/O: 100KB/s
+> 每个partition就是一个文件，每条消息都被append 到该 partition 中，属于顺序写磁盘，因此效率非常高。这种方法有一个缺陷—— 没有办法删除数据 ，所以Kafka是不会删除数据的，它会把所有的数据都保留下来，每个消费者（Consumer）对每个Topic都有一个offset用来表示读取到了第几条数据 。
 
 
 
-## mmap��д�����ݣ�
+顺序读写降低了硬盘磁头的寻道时间，只需要很少的扇区旋转时间，所以速度远快于随机读写。Kafka 官方给出的测试数据(Raid-5, 7200rpm)
 
- ������˳��д��Ӳ�̣�Ӳ�̵ķ����ٶȻ��ǲ�����׷���ڴ档����Kafka�����ݲ�����ʵʱ��д��Ӳ�� ��������������ִ�����ϵͳ��ҳ�洢�������ڴ����I/OЧ�ʡ� 
+顺序I/O: 600MB/s
 
-Memory Mapped Files(������mmap)Ҳ������� �ڴ�ӳ���ļ� ����64λ����ϵͳ��һ����Ա�ʾ20G�������ļ���**���Ĺ���ԭ����ֱ�����ò���ϵͳ��Page��ʵ���ļ��������ڴ��ֱ��ӳ�䡣**
-
-
-
-���ӳ��֮����������ڴ�Ĳ����ᱻͬ����Ӳ���ϣ�����ϵͳ���ʵ���ʱ�򣩡�
+随机I/O: 100KB/s
 
 
 
-ͨ��mmap���������дӲ��һ����д�ڴ棨��Ȼ��������ڴ棩��Ҳ���ع����ڴ�Ĵ�С�������ڴ�Ϊ���Ƕ��ס�
+## mmap（写入数据）
+
+ 即便是顺序写入硬盘，硬盘的访问速度还是不可能追上内存。所以Kafka的数据并不是实时的写入硬盘 ，它充分利用了现代操作系统分页存储来利用内存提高I/O效率。 
+
+Memory Mapped Files(后面简称mmap)也被翻译成 内存映射文件 ，在64位操作系统中一般可以表示20G的数据文件，**它的工作原理是直接利用操作系统的Page来实现文件到物理内存的直接映射。**
 
 
 
-ʹ�����ַ�ʽ���Ի�ȡ�ܴ��I/O������ʡȥ���û��ռ䵽�ں˿ռ临�ƵĿ����������ļ���read��������ȷŵ��ں˿ռ���ڴ��У�Ȼ���ٸ��Ƶ��û��ռ���ڴ��С���
+完成映射之后你对物理内存的操作会被同步到硬盘上（操作系统在适当的时候）。
 
 
 
-��Ҳ��һ�������Ե�ȱ�ݡ������ɿ���д��mmap�е����ݲ�û�б�������д��Ӳ�̣�����ϵͳ���ڳ�����������flush��ʱ��Ű�����������д��Ӳ�̡�
+通过mmap，进程像读写硬盘一样读写内存（当然是虚拟机内存），也不必关心内存的大小有虚拟内存为我们兜底。
 
 
 
-Kafka�ṩ��һ����������producer.type�������ǲ�������flush�����Kafkaд�뵽mmap֮�������flushȻ���ٷ���Producer�� ͬ�� (sync)��д��mmap֮����������Producer������flush���첽 (async)��
+使用这种方式可以获取很大的I/O提升，省去了用户空间到内核空间复制的开销（调用文件的read会把数据先放到内核空间的内存中，然后再复制到用户空间的内存中。）
 
 
 
-## �㿽������ȡ���ݣ�
+但也有一个很明显的缺陷——不可靠，写到mmap中的数据并没有被真正的写到硬盘，操作系统会在程序主动调用flush的时候才把数据真正的写到硬盘。
+
+
+
+Kafka提供了一个参数——producer.type来控制是不是主动flush，如果Kafka写入到mmap之后就立即flush然后再返回Producer叫 同步 (sync)；写入mmap之后立即返回Producer不调用flush叫异步 (async)。
+
+
+
+## 零拷贝（读取数据）
 
 [https://www.ibm.com/developerworks/cn/linux/l-cn-zerocopy2/](https://www.ibm.com/developerworks/cn/linux/l-cn-zerocopy2/)
 
-�㿽����Zero-copy������ָ�ڼ����ִ�в���ʱ��CPU ����Ҫ�Ƚ����ݴ�һ���ڴ������Ƶ���һ���ڴ����򣬴Ӷ����Լ����������л��Լ� CPU �Ŀ���ʱ�䡣
+零拷贝（Zero-copy）技术指在计算机执行操作时，CPU 不需要先将数据从一个内存区域复制到另一个内存区域，从而可以减少上下文切换以及 CPU 的拷贝时间。
 
-���������������ݱ��������豸���û�����ռ䴫�ݵĹ����У��������ݿ�������������ϵͳ���ã�ʵ�� CPU ������룬�������� CPU ���ⷽ��ĸ��ء�
-
-
-
-ʵ���㿽���õ�������Ҫ������ DMA ���ݴ��似�����ڴ�����ӳ�似����
-
-- �㿽�����ƿ��Լ����������ں˻��������û����̻�����֮�䷴���� I/O ����������
-- �㿽�����ƿ��Լ����û����̵�ַ�ռ���ں˵�ַ�ռ�֮����Ϊ�������л��������� CPU ������
+它的作用是在数据报从网络设备到用户程序空间传递的过程中，减少数据拷贝次数，减少系统调用，实现 CPU 的零参与，彻底消除 CPU 在这方面的负载。
 
 
 
-### ��ͳ�ļ�IO
+实现零拷贝用到的最主要技术是 DMA 数据传输技术和内存区域映射技术：
 
- ��ͳģʽ�£��ļ�����Ĳ������̣�����һ������Ҫ<font color=#dd0000>���ļ����ݷ��͵�����</font>��������̷������û��ռ䣬�ļ�������socket����Ӳ����Դ������֮����һ���ں˿ռ䣬�ڲ���ϵͳ�ڲ�����������Ϊ:
-
-
-
-![](img/kafka2.webp.)
-
-����ͼ�п��Կ��������������Ĵ����ݿ�������ʹʹ����`DMA`����������Ӳ����ͨѶ��CPU��Ȼ��Ҫ�����������ݿ��������ͬʱ�����û�̬���ں�̬Ҳ�����˶���������л�������Ҳ������CPU������
+- 零拷贝机制可以减少数据在内核缓冲区和用户进程缓冲区之间反复的 I/O 拷贝操作。
+- 零拷贝机制可以减少用户进程地址空间和内核地址空间之间因为上下文切换而带来的 CPU 开销。
 
 
 
-����
+### 传统文件IO
 
-![](img/kafka10.webp)
+ 传统模式下，文件传输的操作流程，例如一个程序要<font color=#dd0000>把文件内容发送到网络</font>。这个过程发生在用户空间，文件和网络socket属于硬件资源，两者之间有一个内核空间，在操作系统内部，整个过程为:
+
+
+
+![](./img/kafka2.webp.)
+
+从上图中可以看出，共产生了四次数据拷贝，即使使用了`DMA`来处理了与硬件的通讯，CPU仍然需要处理两次数据拷贝，与此同时，在用户态与内核态也发生了多次上下文切换，无疑也加重了CPU负担。
+
+
+
+附：
+
+![](./img/kafka10.webp)
 
 
 
@@ -1334,48 +1340,48 @@ int munmap(void *addr, size_t length);
 
 
 
-���Ǽ��ٿ���������һ�ַ����ǵ���mmap()������read����
+我们减少拷贝次数的一种方法是调用mmap()来代替read调用
 
 ```c
 buf = mmap(diskfd, len);
 write(sockfd, buf, len);
 ```
 
-Ӧ�ó������`mmap()`�������ϵ����ݻ�ͨ��`DMA`���������ں˻����������Ų���ϵͳ�������ں˻�������Ӧ�ó������������Ͳ���Ҫ���ں˻��������������û��ռ俽����Ӧ�ó����ٵ���`write()`,����ϵͳֱ�ӽ��ں˻����������ݿ�����`socket`�������У���һ�ж��������ں�̬�����`socket`�������ٰ����ݷ�������ȥ��
+应用程序调用`mmap()`，磁盘上的数据会通过`DMA`被拷贝的内核缓冲区，接着操作系统会把这段内核缓冲区与应用程序共享，这样就不需要把内核缓冲区的内容往用户空间拷贝。应用程序再调用`write()`,操作系统直接将内核缓冲区的内容拷贝到`socket`缓冲区中，这一切都发生在内核态，最后，`socket`缓冲区再把数据发到网卡去。
 
-![](img/kafka-io1.webp)
+![](./img/kafka-io1.webp)
 
-ʹ��mmap���read�����Լ�����һ�ο������������������ܴ�ʱ������������Ч�ʡ�
-
-
-
-**����**
-
-��ʹ��`mmap`ʱ�����ܻ�����һЩ���ص����塣���磬������`map`��һ���ļ������ǵ�����ļ�����һ�����̽ض�(`truncate`)ʱ, `write`ϵͳ���û���Ϊ���ʷǷ���ַ����`SIGBUS`�ź���ֹ��`SIGBUS`�ź�Ĭ�ϻ�ɱ����Ľ��̲�����һ��`coredump`,����������ᱻ��ֹ��
+使用mmap替代read很明显减少了一次拷贝，当拷贝数据量很大时，无疑提升了效率。
 
 
 
-**�������**
+**问题**
 
-1��ΪSIGBUS�źŽ����źŴ�������
-
-> ������`SIGBUS`�ź�ʱ���źŴ�������򵥵ط��أ�`write`ϵͳ�����ڱ��ж�֮ǰ�᷵���Ѿ�д����ֽ���������`errno`�ᱻ���ó�success,��������һ�����Ĵ����취����Ϊ�㲢û�н�������ʵ�ʺ��ġ�
-
-2��ʹ���ļ������
-
-> ͨ������ʹ�����ַ��������ļ���������ʹ�������������Ϊ�ļ����ں�����һ���������������������Ҫ�ض�����ļ�ʱ���ں˻������Ƿ���һ��ʵʱ��`RT_SIGNAL_LEASE`�źţ����������ں������ƻ���ӳ����ļ��ϵĶ�д���������ڳ�����ʷǷ��ڴ沢�ұ�`SIGBUS`ɱ��֮ǰ�����`write`ϵͳ���ûᱻ�жϡ�`write`�᷵���Ѿ�д����ֽ�����������`errno`Ϊsuccess��
+当使用`mmap`时，可能会遇到一些隐藏的陷阱。例如，当程序`map`了一个文件，但是当这个文件被另一个进程截断(`truncate`)时, `write`系统调用会因为访问非法地址而被`SIGBUS`信号终止。`SIGBUS`信号默认会杀死你的进程并产生一个`coredump`,这样，服务会被终止。
 
 
 
-����Ӧ����`mmap`�ļ�֮ǰ�����������ڲ������ļ��������
+**解决方法**
+
+1、为SIGBUS信号建立信号处理程序
+
+> 当遇到`SIGBUS`信号时，信号处理程序简单地返回，`write`系统调用在被中断之前会返回已经写入的字节数，并且`errno`会被设置成success,但是这是一种糟糕的处理办法，因为你并没有解决问题的实质核心。
+
+2、使用文件租借锁
+
+> 通常我们使用这种方法，在文件描述符上使用租借锁，我们为文件向内核申请一个租借锁，当其它进程想要截断这个文件时，内核会向我们发送一个实时的`RT_SIGNAL_LEASE`信号，告诉我们内核正在破坏你加持在文件上的读写锁。这样在程序访问非法内存并且被`SIGBUS`杀死之前，你的`write`系统调用会被中断。`write`会返回已经写入的字节数，并且置`errno`为success。
+
+
+
+我们应该在`mmap`文件之前加锁，并且在操作完文件后解锁：
 
 ```c
 if(fcntl(diskfd, F_SETSIG, RT_SIGNAL_LEASE) == -1) {
     perror("kernel lease set signal");
     return -1;
 }
-/* l_type can be F_RDLCK F_WRLCK  ����*/
-/* l_type can be  F_UNLCK ����*/
+/* l_type can be F_RDLCK F_WRLCK  加锁*/
+/* l_type can be  F_UNLCK 解锁*/
 if(fcntl(diskfd, F_SETLEASE, l_type)){
     perror("kernel lease set type");
     return -1;
@@ -1394,38 +1400,38 @@ if(fcntl(diskfd, F_SETLEASE, l_type)){
 ssize_t sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
 ```
 
-ϵͳ����`sendfile()`�ڴ��������ļ���������`in_fd`�ʹ�������ļ���������`out_fd`֮�䴫���ļ����ݣ��ֽڣ���<font color=#dd0000>������`out_fd`����ָ��һ���׽��֣�ֻ���ļ��� socket �������ݴ��䡣������`in_fd`ָ����ļ������ǿ���`mmap`�ġ�</font>��Щ����������`sendfile`��ʹ�ã�ʹ`sendfile`ֻ�ܽ����ݴ��ļ����ݵ��׽����ϣ���֮���С�
- ʹ��`sendfile`�������������ݿ����Ĵ��������������������л������ݴ���ʼ��ֻ������`kernel space`��
+系统调用`sendfile()`在代表输入文件的描述符`in_fd`和代表输出文件的描述符`out_fd`之间传送文件内容（字节）。<font color=#dd0000>描述符`out_fd`必须指向一个套接字（只是文件到 socket 进行数据传输。），而`in_fd`指向的文件必须是可以`mmap`的。</font>这些局限限制了`sendfile`的使用，使`sendfile`只能将数据从文件传递到套接字上，反之则不行。
+ 使用`sendfile`不仅减少了数据拷贝的次数，还减少了上下文切换，数据传送始终只发生在`kernel space`。
 
 
 
-![](img/kafka3.webp.)
+![](./img/kafka3.webp.)
 
-> �����ǵ���`sendfile`ʱ��������������̽ض����ļ��ᷢ��ʲô�أ���������û�������κ��źŴ�������`sendfile`���ý����������ڱ��ж�֮ǰ�Ѿ�������ֽ�����`errno`�ᱻ��Ϊsuccess����������ڵ���sendfile֮ǰ���ļ���������`sendfile`����Ϊ��Ȼ��֮ǰ��ͬ�����ǻ����յ�RT_SIGNAL_LEASE���źš�
-
-
-
-### ���� DMA �ռ��������ܵ� sendfile
+> 在我们调用`sendfile`时，如果有其它进程截断了文件会发生什么呢？假设我们没有设置任何信号处理程序，`sendfile`调用仅仅返回它在被中断之前已经传输的字节数，`errno`会被置为success。如果我们在调用sendfile之前给文件加了锁，`sendfile`的行为仍然和之前相同，我们还会收到RT_SIGNAL_LEASE的信号。
 
 
 
-ĿǰΪֹ�������Ѿ����������ݿ����Ĵ����ˣ�������Ȼ����һ�ο���������<font color=#dd0000>ҳ���浽socket����Ŀ���</font>����ô�ܲ��ܰ��������Ҳʡ���أ�
-
-������Ӳ���ϵİ����������ǿ��԰쵽�ġ�֮ǰ�����ǰ�ҳ��������ݿ�����socket�����У�ʵ���ϣ����ǽ�����Ҫ�ѻ���������������`socket`���������ٰ����ݳ��ȴ���ȥ������`DMA`������ֱ�ӽ�ҳ�����е����ݴ�����͵������оͿ����ˡ�
-
-�ܽ�һ�£�`sendfile`ϵͳ��������`DMA`���潫�ļ����ݿ������ں˻�����ȥ��Ȼ�󽫴����ļ�λ�úͳ�����Ϣ�Ļ���������������socket������ȥ����һ�����Ὣ�ں��е����ݿ�����socket�������У�`DMA`����Ὣ�ں˻����������ݿ�����Э��������ȥ�����������һ�ο�����
-
-������һ���ռ�������������ҪӲ���Լ���������֧�ֵġ�
+### 带有 DMA 收集拷贝功能的 sendfile
 
 
 
-![](img/kafka-io2.webp)
+目前为止，我们已经减少了数据拷贝的次数了，但是仍然存在一次拷贝，就是<font color=#dd0000>页缓存到socket缓存的拷贝</font>。那么能不能把这个拷贝也省略呢？
+
+借助于硬件上的帮助，我们是可以办到的。之前我们是把页缓存的数据拷贝到socket缓存中，实际上，我们仅仅需要把缓冲区描述符传到`socket`缓冲区，再把数据长度传过去，这样`DMA`控制器直接将页缓存中的数据打包发送到网络中就可以了。
+
+总结一下，`sendfile`系统调用利用`DMA`引擎将文件内容拷贝到内核缓冲区去，然后将带有文件位置和长度信息的缓冲区描述符添加socket缓冲区去，这一步不会将内核中的数据拷贝到socket缓冲区中，`DMA`引擎会将内核缓冲区的数据拷贝到协议引擎中去，避免了最后一次拷贝。
+
+不过这一种收集拷贝功能是需要硬件以及驱动程序支持的。
+
+
+
+![](./img/kafka-io2.webp)
 
 
 
 ### splice
 
-`sendfile`ֻ�����ڽ����ݴ��ļ��������׽����ϣ��޶�������ʹ�÷�Χ��Linux��`2.6.17`�汾����`splice`ϵͳ���ã������������ļ����������ƶ����ݣ�
+`sendfile`只适用于将数据从文件拷贝到套接字上，限定了它的使用范围。Linux在`2.6.17`版本引入`splice`系统调用，用于在两个文件描述符中移动数据：
 
 ```c
 #define _GNU_SOURCE         /* See feature_test_macros(7) */
@@ -1434,69 +1440,69 @@ ssize_t sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
 ssize_t splice(int fd_in, loff_t *off_in, int fd_out, loff_t *off_out, size_t len, unsigned int flags);
 ```
 
-`splice`�����������ļ�������֮���ƶ����ݣ�������Ҫ�������ں˿ռ���û��ռ����ؿ���������`fd_in`����`len`���ȵ����ݵ�`fd_out`������<font color=#dd0000>��һ�������ǹܵ��豸����Ҳ��Ŀǰ`splice`��һЩ�����ԡ�</font>
+`splice`调用在两个文件描述符之间移动数据，而不需要数据在内核空间和用户空间来回拷贝。他从`fd_in`拷贝`len`长度的数据到`fd_out`，但是<font color=#dd0000>有一方必须是管道设备，这也是目前`splice`的一些局限性。</font>
 
 
 
-`flags`������
+`flags`参数：
 
-> **SPLICE_F_MOVE** ������ȥ�ƶ����ݶ����ǿ������ݡ�������Ƕ��ں˵�һ��С��ʾ������ں˲��ܴ�`pipe`�ƶ����ݻ���`pipe`�Ļ��治��һ����ҳ�棬��Ȼ��Ҫ�������ݡ�Linux�����ʵ����Щ���⣬���Դ�`2.6.21`��ʼ���ѡ������ã������Linux�汾Ӧ�û�ʵ�֡�
+> **SPLICE_F_MOVE** ：尝试去移动数据而不是拷贝数据。这仅仅是对内核的一个小提示：如果内核不能从`pipe`移动数据或者`pipe`的缓存不是一个整页面，仍然需要拷贝数据。Linux最初的实现有些问题，所以从`2.6.21`开始这个选项不起作用，后面的Linux版本应该会实现。
 >
-> **SPLICE_F_NONBLOCK** ��`splice` �������ᱻ������Ȼ��������ļ�������û�б�����Ϊ���ɱ�������ʽ�� I/O ����ô���� splice �п�����Ȼ��������
+> **SPLICE_F_NONBLOCK** ：`splice` 操作不会被阻塞。然而，如果文件描述符没有被设置为不可被阻塞方式的 I/O ，那么调用 splice 有可能仍然被阻塞。
 >
-> **SPLICE_F_MORE**�� �����`splice`���û��и�������ݡ�
+> **SPLICE_F_MORE**： 后面的`splice`调用会有更多的数据。
 
 
 
-splice����������Linux����Ĺܵ����������ƣ� ��������һ��������ҪΪ�ܵ���
+splice调用利用了Linux提出的管道缓冲区机制， 所以至少一个描述符要为管道。
 
 
 
-## �ļ��ֶ�
+## 文件分段
 
- Kafka �Ķ��� topic ����Ϊ�˶���� partition, ÿ�� partition �ַ�Ϊ�˶�� segment������һ�������е���Ϣʵ�����Ǳ����� N ���Ƭ���ļ��С� 
+ Kafka 的队列 topic 被分为了多个区 partition, 每个 partition 又分为了多个 segment，所以一个队列中的消息实际上是保存在 N 多个片段文件中。 
 
-![](img/kafka4.webp)
+![](./img/kafka4.webp)
 
-ͨ���ֶεķ�ʽ��ÿ���ļ��������Ƕ�һ��С�ļ��Ĳ������ǳ���㣬ͬʱҲ�����˲��д��������� 
-
-
-
-## �������� batch
-
-�ͻ��˷�����Ϣ��`kafka`��������ʱ������һ���ڴ滺����Ƶġ� Ҳ����˵����Ϣ����д��һ���ڴ滺���У�Ȼ��ֱ��������Ϣ�����һ��Batch���Ż�һ������ͨ�Ű�Batch���͹�ȥ�� ����ͼ��ʾ��
-
-![](img/kafka11.webp)
-
-���꣺�ڴ滺����ɵ�Ƶ��GC������ν����
+通过分段的方式，每次文件操作都是对一个小文件的操作，非常轻便，同时也增加了并行处理能力。 
 
 
 
-�����ڴ滺����Ƶı��⣬��ʵ���ǰѶ�����Ϣ���һ��Batch��һ�������������һ��Batch���߶��Batch��
+## 批量发送 batch
 
-����ÿ���������󶼿��Է��ͺܶ����ݹ�ȥ��������һ����Ϣһ���������󡣴Ӷ�������������������λʱ���ڷ��͵���������
+客户端发送消息给`kafka`服务器的时候，是有一个内存缓冲机制的。 也就是说，消息会先写入一个内存缓冲中，然后直到多条消息组成了一个Batch，才会一次网络通信把Batch发送过去。 如下图所示：
 
-�����������ˣ�һ��Batch�е����ݣ���ȡ����Ȼ���װ�ڵײ��������ͨ�����緢�ͳ�ȥ����Kafka�������� �ȵ����Batch������ݶ����͹�ȥ�ˣ�����Batch�������Ӧ����ô������ 
+![](./img/kafka11.webp)
 
-Ҫ֪������ЩBatch������ݴ�ʱ�ɻ��ڿͻ��˵�JVM���ڴ��ﰡ����ô��ʱ�Ӵ���ʵ�ֲ��棬һ���᳢�Ա����κα���ȥ������ЩBatch��Ӧ�����ݣ�Ȼ���Դ���JVM�Զ����յ���Щ�ڴ�������
+延申：内存缓冲造成的频繁GC问题如何解决？
 
-�������ϵ���JVM�����������Ϳ��Բ��ϵ��������Ѿ����ͳɹ���Batch�ˣ�Ȼ��Ϳ��Բ��ϵ��ڳ����µ��ڴ�ռ��ú����µ�������ʹ�á�
 
-->  ʵ���������е�ʱ��һ���������⣬**�������⣬����JVM GC���⡣** ���£�
 
-![](img/kafka12.webp)
+这种内存缓冲机制的本意，其实就是把多条消息组成一个Batch，一次网络请求就是一个Batch或者多个Batch。
 
-Kafkaʵ�ֵĻ���ػ���
+这样每次网络请求都可以发送很多数据过去，避免了一条消息一次网络请求。从而提升了吞吐量，即单位时间内发送的数据量。
 
-![](img/kafka13.webp)
+但是问题来了，一个Batch中的数据，会取出来然后封装在底层的网络包里，通过网络发送出去到达Kafka服务器。 等到这个Batch里的数据都发送过去了，现在Batch里的数据应该怎么处理？ 
 
-���ã�
+要知道，这些Batch里的数据此时可还在客户端的JVM的内存里啊！那么此时从代码实现层面，一定会尝试避免任何变量去引用这些Batch对应的数据，然后尝试触发JVM自动回收掉这些内存垃圾。
+
+这样不断的让JVM回收垃圾，就可以不断的清理掉已经发送成功的Batch了，然后就可以不断的腾出来新的内存空间让后面新的数据来使用。
+
+->  实际线上运行的时候一定会有问题，**最大的问题，就是JVM GC问题。** 如下：
+
+![](./img/kafka12.webp)
+
+Kafka实现的缓冲池机制
+
+![](./img/kafka13.webp)
+
+配置：
 
 ```properties
-# �����߿����ڻ���ȴ����͵��������ļ�¼���ڴ����ֽ�����
-# �����¼���͵��ٶȱȷ��͵����������ٶȿ죬��ô�����߽�����max.block��֮�������׳�һ���쳣��
-# ������Ӧ�ô��¶�Ӧ�������߽�ʹ�õ����ڴ棬������Ӳ���ƣ���Ϊ������ʹ�õĲ��������ڴ涼���ڻ��塣
-# һЩ������ڴ潫����ѹ��(���������ѹ��)�Լ�ά�������е�����
+# 生产者可用于缓冲等待发送到服务器的记录的内存总字节数。
+# 如果记录发送的速度比发送到服务器的速度快，那么生产者将阻塞max.block。之后，它将抛出一个异常。
+# 此设置应该大致对应于生产者将使用的总内存，但不是硬限制，因为生产者使用的并非所有内存都用于缓冲。
+# 一些额外的内存将用于压缩(如果启用了压缩)以及维护运行中的请求。
 buffer.memory = 33554432 # 32M
 max.block.ms = 60000
 
@@ -1506,15 +1512,15 @@ linger.ms = 0
 
 
 
-## ����ѹ��
+## 数据压缩
 
- Kafka֧�ֶ�����Ϣѹ����ʽ��gzip��snappy��lz4�� 
+ Kafka支持多种消息压缩方式（gzip、snappy、lz4） 
 
 
 
-## ҳ����
+## 页缓存
 
-�����ʵʱ��linux����ϵͳ�����ṩ���Ż���
+这个其实时在linux操作系统层面提供的优化。
 
 [https://www.jianshu.com/p/3b6612318c23](https://www.jianshu.com/p/3b6612318c23)
 

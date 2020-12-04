@@ -1402,6 +1402,7 @@ Number  Start   End     Size    File system  Name  标志
 
 ```shell
 (parted) mkpart
+Partition type?  primary/extended? primary
 分区名称？  []?
 文件系统类型？  [ext2]? ext4
 起始点？ 552GB

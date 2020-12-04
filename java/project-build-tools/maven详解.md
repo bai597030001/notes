@@ -696,3 +696,36 @@ $ $ mvn -Drevision=1.0.0-SNAPSHOT clean package
 </plugin>
 ```
 
+
+
+# 版本号规范
+
+A.B.C
+
+A 表示大版本号，一般当软件整体重写，或出现不向后兼容的改变时，增加A，A为零时表示软件还在开发阶段。
+
+B 表示功能更新，出现新功能时增加B
+
+C 表示小修改，如修复bug，只要有修改就增加C
+
+
+
+> alpha: 内部版本
+>
+> beta: 测试版
+>
+> rc: 即将作为正式版发布
+>
+> lts: 长期维护
+>
+> releases: 发布版本
+
+
+
+随着 Github 的出现，越来越多的人可以参与到贡献开源代码的活动中，版本号规则越来越混乱。
+
+Github 起草了一个具有指导意义的，统一的版本号表示规则，称为 Semantic Versioning(语义化版本表示). 该规则规定了版本号如何表示，如何增加，如何进行
+
+比较，不同的版本号意味着什么。
+
+官网：[Semantic Versioning 2.0.0](https://link.zhihu.com/?target=http%3A//semver.org/) （中文版 [http://semver.org/lang/zh-CN/](https://link.zhihu.com/?target=http%3A//semver.org/lang/zh-CN/)）
