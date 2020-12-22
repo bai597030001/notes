@@ -122,6 +122,413 @@ headers 匹配 AMQP 消息的 header 而不是路由键，此外 headers 交换�
 
 topic 交换器有点类似于 direct 交换器，它通过模式匹配分配消息的路由键属性，将路由键和某个模式进行匹配，此时队列需要绑定到一个模式上。它将路由键和绑定键的字符串切分成单词，这些单词之间用点隔开。它同样也会识别两个通配符：符号“#”和符号"* " 。#匹配0个或多个单词，*匹配不多不少一个单词。
 
+# RabbitMQ工作模式
+
+## simple模式（即最简单的收发模式）
+
+![](./img/rabbit_mq3.png)
+
+```java
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
+
+import java.io.IOException;
+import java.util.concurrent.TimeoutException;
+
+public class ConnectionUtils {
+    /**
+     * 连接器
+     * @return
+     * @throws IOException
+     * @throws TimeoutException
+     */
+    public static Connection getConnection() throws IOException, TimeoutException {
+        ConnectionFactory factory = new ConnectionFactory();
+        factory.setHost("127.0.0.1");
+        factory.setPort(5672);
+        factory.setVirtualHost("/vhost_mmr");
+        factory.setUsername("user_mmr");
+        factory.setPassword("sowhat");
+        Connection connection = factory.newConnection();
+        return connection;
+    }
+}
+```
+
+
+
+```java
+import com.rabbitmq.client.AMQP;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.sowhat.mq.util.ConnectionUtils;
+
+import java.io.IOException;
+import java.util.concurrent.TimeoutException;
+
+public class Send {
+    public static final String QUEUE_NAME = "test_simple_queue";
+
+    public static void main(String[] args) throws IOException, TimeoutException {
+        // 获取一个连接
+        Connection connection = ConnectionUtils.getConnection();
+        // 从连接获取一个通道
+        Channel channel = connection.createChannel();
+        // 创建队列声明
+        AMQP.Queue.DeclareOk declareOk = channel.queueDeclare(QUEUE_NAME, false, false, false, null);
+
+        String msg = "hello Simple";
+        // exchange，队列，参数，消息字节体
+        channel.basicPublish("", QUEUE_NAME, null, msg.getBytes());
+
+        System.out.println("--send msg:" + msg);
+
+        channel.close();
+
+        connection.close();
+
+    }
+}
+```
+
+
+
+```java
+import com.rabbitmq.client.*;
+import com.sowhat.mq.util.ConnectionUtils;
+
+import java.io.IOException;
+import java.util.concurrent.TimeoutException;
+
+/**
+ * 消费者获取消息
+ */
+public class Recv {
+    public static void main(String[] args) throws IOException, TimeoutException, InterruptedException {
+        newApi();
+        oldApi();
+    }
+
+    private static void newApi() throws IOException, TimeoutException {
+        // 创建连接
+        Connection connection = ConnectionUtils.getConnection();
+        // 创建频道
+        Channel channel = connection.createChannel();
+        // 队列声明  队列名，是否持久化，是否独占模式，无消息后是否自动删除，消息携带参数
+        channel.queueDeclare(Send.QUEUE_NAME,false,false,false,null);
+        // 定义消费者
+        DefaultConsumer defaultConsumer = new DefaultConsumer(channel) {
+            @Override  // 事件模型，消息来了会触发该函数
+            public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties, byte[] body) throws IOException {
+                String s = new String(body, "utf-8");
+                System.out.println("---new api recv:" + s);
+            }
+        };
+        // 监听队列
+        channel.basicConsume(Send.QUEUE_NAME,true,defaultConsumer);
+    }
+
+    // 老方法 消费者 MQ 在3。4以下 用次方法，
+    private static void oldApi() throws IOException, TimeoutException, InterruptedException {
+        // 创建连接
+        Connection connection = ConnectionUtils.getConnection();
+        // 创建频道
+        Channel channel = connection.createChannel();
+        // 定义队列消费者
+        QueueingConsumer consumer = new QueueingConsumer(channel);
+        //监听队列
+        channel.basicConsume(Send.QUEUE_NAME, true, consumer);
+        while (true) {
+            // 发货体
+            QueueingConsumer.Delivery delivery = consumer.nextDelivery();
+            byte[] body = delivery.getBody();
+            String s = new String(body);
+            System.out.println("---Recv:" + s);
+        }
+    }
+}
+```
+
+
+
+## WorkQueue 工作队列
+
+Simple队列中只能一一对应的生产消费，实际开发中生产者发消息很简单，而消费者要跟业务结合，消费者接受到消息后要处理从而会耗时。**「可能会出现队列中出现消息积压」**。所以如果多个消费者可以加速消费。
+
+![](./img/rabbit_mq_4.png)
+
+
+
+### round robin 轮询分发
+
+消费者1 跟消费者2 处理的数据量完全一样的个数：消费者1:处理偶数 消费者2:处理奇数 这种方式叫`轮询分发(round-robin)`结果就是不管两个消费者谁忙，**「数据总是你一个我一个」**，MQ 给两个消费发数据的时候是不知道消费者性能的，默认就是雨露均沾。此时 autoAck = true。
+
+![](./img/rabbit_mq_5.png)
+
+```java
+import com.rabbitmq.client.AMQP;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.sowhat.mq.util.ConnectionUtils;
+
+import java.io.IOException;
+import java.util.concurrent.TimeoutException;
+
+public class Send {
+    public static final String  QUEUE_NAME = "test_work_queue";
+    public static void main(String[] args) throws IOException, TimeoutException, InterruptedException {
+        // 获取连接
+        Connection connection = ConnectionUtils.getConnection();
+        // 获取 channel
+        Channel channel = connection.createChannel();
+        // 声明队列
+        AMQP.Queue.DeclareOk declareOk = channel.queueDeclare(QUEUE_NAME, false, false, false, null);
+        for (int i = 0; i <50 ; i++) {
+            String msg = "hello-" + i;
+            System.out.println("WQ send " + msg);
+            channel.basicPublish("",QUEUE_NAME,null,msg.getBytes());
+            Thread.sleep(i*20);
+        }
+        channel.close();
+        connection.close();
+    }
+}
+```
+
+
+
+```java
+import com.rabbitmq.client.*;
+import com.sowhat.mq.util.ConnectionUtils;
+
+import java.io.IOException;
+import java.util.concurrent.TimeoutException;
+
+public class Recv1 {
+    public static void main(String[] args) throws IOException, TimeoutException {
+        // 获取连接
+        Connection connection = ConnectionUtils.getConnection();
+        // 获取通道
+        Channel channel = connection.createChannel();
+        // 声明队列
+        channel.queueDeclare(Send.QUEUE_NAME, false, false, false, null);
+        //定义消费者
+        DefaultConsumer consumer = new DefaultConsumer(channel) {
+
+            @Override // 事件触发机制
+            public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties, byte[] body) throws IOException {
+                String s = new String(body, "utf-8");
+                System.out.println("【1】：" + s);
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } finally {
+                    System.out.println("【1】 done");
+                }
+            }
+        };
+        boolean autoAck = true;
+        channel.basicConsume(Send.QUEUE_NAME, autoAck, consumer);
+    }
+}
+
+import com.rabbitmq.client.*;
+import com.sowhat.mq.util.ConnectionUtils;
+
+import java.io.IOException;
+import java.util.concurrent.TimeoutException;
+
+public class Recv2 {
+    public static void main(String[] args) throws IOException, TimeoutException {
+        // 获取连接
+        Connection connection = ConnectionUtils.getConnection();
+        // 获取通道
+        Channel channel = connection.createChannel();
+        // 声明队列
+        channel.queueDeclare(Send.QUEUE_NAME, false, false, false, null);
+        //定义消费者
+        DefaultConsumer consumer = new DefaultConsumer(channel) {
+
+            @Override // 事件触发机制
+            public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties, byte[] body) throws IOException {
+                String s = new String(body, "utf-8");
+                System.out.println("【2】：" + s);
+                try {
+                    Thread.sleep(1000 );
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } finally {
+                    System.out.println("【2】 done");
+                }
+            }
+        };
+        boolean autoAck = true;
+        channel.basicConsume(Send.QUEUE_NAME, autoAck, consumer);
+    }
+}
+```
+
+
+
+### 公平分发 fair dipatch
+
+如果要实现`公平分发`，要让消费者消费完毕一条数据后就告知MQ，再让MQ发数据即可。自动应答要关闭！
+
+```java
+import com.rabbitmq.client.AMQP;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.sowhat.mq.util.ConnectionUtils;
+
+import java.io.IOException;
+import java.util.concurrent.TimeoutException;
+
+public class Send {
+    public static final String  QUEUE_NAME = "test_work_queue";
+    public static void main(String[] args) throws IOException, TimeoutException, InterruptedException {
+        // 获取连接
+        Connection connection = ConnectionUtils.getConnection();
+        // 获取 channel
+        Channel channel = connection.createChannel();
+        // s声明队列
+        AMQP.Queue.DeclareOk declareOk = channel.queueDeclare(QUEUE_NAME, false, false, false, null);
+
+        // 每个消费者发送确认消息之前，消息队列不发送下一个消息到消费者，一次只发送一个消息
+        // 从而限制一次性发送给消费者到消息不得超过1个。
+        int perfetchCount = 1;
+        channel.basicQos(perfetchCount);
+
+        for (int i = 0; i <50 ; i++) {
+            String msg = "hello-" + i;
+            System.out.println("WQ send " + msg);
+            channel.basicPublish("",QUEUE_NAME,null,msg.getBytes());
+            Thread.sleep(i*20);
+        }
+        channel.close();
+        connection.close();
+    }
+}
+```
+
+
+
+```java
+import com.rabbitmq.client.*;
+import com.sowhat.mq.util.ConnectionUtils;
+
+import java.io.IOException;
+import java.util.concurrent.TimeoutException;
+
+public class Recv1 {
+    public static void main(String[] args) throws IOException, TimeoutException {
+        // 获取连接
+        Connection connection = ConnectionUtils.getConnection();
+        // 获取通道
+        final Channel channel = connection.createChannel();
+        // 声明队列
+        channel.queueDeclare(Send.QUEUE_NAME, false, false, false, null);
+        // 保证一次只分发一个
+        channel.basicQos(1);
+        //定义消费者
+        DefaultConsumer consumer = new DefaultConsumer(channel) {
+
+            @Override // 事件触发机制
+            public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties, byte[] body) throws IOException {
+                String s = new String(body, "utf-8");
+                System.out.println("【1】：" + s);
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } finally {
+                    System.out.println("【1】 done");
+                    // 手动回执
+                    channel.basicAck(envelope.getDeliveryTag(),false);
+                }
+            }
+        };
+        // 自动应答
+        boolean autoAck = false;
+        channel.basicConsume(Send.QUEUE_NAME, autoAck, consumer);
+    }
+}
+```
+
+
+
+```java
+import com.rabbitmq.client.*;
+import com.sowhat.mq.util.ConnectionUtils;
+
+import java.io.IOException;
+import java.util.concurrent.TimeoutException;
+
+public class Recv2 {
+    public static void main(String[] args) throws IOException, TimeoutException {
+        // 获取连接
+        Connection connection = ConnectionUtils.getConnection();
+        // 获取通道
+        final Channel channel = connection.createChannel();
+        // 声明队列
+        channel.queueDeclare(Send.QUEUE_NAME, false, false, false, null);
+        // 保证一次只分发一个
+        channel.basicQos(1);
+        //定义消费者
+        DefaultConsumer consumer = new DefaultConsumer(channel) {
+
+            @Override // 事件触发机制
+            public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties, byte[] body) throws IOException {
+                String s = new String(body, "utf-8");
+                System.out.println("【2】：" + s);
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } finally {
+                    System.out.println("【2】 done");
+                    // 手动回执
+                    channel.basicAck(envelope.getDeliveryTag(),false);
+                }
+            }
+        };
+        // 自动应答
+        boolean autoAck = false;
+        channel.basicConsume(Send.QUEUE_NAME, autoAck, consumer);
+    }
+}
+```
+
+
+
+
+
+## publish/subscribe 发布订阅模式
+
+1. 一个生产者多个消费者
+2. 每一个消费者都有一个自己的队列
+3. 生产者没有把消息直接发送到队列而是发送到了`交换机转化器(exchange)`。
+4. 每一个队列都要绑定到交换机上。
+5. 生产者发送的消息经过交换机到达队列，从而实现一个消息被多个消费者消费。
+
+### routing 路由选择 通配符模式
+
+Exchange(交换机，转发器)：**「一方面接受生产者消息，另一方面是向队列推送消息」**。匿名转发用 ""  表示，比如前面到简单队列跟WorkQueue。
+
+`fanout`：不处理路由键。**「不需要指定routingKey」**，我们只需要把队列绑定到交换机， **「消息就会被发送到所有到队列中」**。
+
+`direct`：处理路由键，**「需要指定routingKey」**，此时生产者发送数据到时候会指定key，任务队列也会指定key，只有key一样消息才会被传送到队列中。
+
+如下图
+
+![](./img/rabbit_mq_6.png)
+
+### Topics 主题
+
+将路由键跟某个模式匹配，# 表示匹配 >=1个字符， *表示匹配一个。生产者会带routingKey，但是消费者的MQ会带模糊routingKey。
+
+![](./img/rabbit_mq_7.png)
+
 
 
 # 客户端
@@ -227,6 +634,302 @@ public class Consumer {
         }
     }
 }
+```
+
+# 死信队列
+
+死信队列：没有被及时消费的消息存放的队列，消息没有被及时消费有以下几点原因：
+
+**a.消息被拒绝（channel.basicNack/channel.basicReject）并且不再重新投递 requeue=false**
+
+**b.TTL(time-to-live)：消息在队列的存活时间超过设置的TTL时间**
+
+**c.消息队列的消息数量已经超过最大队列长度**
+
+> 消息变成死信后，会被重新投递（publish）到另一个交换机上（Exchange）,这个交换机往往被称为DLX(dead-letter-exchange)“死信交换机”，然后交换机根据绑定规则转发到对应的队列上，监听该队列就可以被重新消费。
+>
+> 生产者-->发送消息-->交换机-->队列-->变成死信队列-->DLX交换机-->队列-->监听-->消费者
+
+```java
+args.put("x-dead-letter-exchange", "some-exchange-name");
+args.put("x-dead-letter-routing-key", "some-rounting-key");
+channel.queueDeclare(queueName, true, false, false, args);
+```
+
+## 如何配置死信队列
+
+1. 配置业务队列，绑定到业务交换机上
+2. 为业务队列配置死信交换机和路由key
+3. 为死信交换机配置死信队列、
+
+注意：并不是直接声明一个公共的死信队列，然后所以死信消息就自己跑到死信队列里去了。而是为每个需要使用死信的业务队列配置一个死信交换机，这里同一个项目的死信交换机可以共用一个，然后为每个业务队列分配一个单独的路由key。
+
+
+有了死信交换机和路由key后，接下来，就像配置业务队列一样，配置死信队列，然后绑定在死信交换机上。也就是说，死信队列并不是什么特殊的队列，只不过是绑定在死信交换机上的队列。死信交换机也不是什么特殊的交换机，只不过是用来接受死信的交换机，所以可以为任何类型【Direct、Fanout、Topic】。一般来说，会为每个业务队列分配一个独有的路由key，并对应的配置一个死信队列进行监听，也就是说，一般会为每个重要的业务队列配置一个死信队列。
+
+
+
+创建一个Springboot项目。然后在pom文件中添加 `spring-boot-starter-amqp` 和 `spring-boot-starter-web` 的依赖，接下来创建一个Config类
+
+```java
+@Configuration
+public class RabbitMQConfig {
+    public static final String BUSINESS_EXCHANGE_NAME = "dead.letter.demo.simple.business.exchange";
+    public static final String BUSINESS_QUEUEA_NAME = "dead.letter.demo.simple.business.queuea";
+    public static final String BUSINESS_QUEUEB_NAME = "dead.letter.demo.simple.business.queueb";
+    public static final String DEAD_LETTER_EXCHANGE = "dead.letter.demo.simple.deadletter.exchange";
+    public static final String DEAD_LETTER_QUEUEA_ROUTING_KEY = "dead.letter.demo.simple.deadletter.queuea.routingkey";
+    public static final String DEAD_LETTER_QUEUEB_ROUTING_KEY = "dead.letter.demo.simple.deadletter.queueb.routingkey";
+    public static final String DEAD_LETTER_QUEUEA_NAME = "dead.letter.demo.simple.deadletter.queuea";
+    public static final String DEAD_LETTER_QUEUEB_NAME = "dead.letter.demo.simple.deadletter.queueb";
+    
+    // 声明业务Exchange @Bean("businessExchange")
+    public FanoutExchange businessExchange() {
+        return new FanoutExchange(BUSINESS_EXCHANGE_NAME);
+    }
+
+    // 声明死信Exchange 
+    @Bean("deadLetterExchange")
+    public DirectExchange deadLetterExchange() {
+        return new DirectExchange(DEAD_LETTER_EXCHANGE);
+    }
+
+    // 声明业务队列A 
+    @Bean("businessQueueA")
+    public Queue businessQueueA() {
+        Map<String, Object> args = new HashMap<>(2);
+        // x-dead-letter-exchange 这里声明当前队列绑定的死信交换机 
+        args.put("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE);
+        // x-dead-letter-routing-key 这里声明当前队列的死信路由key 
+        args.put("x-dead-letter-routing-key", DEAD_LETTER_QUEUEA_ROUTING_KEY);
+        return QueueBuilder.durable(BUSINESS_QUEUEA_NAME).withArguments(args).build();
+    }
+
+    // 声明业务队列B @Bean("businessQueueB") 
+    public Queue businessQueueB() {
+        Map<String, Object> args = new HashMap<>(2);
+        // x-dead-letter-exchange 这里声明当前队列绑定的死信交换机 
+        args.put("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE);
+        // x-dead-letter-routing-key 这里声明当前队列的死信路由key 
+        args.put("x-dead-letter-routing-key", DEAD_LETTER_QUEUEB_ROUTING_KEY);
+        return QueueBuilder.durable(BUSINESS_QUEUEB_NAME).withArguments(args).build();
+    }
+
+    // 声明死信队列A @Bean("deadLetterQueueA") 
+    public Queue deadLetterQueueA() {
+        return new Queue(DEAD_LETTER_QUEUEA_NAME);
+    }
+
+    // 声明死信队列B 
+    @Bean("deadLetterQueueB")
+    public Queue deadLetterQueueB() {
+        return new Queue(DEAD_LETTER_QUEUEB_NAME);
+    }
+
+    // 声明业务队列A绑定关系 
+    @Bean
+    public Binding businessBindingA(@Qualifier("businessQueueA") Queue queue, @Qualifier("businessExchange") FanoutExchange exchange) {
+        return BindingBuilder.bind(queue).to(exchange);
+    }
+
+    // 声明业务队列B绑定关系 
+    @Bean
+    public Binding businessBindingB(@Qualifier("businessQueueB") Queue queue, @Qualifier("businessExchange") FanoutExchange exchange) {
+        return BindingBuilder.bind(queue).to(exchange);
+    }
+
+    // 声明死信队列A绑定关系 
+    @Bean
+    public Binding deadLetterBindingA(@Qualifier("deadLetterQueueA") Queue queue, @Qualifier("deadLetterExchange") DirectExchange exchange) {
+        return BindingBuilder.bind(queue).to(exchange).with(DEAD_LETTER_QUEUEA_ROUTING_KEY);
+    }
+
+    // 声明死信队列B绑定关系 
+    @Bean
+    public Binding deadLetterBindingB(@Qualifier("deadLetterQueueB") Queue queue, @Qualifier("deadLetterExchange") DirectExchange exchange) {
+        return BindingBuilder.bind(queue).to(exchange).with(DEAD_LETTER_QUEUEB_ROUTING_KEY);
+    }
+}
+```
+
+这里声明了两个Exchange，一个是业务Exchange，另一个是死信Exchange，业务Exchange下绑定了两个业务队列，业务队列都配置了同一个死信Exchange，并分别配置了路由key，在死信Exchange下绑定了两个死信队列，设置的路由key分别为业务队列里配置的路由key。
+
+下面是配置文件application.yml：
+
+```yaml
+spring: 
+	rabbitmq: host: 
+	localhost 
+	password: guest 
+	username: guest 
+	listener: 
+		type: simple 
+		simple: default-requeue-rejected: false 
+		acknowledge-mode: manual
+```
+
+接下来，是业务队列的消费代码：
+
+```java
+@Slf4j
+@Component
+public class BusinessMessageReceiver {
+    @RabbitListener(queues = BUSINESS_QUEUEA_NAME)
+    public void receiveA(Message message, Channel channel) throws IOException {
+        String msg = new String(message.getBody());
+        log.info("收到业务消息A：{}", msg);
+        boolean ack = true;
+        Exception exception = null;
+        try {
+            if (msg.contains("deadletter")) {
+                throw new RuntimeException("dead letter exception");
+            }
+        } catch (Exception e) {
+            ack = false;
+            exception = e;
+        }
+        if (!ack) {
+            log.error("消息消费发生异常，error msg:{}", exception.getMessage(), exception);
+            channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, false);
+        } else {
+            channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
+        }
+    }
+
+    @RabbitListener(queues = BUSINESS_QUEUEB_NAME)
+    public void receiveB(Message message, Channel channel) throws IOException {
+        System.out.println("收到业务消息B：" + new String(message.getBody()));
+        channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
+    }
+}
+```
+
+然后配置死信队列的消费者
+
+```java
+@Component
+public class DeadLetterMessageReceiver {
+    @RabbitListener(queues = DEAD_LETTER_QUEUEA_NAME)
+    public void receiveA(Message message, Channel channel) throws IOException {
+        System.out.println("收到死信消息A：" + new String(message.getBody()));
+        log.info("死信消息properties：{}", message.getMessageProperties());
+        channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
+    }
+
+    @RabbitListener(queues = DEAD_LETTER_QUEUEB_NAME)
+    public void receiveB(Message message, Channel channel) throws IOException {
+        System.out.println("收到死信消息B：" + new String(message.getBody()));
+        log.info("死信消息properties：{}", message.getMessageProperties());
+        channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
+    }
+}
+```
+
+最后，写一个简单的消息生产者，并通过controller层来生产消息。
+
+```java
+@Component
+public class BusinessMessageSender {
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+
+    public void sendMsg(String msg) {
+        rabbitTemplate.convertSendAndReceive(BUSINESS_EXCHANGE_NAME, "", msg);
+    }
+}
+```
+
+```java
+@RequestMapping("rabbitmq")
+@RestController
+public class RabbitMQMsgController {
+    @Autowired
+    private BusinessMessageSender sender;
+
+    @RequestMapping("sendmsg")
+    public void sendMsg(String msg) {
+        sender.sendMsg(msg);
+    }
+}
+```
+
+
+
+```shell
+$ curl http://localhost:8080/rabbitmq/sendmsg?msg=msg
+```
+
+```log
+收到业务消息A：msg
+收到业务消息B：msg
+```
+
+```shell
+$ curl http://localhost:8080/rabbitmq/sendmsg?msg=deadletter
+```
+
+这将会触发业务队列A的NCK，按照预期，消息被NCK后，会抛到死信队列中，因此死信队列将会出现这个消息，日志如下：
+
+```log
+收到业务消息A：deadletter 
+消息消费发生异常，error msg:dead letter exception 
+java.lang.RuntimeException: dead letter exception
+...
+收到死信消息A：deadletter
+```
+
+## 死信消息的变化
+
+“死信”被丢到死信队列中后，会发生什么变化
+
+如果队列配置了参数 `x-dead-letter-routing-key` 的话，“死信”的路由key将会被替换成该参数对应的值。如果没有设置，则保留该消息原有的路由key。
+
+举个栗子：
+
+如果原有消息的路由key是`testA`，被发送到业务Exchage中，然后被投递到业务队列QueueA中，如果该队列没有配置参数`x-dead-letter-routing-key`，则该消息成为死信后，将保留原有的路由key`testA`，如果配置了该参数，并且值设置为`testB`，那么该消息成为死信后，路由key将会被替换为`testB`，然后被抛到死信交换机中。
+
+另外，由于被抛到了死信交换机，所以消息的Exchange Name也会被替换为死信交换机的名称。
+
+消息的Header中，也会添加很多奇奇怪怪的字段：
+
+```log
+死信消息properties：MessageProperties [headers={x-first-death-exchange=dead.letter.demo.simple.business.exchange, x-death=[{reason=rejected, count=1, exchange=dead.letter.demo.simple.business.exchange, time=Sun Jul 14 16:48:16 CST 2019, routing-keys=[], queue=dead.letter.demo.simple.business.queuea}], x-first-death-reason=rejected, x-first-death-queue=dead.letter.demo.simple.business.queuea}, correlationId=1, replyTo=amq.rabbitmq.reply-to.g2dkABZyYWJiaXRAREVTS1RPUC1DUlZGUzBOAAAPQAAAAAAB.bLbsdR1DnuRSwiKKmtdOGw==, contentType=text/plain, contentEncoding=UTF-8, contentLength=0, receivedDeliveryMode=PERSISTENT, priority=0, redelivered=false, receivedExchange=dead.letter.demo.simple.deadletter.exchange, receivedRoutingKey=dead.letter.demo.simple.deadletter.queuea.routingkey, deliveryTag=1, consumerTag=amq.ctag-NSp18SUPoCNvQcoYoS2lPg, consumerQueue=dead.letter.demo.simple.deadletter.queuea]
+```
+
+| 字段名                 | 含义                                                         |
+| :--------------------- | :----------------------------------------------------------- |
+| x-first-death-exchange | 第一次被抛入的死信交换机的名称                               |
+| x-first-death-reason   | 第一次成为死信的原因，`rejected`：消息在重新进入队列时被队列拒绝，由于`default-requeue-rejected` 参数被设置为`false`。`expired` ：消息过期。`maxlen` ： 队列内消息数量超过队列最大容量 |
+| x-first-death-queue    | 第一次成为死信前所在队列名称                                 |
+| x-death                | 历次被投入死信交换机的信息列表，同一个消息每次进入一个死信交换机，这个数组的信息就会被更新 |
+
+## 死信队列应用场景
+
+一般用在较为重要的业务队列中，确保未被正确消费的消息不被丢弃，一般发生消费异常可能原因主要有由于消息信息本身存在错误导致处理异常，处理过程中参数校验异常，或者因网络波动导致的查询异常等等，当发生异常时，通过配置死信队列，可以让未正确处理的消息暂存到另一个队列中，待后续排查清楚问题后，编写相应的处理代码来处理死信消息，这样比手工恢复数据要好太多了。
+
+## 总结
+
+死信队列其实并没有什么神秘的地方，不过是绑定在死信交换机上的普通队列，而死信交换机也只是一个普通的交换机，不过是用来专门处理死信的交换机。
+来源: 弗兰克的猫
+
+死信消息的生命周期：
+
+1. 业务消息被投入业务队列
+2. 消费者消费业务队列的消息，由于处理过程中发生异常，于是进行了nck或者reject操作
+3. 被nck或reject的消息由RabbitMQ投递到死信交换机中
+4. 死信交换机将消息投入相应的死信队列
+5. 死信队列的消费者消费死信消息
+
+# 延迟队列
+
+延迟队列，我们可以通过死信交换机来完成。
+
+生产者发送消息，定义2S后消息过期，消息就回进入死信交换机，最后进到死信队列；消费者可以从死信队列获取消息，这样就可以得到延迟后的消息。
+
+当然，还可以安装启用延迟插件。
+
+```shell
+$ rabbitmq-plugins enable rabbitmq_delayed_message_exchange
 ```
 
 # HA
@@ -430,6 +1133,73 @@ confirm模式最大的好处在于他是异步的，一旦发布一条消息，�
 
 生产者通过调用channel.confirmSelect()方法将channel设置为confirm模式
 
+## mandatory
+
+事务机制和publisher confirm机制确保的是消息能够正确的发送至RabbitMQ，这里的“发送至RabbitMQ”的含义是指消息被正确的发往至RabbitMQ的交换器，如果此交换器没有匹配的队列的话，那么消息也将会丢失
+
+**有两个解决方案:**
+
+1. 使用mandatory 设置true
+
+2. 利用备份交换机（alternate-exchange）：实现没有路由到队列的消息
+
+```java
+void basicPublish(String exchange, String routingKey, boolean mandatory, boolean immediate, BasicProperties props, byte[] body)
+            throws IOException;
+```
+
+```java
+/**
+     * 当mandatory标志位设置为true时，如果exchange根据自身类型和消息routeKey无法找到一个符合条件的queue， 那么会调用basic.return方法将消息返回给生产者<br>
+     * 当mandatory设置为false时，出现上述情形broker会直接将消息扔掉。
+     */
+    @Setter(AccessLevel.PACKAGE)
+    private boolean mandatory = false;
+
+    /**
+     * 当immediate标志位设置为true时，如果exchange在将消息路由到queue(s)时发现对应的queue上没有消费者， 那么这条消息不会放入队列中。
+     * 
+     * 当immediate标志位设置为false时,exchange路由的队列没有消费者时，该消息会通过basic.return方法返还给生产者。
+     * RabbitMQ 3.0版本开始去掉了对于immediate参数的支持，对此RabbitMQ官方解释是：这个关键字违背了生产者和消费者之间解耦的特性，因为生产者不关心消息是否被消费者消费掉
+     */
+    @Setter(AccessLevel.PACKAGE)
+    private boolean immediate;
+```
+
+所以为了保证消息的可靠性，需要设置发送消息代码逻辑。如果不单独形式设置mandatory=false
+
+使用mandatory 设置true的时候有个关键点要调整，生产者如何获取到没有被正确路由到合适队列的消息呢？通过调用channel.addReturnListener来添加ReturnListener监听器实现，只要发送的消息，没有路由到具体的队列，ReturnListener就会收到监听消息。
+
+```java
+channel.addReturnListener(new ReturnListener() {
+            public void handleReturn(int replyCode, String replyText, String exchange, String routingKey, AMQP
+                    .BasicProperties basicProperties, byte[] body) throws IOException {
+                String message = new String(body);
+                //进入该方法表示，没路由到具体的队列
+                //监听到消息，可以重新投递或者其它方案来提高消息的可靠性。
+                System.out.println("Basic.Return返回的结果是：" + message);
+            }
+ });
+```
+
+此时有人问了，不想复杂化生产者的编程逻辑，又不想消息丢失，那么怎么办？ 
+
+还好RabbitMQ提供了一个叫做alternate-exchange东西，翻译下就是备份交换器，这个干什么用呢？很简单，它可以将未被路由的消息存储在另一个exchange队列中，再在需要的时候去处理这些消息。
+
+如何实现
+
+简单一点可以通过web ui管理后台设置，当你新建一个exchange业务的时候，可以给它设置Arguments，这个参数就是 alternate-exchange，其实alternate-exchange就是一个普通的exchange，类型最好是fanout 方便管理。
+
+![](./img/rabbitmq1.jpg)
+
+当你发送消息到你自己的exchange时候，对应key没有路由到queue，就会自动转移到alternate-exchange对应的queue，起码消息不会丢失。
+
+
+
+上面介绍了，两种方式处理，发送的消息无法路由到队列的方案， 如果备份交换器和mandatory参数一起使用，会有什么效果？
+
+答案是：**mandatory参数无效**
+
 ## 总结
 
 RabbitMQ的可靠性涉及producer端的确认机制、broker端的镜像队列的配置以及consumer端的确认机制，要想确保消息的可靠性越高，那么性能也会随之而降。
@@ -482,9 +1252,15 @@ if (response == null) {
 
 # 顺序消费
 
-如果存在多个消费者，那么就让每个消费者对应一个queue，然后把要发送 的数据全都放到一个queue，这样就能保证所有的数据只到达一个消费者从而保证每个数据到达数据库都是顺序的。
+如果存在多个消费者， 那么就在MQ 里面创建多个 queue，让每个消费者对应一个queue，然后把同一规则的数据（对唯一标识进行 hash）全都放到一个queue，这样就能保证所有的数据只到达一个消费者从而保证每个数据到达数据库都是顺序的。
 
-拆分多个queue，每个queue一个consumer，就是多一些queue而已，确实是麻烦点；或者就一个queue但是对应一个consumer，然后这个consumer内部用内存队列做排队，然后分发给底层不同的worker来处理
+或者就一个queue对应一个consumer，然后这个consumer内部用内存队列做排队，然后分发给底层不同的worker来处理
+
+如下为前后对比图：
+
+![](./img/rabbit_mq2.png)
+
+
 
 ![](./img/rabbit_mq1.png)
 
@@ -501,3 +1277,32 @@ RabbitMQ 不保证消息不重复，如果你的业务需要保证严格的不�
 业务场景3：需要让生产者发送每条数据的时候加上一个全局唯一的id,消费的时候先根据id去比如redis查一下判断是否消费过，若没有则处理然后这个id写redis（将<id,message>以K-V形式写入redis）,若消费过就不处理
 
 业务场景4：如果数据库有唯一建约束了，插入只会报错，不会导致数据库出现脏数据，本身幂等了
+
+# Q&A
+
+q: 
+
+rabbitmq 怎么实现多个消费者同时接收一个队列的消息?
+
+> 通配符 与 订阅模式都是发送端发送消息到交换机 接收端定义不通的队列名绑定到交换机 消费者监听不同的队列 实现的多个消费者同时接收同一个消息 怎么实现多个消费者同时接收一个队列的消息呢 类似activemq的topic模式
+
+a:
+
+**随机产生多个队列名称绑定到同一个交换机上**
+
+```java
+@Slf4j
+@Component
+public class DownCmdConsumer {
+
+    @RabbitListener(bindings = @QueueBinding(
+        value = @Queue(), //注意这里不要定义队列名称,系统会随机产生
+        exchange = @Exchange(value = "填写交换机名称",type = ExchangeTypes.FANOUT)
+    )
+                   )
+    public void process(String payload) {
+        log.info("receive:{}",payload)
+    }
+}
+```
+

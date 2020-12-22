@@ -41,6 +41,12 @@
 
 ### 4.顺序消费怎么保证
 
+在生产中经常会有一些类似报表系统这样的系统，需要做 MySQL 的 binlog 同步。比如订单系统要同步订单表的数据到大数据部门的 MySQL 库中用于报表统计分析，通常的做法是基于 Canal 这样的中间件去监听订单数据库的 binlog，然后把这些 binlog 发送到 MQ 中，再由消费者从 MQ 中获取 binlog 落地到大数据部门的 MySQL 中。
+
+﻿
+
+在这个过程中，可能会有对某个订单的增删改操作，比如有三条 binlog 执行顺序是增加、修改、删除；消费者愣是换了顺序给执行成删除、修改、增加，这样肯定是不行的
+
 ### 5.如何防止消息重复消费
 
 
@@ -58,3 +64,9 @@
 
 
 ![](img/mq1.png)
+
+# Spring 整合
+
+不同于 RabbitMQ、ActiveMQ、Kafka 等消息中间件，Spring 社区已经通过多种方式提供了对这些中间件产品集成，
+
+例如通过 spring-jms 整合 ActiveMQ、通过 Spring AMQP 项目下的 spring-rabbit 整合 RabbitMQ、通过 spring-kafka 整合 kafka ，通过他们可以在 Spring 项目中更方便使用其 API 。

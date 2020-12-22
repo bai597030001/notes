@@ -524,7 +524,7 @@ producer发message到某个topic，message会被均匀的分布到多个partitio
 
 每个segment中存储很多条消息，消息id由其逻辑位置决定，即从消息id可直接定位到消息的存储位置，避免id到位置的额外映射。
 
-下面文件列表是笔者在Kafka broker上做的一个实验，创建一个topicXXX包含1 partition，设置每个segment大小为500MB,并启动producer向Kafka broker写入大量数据，如下图2所示segment文件列表形象说明了上述2个规则：
+下面文件列表是笔者在Kafka broker上做的一个实验，创建一个topicXXX包含1 partition，设置每个segment大小为500MB,并启动producer向Kafka broker写入大量数据，如下图所示segment文件列表形象说明了上述2个规则：
 
 ![](./img/kafka3.png)
 
@@ -650,9 +650,11 @@ public final class RecordMetadata {
 
  **特点：**
 
-总共创建两个线程：执行KafkaPrducer#send逻辑的线程——我们称之为“用户主线程”；
+总共创建两个线程：
 
-?									  执行发送逻辑的IO线程——我们称之为“Sender线程”。 
+​	执行KafkaPrducer#send逻辑的线程——我们称之为“用户主线程”；
+
+​	执行发送逻辑的IO线程——我们称之为“Sender线程”。 
 
 batch机制——“分批发送“机制。每个批次(batch)中包含了若干个PRODUCE请求，因此具有更高的吞吐量。 
 
@@ -828,9 +830,8 @@ retries
 client.id
 
 # 这个参数指定生产者可以发送多少消息到broker并且等待响应.
-# 设置此参数较高的值可以提高吞吐量，但同时也会增加内存消耗。另外，如果设置过高反而会降低吞吐量，
-# 因为批量消息效率降低。设置为1，可以保证发送到broker的顺序和调用send方法顺序一致，
-# 即便出现失败重试的情况也是如此。
+# 设置此参数较高的值可以提高吞吐量，但同时也会增加内存消耗。另外，如果设置过高反而会降低吞吐量因为批量消息效率降低。
+# 设置为1，可以保证发送到broker的顺序和调用send方法顺序一致，即便出现失败重试的情况也是如此。
 max.in.flight.requests.per.connection
 
 # 这些参数控制生产者等待broker的响应时间。
@@ -913,7 +914,7 @@ send.buffer.bytes
 ### Consumer与Partition的关系（ **Consumer Rebalance** ）
 
 - 如果consumer比partition多，是浪费，因为kafka的设计是在一个partition上是不允许并发的，所以consumer数不要大于partition数
-- 如果consumer比partition少，一个consumer会对应于多个partitions，这里主要合理分配consumer数和partition数，否则会导致partition里面的数据被取的不均匀
+- 如果consumer比partition少，一个consumer会对应于多个partitions，这里要合理分配consumer数和partition数量，否则会导致partition里面的数据被取的不均匀
 - 如果consumer从多个partition读到数据，不保证数据间的顺序性，kafka只保证在一个partition上数据是有序的，但多个partition，根据你读的顺序会有不同
 - 增减consumer，broker，partition会导致rebalance，所以rebalance后consumer对应的partition会发生变化
 - High-level接口中获取不到数据的时候是会block的
@@ -947,7 +948,7 @@ Kafka支持的三种消息投递语义:
 ### Broker 消息接收端
 
 acks=1，表示当leader分片副本写消息成功就返回响应给producer，此时认为消息发送成功。
-如果leader写成功单马上挂了，还没有将这个写成功的消息同步给其他的分片副本，那么这个分片此时的ISR列表为空，
+如果leader写成功但马上挂了，还没有将这个写成功的消息同步给其他的分片副本，那么这个分片此时的ISR列表为空，
 如果unclean.leader.election.enable=true，就会发生log truncation（日志截取），同样会发生消息丢失。
 如果unclean.leader.election.enable=false，那么这个分片上的服务就不可用了，producer向这个分片发消息就会抛异常。
 
@@ -987,7 +988,7 @@ acks=1，表示当leader分片副本写消息成功就返回响应给producer，
 
 `Broker`端也会在内存中为每个`<PID, Topic, Partition>`维护一个序号，并且每次`Commit`一条消息时将其对应序号递增。对于接收的每条消息，如果其序号比`Broker`维护的序号（即最后一次`Commit`的消息的序号）大一，则`Broker`会接受它，否则将其丢弃：
 
-- 如果消息序号比Broker维护的序号大一以上，说明中间有数据尚未写入，也即乱序，此时Broker拒绝该消息，Producer抛出InvalidSequenceNumber
+- 如果消息序号比Broker维护的序号大一以上，说明中间有数据尚未写入，即乱序，此时Broker拒绝该消息，Producer抛出InvalidSequenceNumber
 - 如果消息序号小于等于Broker维护的序号，说明该消息已被保存，即为重复消息，Broker直接丢弃该消息，Producer抛出DuplicateSequenceNumber
 
 这种机制很好的<font color=#dd0000>解决了数据重复和数据乱序的问题</font>。
@@ -1030,8 +1031,6 @@ consumer端由于可能无法消费事务中所有消息，并且消息可能被
 
 > 一般指 producer 投递了多少消息，consumer 就消费了多少消息，不会发生消息丢失或者消息重复的情况；
 
-
-
 对于`producer`，如果`broker`配置了`enable.idempotence = true`,每个`producer`在初始化的时候都会被分配一个唯一的`Producer ID`，`producer`向指定`topic`的`partition`发送消息时，携带一个自己维护的自增的`Sequence Number`。`broker`会维护一个`<pid,topic,partition>`对应的`seqNum`。 每次`broker`接收到`producer`发来的消息，会和之前的`seqNum`做比对，如果刚好大一，则接受；如果相等，说明消息重复;如果相差大于一，则说明中间存在丢消息，拒绝接受。
 
 这个设计解决了两个问题:
@@ -1059,9 +1058,129 @@ kafka的事务性保证：同时向多个`Topic` `Partitions`发送消息，要�
 
 # 顺序消费
 
+## 消息顺序错乱场景
 
+1.具有顺序的数据写入到了不同的partition里面，不同的消费者去消费，但是每个consumer的执行时间是不固定的，无法保证先读到消息的consumer一定先完成操作，这样就会出现消息并没有按照顺序执行，造成数据顺序错误。
+
+![](./img/kafka8.png)
+
+
+
+2.kafka一个topic，一个partition，一个consumer，但是consumer内部进行多线程消费，这样数据会出现顺序错乱问题。
+
+![](./img/kafka7.png)
+
+## 保证消息的消费顺序
+
+1.确保同一个消息发送到同一个partition，一个topic，一个partition，一个consumer，内部单线程消费。
+
+![](./img/kafka9.png)
+
+2.写N个内存queue，然后N个线程分别消费一个内存queue
+
+![](./img/kafka10.png.)
 
 # 重复消费
+
+kafka中跟消费者有关的几个重要配置参数。
+
+```properties
+# 默认值true，表示消费者会周期性自动提交消费的offset
+enable.auto.commit=true
+# 在enable.auto.commit 为true的情况下， 自动提交的间隔，默认值5000ms
+auto.commit.interval.ms=5000
+# 单次消费者拉取的最大数据条数，默认值500
+max.poll.records=500  
+# 默认值5分钟，表示若5分钟之内消费者没有消费完上一次poll的消息，那么consumer会主动发起离开group的请求
+max.poll.interval.ms=5*60*1000
+```
+
+- Consumer 在消费过程中，应用进程被强制kill掉或发生异常退出
+
+例如在一次poll500条消息后，消费到200条时，进程被强制kill消费导致offset 未提交，或出现异常退出导致消费到offset未提交。下次重启时，依然会重新拉取这500条消息，这样就造成之前消费到200条消息重复消费了两次。
+
+> 因此在有消费者线程的应用中，应尽量避免使用kill -9这样强制杀进程的命令。
+
+
+
+- 消费者消费时间过长
+
+max.poll.interval.ms参数定义了两次poll的最大间隔，它的默认值是 5 分钟，表示你的 Consumer 程序如果在 5 分钟之内无法消费完 poll 方法返回的消息，那么 Consumer 会主动发起“离开组”的请求，Coordinator 也会开启新一轮 Rebalance。若消费者消费的消息比较耗时，那么这种情况可能就会出现重复消费。
+
+```log
+2020-07-24 14:27:15.161 [post_remove_consumer-5-C-1] ERROR org.springframework.kafka.listener.BatchLoggingErrorHandler 254 - Error while processing:
+org.apache.kafka.clients.consumer.CommitFailedException: Commit cannot be completed since the group has already rebalanced and assigned the partitions to another member. This means that the time between subsequent calls to poll() was longer than the configured max.poll.interval.ms, which typically implies that the poll loop is spending too much time message processing. You can address this either by increasing max.poll.interval.ms or by reducing the maximum size of batches returned in poll() with max.poll.records.
+        at org.apache.kafka.clients.consumer.internals.ConsumerCoordinator.sendOffsetCommitRequest(ConsumerCoordinator.java:820)
+        at org.apache.kafka.clients.consumer.internals.ConsumerCoordinator.commitOffsetsSync(ConsumerCoordinator.java:692)
+        at org.apache.kafka.clients.consumer.KafkaConsumer.commitSync(KafkaConsumer.java:1454)
+        at org.springframework.kafka.listener.KafkaMessageListenerContainer$ListenerConsumer.commitIfNecessary(KafkaMessageListenerContainer.java:1968)
+        at org.springframework.kafka.listener.KafkaMessageListenerContainer$ListenerConsumer.processCommits(KafkaMessageListenerContainer.java:1791)
+        at org.springframework.kafka.listener.KafkaMessageListenerContainer$ListenerConsumer.pollAndInvoke(KafkaMessageListenerContainer.java:940)
+        at org.springframework.kafka.listener.KafkaMessageListenerContainer$ListenerConsumer.run(KafkaMessageListenerContainer.java:901)
+        at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+        at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+        at java.lang.Thread.run(Thread.java:748)
+```
+
+=>
+
+```log
+// Commit cannot be completed since the group has already rebalanced and assigned the partitions to another member.
+由于消费者组已经将该partition分区收回并重新分配，所以当前消费者无法成功提交commit！
+//This means that the time between subsequent calls to poll() was longer than the configured max.poll.interval.ms, which typically implies that the poll loop is spending too much time message processing. 
+可能的原因是，两次poll()操作之间的时间大于配置的max.poll.interval.ms，也就是一次poll耗费太多的时间了！
+```
+
+=>
+
+```log
+You can address this either by increasing max.poll.interval.ms or by reducing the maximum size of batches returned in poll() with max.poll.records.
+我们可以通过增大max.poll.interval.ms，或者降低max-poll-records来缩短一次poll()操作的处理时间，从而修复上述错误。
+```
+
+
+
+消费时间超出max.poll.interval.ms 默认值5分钟，这时consumer已经离开消费组了，开始rebalance，因此提交offset失败。之后重新rebalance，消费者再次分配partition后，再次poll拉取消息依然从之前消费过的消息处开始消费，这样就造成重复消费。而且若不解决消费单次消费时间过长的问题，这部分消息可能会一直重复消费。
+
+
+
+总结：
+
+在`kafka`中，往往我们一个消费者组中包含多个消费者节点，他们通过`poll()`操作来获取要消费的分区`partition`，消费完成提交`commit`完成流程，但是由于配置了`max.poll.interval.ms`这个参数，也就是如果一次`poll()`操作没有在`max.poll.interval.ms`时间内完成，`kafka broker`可以认为这个消费者出问题了，就会将分区回收，并交由其他活跃的消费者进行处理！
+
+
+
+解决思路：
+
+1. 提高消费能力
+
+   > 提高单条消息的处理速度，例如对消息处理中比 较耗时的步骤可通过异步的方式进行处理、利用多线程处理等。在缩短单条消息消费时常的同时，根据实际场景可将max.poll.interval.ms值设置大一点，避免不 必要的rebalance，此外可适当减小max.poll.records的值，默认值是500，可根 据实际消息速率适当调小。
+   >
+   > 这种思路可解决因消费时间过长导致的重复消费问题， 对代码改动较小，但无法绝对避免重复消费问题。
+
+2. 引入单独去重机制
+
+   > 生成消息时，在消息中加入唯一标识符如消息id等。在消费端，我们可以保存最近的1000条消息id到redis或mysql表中，配置max.poll.records的值小于1000。在消费消息时先通过前置表去重后再进行消息的处理。
+
+
+
+# Rebalance
+
+kafka集群模式下，一个topic有多个partition，对于消费端，可以有多个consumer同时消费这些partition。为了保证大体上partition和consumer的均衡性，提升topic的并发消费能力，所以会有Rebalance。
+
+Rebalance 本质上是一种协议，规定了一个 Consumer Group 下的所有 consumer 如何达成一致，来分配订阅 Topic 的每个分区。
+
+## 触发Rebalance
+
+- 1：有新的consumer加入
+- 2：旧的consumer挂了
+- 3：coordinator挂了，集群选举出新的coordinator（0.10 特有的）
+- 4：topic的partition新加
+- 5：consumer调用unsubscrible()，取消topic的订阅
+
+
+
+Kafka的Consumer Rebalance方案是基于Zookeeper的Watcher来实现的。consumer启动的时候，在zk下都维护一个”/consumers/[group_name]/ids”路径，在此路径下，使用临时节点记录属于此consumer group的消费者的Id，该Id信息由对应的consumer在启动时创建。每个consumer都会在此路径下建立一个watcher，当有节点发生变化时，就会触发watcher，然后触发Rebalance过程。
 
 
 
@@ -1229,13 +1348,15 @@ confluent.support.customer.id=anonymous
 
 
 
-# 客户端
+# Client
 
-`kafka-manager`
-
-https://blog.51cto.com/liqingbiao/2417010
-
-https://juejin.im/post/5dd2261df265da0bc3309393
+```xml
+<dependency>
+    <groupId>org.apache.kafka</groupId>
+    <artifactId>kafka-clients</artifactId>
+    <version>2.6.0</version>
+</dependency>
+```
 
 
 
