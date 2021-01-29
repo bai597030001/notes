@@ -168,7 +168,9 @@ public class MyPartitioner implements Partitioner {
 
 # 实例讲解
 
-## 启动停止
+## 一般操作
+
+**启动停止**
 
 ```shell
 #启动：
@@ -181,7 +183,7 @@ $ kafka-topics --describe --zookeeper hadoop-cluster01:2181
 
 
 
-## 创建话题
+**创建话题**
 
 - 创建一个 test2 test-demo（注意这里的 partitions 参数为 3）：
 
@@ -199,7 +201,7 @@ Created topic "test-demo".
 
 
 
-## 删除话题
+**删除话题**
 
 ```shell
 # 移除话题，若移除话题失败需要在Kafka服务端配置中添加设定 
@@ -216,7 +218,7 @@ $ rm -r /kafka/brokers/topics/test-demo0
 
 
 
-## 修改话题
+**修改话题**
 
 ```shell
 $ kafka-topics --zookeeper zk_host:port --alter --topic my_topic_name --partitions 3
@@ -241,7 +243,7 @@ $ kafka-topics --zookeeper zk_host:port/chroot --alter --topic my_topic_name --d
 
 
 
-## 查看话题
+**查看话题**
 
 - 查看`test-demo`
 
@@ -290,7 +292,7 @@ test-demo-2
 
 
 
-## 生产数据
+**生产数据**
 
 - 生产数据（producer）
 
@@ -303,7 +305,7 @@ test-demo-2
 
 
 
-## 消费数据
+**消费数据**
 
 - 消费数据（consumer）
 
@@ -478,8 +480,6 @@ $ kafka-run-class kafka.tools.DumpLogSegments --files /home/data/kafka/kafkadata
   因此，如果设置的partition的数量小于consumer的数量，就会有消费者消费不到数据。所以，推荐partition的数量一定要大于同时运行的consumer的数量。
 
   <font color=#dd0000>总结：分区数决定了同组消费者个数的上限。</font>
-
-  建议partition的数量大于集群broker的数量，这样leader partition就可以均匀的分布在各个broker中，最终使得集群负载均衡。
 
 
 
@@ -949,10 +949,10 @@ Kafka支持的三种消息投递语义:
 
 acks=1，表示当leader分片副本写消息成功就返回响应给producer，此时认为消息发送成功。
 如果leader写成功但马上挂了，还没有将这个写成功的消息同步给其他的分片副本，那么这个分片此时的ISR列表为空，
-如果unclean.leader.election.enable=true，就会发生log truncation（日志截取），同样会发生消息丢失。
-如果unclean.leader.election.enable=false，那么这个分片上的服务就不可用了，producer向这个分片发消息就会抛异常。
+如果`unclean.leader.election.enable=true`，就会发生log truncation（日志截取），同样会发生消息丢失。
+如果`unclean.leader.election.enable=false`，那么这个分片上的服务就不可用了，producer向这个分片发消息就会抛异常。
 
-所以我们设置min.insync.replicas=2，unclean.leader.election.enable=false，producer端的acks=all，这样发送成功的消息就绝不会丢失。
+所以我们设置`min.insync.replicas=2`，`unclean.leader.election.enable=false`，producer端的`acks=all`，这样发送成功的消息就绝不会丢失。
 
 
 
@@ -962,7 +962,7 @@ acks=1，表示当leader分片副本写消息成功就返回响应给producer，
 
 
 
-### 消息去重
+**消息去重**
 
 考虑到 producer,broker,consumer 之间都有可能造成消息重复，所以我们要求接收端需要支持消息去重的功能，最好借助业务消息本身的幂等性来做。其中有些大数据组件，如 hbase，elasticsearch 天然就支持幂等操作。
 
@@ -973,13 +973,15 @@ acks=1，表示当leader分片副本写消息成功就返回响应给producer，
 
 ## 0.11.0之后的版本
 
+0.11.0之后，kafka开始支持幂等性发送和事务。
+
 ### 幂等性发送
 
 在0.11之前主要是通过下游系统具有幂等性来保证`Exactly Once`。但是这样有几个缺陷：
 
 - 要求下游系统支持幂等操作，限制了`Kafka`的适用场景
 - 实现门槛相对较高，需要用户对`Kafka`的工作机制非常了解
-- 对于`Kafka Stream`而言，`Kafka Producer`本身就是“下游”系统，能让`Producer`具有幂等处理特性，那就可以让`Kafka Stream`在一定程度上支持`Exactly once`语义。
+- 对于`Kafka Stream`而言，`Kafka Producer`本身就是“下游”系统（`kafka stream`通常会从kafka中读取消息，经过处理后发送到kafka的另一个topoc），能让`Producer`具有幂等处理特性，那就可以让`Kafka Stream`在一定程度上支持`Exactly once`语义。
 
 0.11之后的版本，引入了idempotent producer机制，通过**Producer ID（PID）和Sequence Number**实现Producer的幂等语义。
 
@@ -1001,60 +1003,129 @@ acks=1，表示当leader分片副本写消息成功就返回响应给producer，
 
 
 
-而多分区的情况，我们需要保证原子性的写入多个分区，即写入到多个分区的消息要么全部成功，要么全部回滚。
-
-这时候就需要使用事务，在producer端设置 transcational.id为一个指定字符串。
-
-<font color=#dd0000>这样幂等producer只能保证单分区上无重复消息；事务可以保证多分区写入消息的完整性。</font>
-
-
-
 这样producer端实现了exactly once，那么consumer端呢？
 
-consumer端由于可能无法消费事务中所有消息，并且消息可能被删除，所以事务并不能解决consumer端exactly once的问题，我们可能还是需要自己处理这方面的逻辑。比如自己管理offset的提交，不要自动提交，也是可以实现exactly once的。
-
-**还有一个选择就是使用kafka自己的流处理引擎，也就是Kafka Streams，**
-
-**设置processing.guarantee=exactly_once，就可以轻松实现exactly once了。**
+我们可能还是需要自己处理这方面的逻辑。比如自己管理offset的提交，不要自动提交，也是可以实现exactly once的。
 
 
 
-**注意**
+还有一个选择就是使用kafka自己的流处理引擎，也就是**Kafka Streams**，
 
-以上说的这个只是针对单个Producer在一个session内的情况，假设Producer挂了，又重新启动一个Producer被而且分配了另外一个PID，这样就不能达到防重的目的了，所以kafka又引进了Transactional Guarantees（事务性保证）。
+设置`processing.guarantee=exactly_once`，就可以轻松实现exactly once了。
 
 
 
-## 幂等
+### 问题
 
-幂等性：
+以上说的这个幂等只能保证单个生产者会话（session）中单分区的幂等。幂等性不能跨多个分区运作，而事务可以弥补这个缺陷。
 
-> 一般指 producer 投递了多少消息，consumer 就消费了多少消息，不会发生消息丢失或者消息重复的情况；
 
-对于`producer`，如果`broker`配置了`enable.idempotence = true`,每个`producer`在初始化的时候都会被分配一个唯一的`Producer ID`，`producer`向指定`topic`的`partition`发送消息时，携带一个自己维护的自增的`Sequence Number`。`broker`会维护一个`<pid,topic,partition>`对应的`seqNum`。 每次`broker`接收到`producer`发来的消息，会和之前的`seqNum`做比对，如果刚好大一，则接受；如果相等，说明消息重复;如果相差大于一，则说明中间存在丢消息，拒绝接受。
-
-这个设计解决了两个问题:
-
-- `broker`保存消息后，发送`ACK`前宕机，`producer`认为没有发送成功并重试，造成消息重复
-- 前一条消息发送失败，后一条成功，前一条消息重试后成功，造成消息乱序
 
 ## 事务性保证
 
-kafka的事务性保证：同时向多个`Topic` `Partitions`发送消息，要么都成功，要么都失败。
+kafka的事务性保证：同时向多个`Topic` `Partitions`发送消息，要么都成功，要么都失败。上述的幂等操作，只能保证单个`producer`对于同一个`<topic,partition>`的`exactly once`,并不能保证向多个`topic` `partitions`写操作时的原子性。更不能保证多个读写操作时的原子性。
 
-上述的幂等操作，只能保证单个`producer`对于同一个`<topic,partition>`的`exactly once`,并不能保证向多个`topic` `partitions`写操作时的原子性。更不能保证多个读写操作时的原子性。
+```java
+Producer<String, String> producer = new KafkaProducer<String, String>(props);
+    
+// 初始化事务，包括结束该Transaction ID对应的未完成的事务（如果有）
+// 保证新的事务在一个正确的状态下启动
+producer.initTransactions();
 
-例如某个场景是，从某个`topic`消费消息，处理转换后回写到另一个`topic`中。
+// 开始事务
+producer.beginTransaction();
 
-事务性保证可以使应用程序将生产数据和消费数据当作一个原子单元来处理，即使该生产或消费跨多个`<Topic, Partition>`。应用程序也可以在重启后，从上一个事物点恢复，也即事物恢复。
+// 消费数据
+ConsumerRecords<String, String> records = consumer.poll(100);
 
-因为消息可以是跨`topic`和`partition`的，所以为实现这一效果，必须是应用程序提供一个稳定的（重启后不变）唯一的`Transaction ID`，使得`PID` 和 `Transaction ID` 一一对应起来。
+try{
+    // 发送数据
+    producer.send(new ProducerRecord<String, String>("Topic", "Key", "Value"));
+    
+    // 发送消费数据的Offset，将上述数据消费与数据发送纳入同一个Transaction内
+    producer.sendOffsetsToTransaction(offsets, "group1");
 
-## conusmer端
+    // 数据发送及Offset发送均成功的情况下，提交事务
+    producer.commitTransaction();
+} catch (ProducerFencedException | OutOfOrderSequenceException | AuthorizationException e) {
+    // 数据发送或者Offset发送出现异常时，终止事务
+    producer.abortTransaction();
+} finally {
+    // 关闭Producer和Consumer
+    producer.close();
+    consumer.close();
+}
+```
 
-以上事务性保证只是针对producer端的，对consumer端依然无法保证。
 
-如果是消费kafka中的topic，并将结果回写到另一个topic，那么可以将消费消息和发送消息绑定为一个事务。 如果要将处理消息后的结果保存到外部系统，就要用到两阶段提交了。
+
+producer trasation api
+
+```java
+/**
+     * 初始化事务
+     */
+public void initTransactions();
+
+/**
+     * 开启事务
+     */
+public void beginTransaction() throws ProducerFencedException ;
+
+/**
+     * 在事务内提交已经消费的偏移量
+     */
+public void sendOffsetsToTransaction(Map<TopicPartition, OffsetAndMetadata> offsets, 
+                                     String consumerGroupId) throws ProducerFencedException ;
+
+/**
+     * 提交事务
+     */
+public void commitTransaction() throws ProducerFencedException;
+
+/**
+     * 丢弃事务
+     */
+public void abortTransaction() throws ProducerFencedException ;
+```
+
+
+
+配置
+
+```properties
+producer端：
+transactional.id=xxxxxx  # 设置transactional.id后，enable.idempotence属性会自动设置为true。
+
+consumer端：
+isolation.level = read_committed # 这样Consumer只会读取已经提交了事务的消息。另外，需要设置enable.auto.commit = false来关闭自动提交Offset功能。
+```
+
+
+
+当用户使用 Kafka 的事务性时，Kafka 可以做到的保证：
+
+1. 跨会话的幂等性写入：即使中间故障，恢复后依然可以保持幂等性；
+2. 跨会话的事务恢复：如果一个应用实例挂了，启动的下一个实例依然可以保证上一个事务完成（commit 或者 abort）；
+3. 跨多个 Topic-Partition 的幂等性写入，Kafka 可以保证跨多个 Topic-Partition 的数据要么全部写入成功，要么全部失败，不会出现中间状态。
+
+上面是从 Producer 的角度来看，那么如果从 Consumer 角度呢？Consumer 端很难保证一个已经 commit 的事务的所有 msg 都会被消费
+
+
+
+## 事务性要解决的问题
+
+事务性其实更多的是解决幂等性中没有解决的问题，比如：
+
+1. 在写多个 Topic-Partition 时，执行的一批写入操作，有可能出现部分 Topic-Partition 写入成功，部分写入失败（比如达到重试次数），这相当于出现了中间的状态，这并不是我们期望的结果；
+2. Producer 应用中间挂之后再恢复，无法做到 Exactly-Once 语义保证；
+
+再来分析一下，Kafka 提供的事务性是如何解决上面两个问题的：
+
+1. 如果启用事务性的话，涉及到多个 Topic-Partition 的写入时，这个事务操作要么会全部成功，要么会全部失败，不会出现上面的情况（部分成功、部分失败），如果有 Topic-Partition 无法写入，那么当前这个事务操作会直接 abort；
+2. 其实应用做到端到端的 Exactly-Once，仅仅靠 Kafka 是无法做到的，还需要应用本身做相应的容错设计，以 Flink 为例，其容错设计就是 checkpoint 机制，作业保证在每次 checkpoint 成功时，它之前的处理都是 Exactly-Once 的，如果中间作业出现了故障，恢复之后，只需要接着上次 checkpoint 的记录做恢复即可，对于失败前那个未完成的事务执行回滚操作（abort）就可以了，这样的话就是实现了 Flink + Kafka 端到端的 Exactly-Once（这只是设计的思想，具体的实现后续会有文章详细解揭秘）。
+
+
 
 # 顺序消费
 
@@ -1169,6 +1240,18 @@ You can address this either by increasing max.poll.interval.ms or by reducing th
 kafka集群模式下，一个topic有多个partition，对于消费端，可以有多个consumer同时消费这些partition。为了保证大体上partition和consumer的均衡性，提升topic的并发消费能力，所以会有Rebalance。
 
 Rebalance 本质上是一种协议，规定了一个 Consumer Group 下的所有 consumer 如何达成一致，来分配订阅 Topic 的每个分区。
+
+
+
+**consumer和consumer group之间的关系是动态维护的**
+
+![](./img/kafka14.webp)
+
+从图中可以看到，consumer（如C1）订阅topic中的一个或者多个partition中的消息，一个consumer group下可以有多个consumer，一条消息只能被group中的一个consumer消费。consumer和consumer group的关系是动态维护的，并不固定，当某个consumer卡住或者挂掉时，该consumer订阅的partition会被重新分配给该group下其它consumer，用于保证服务的可用性。
+
+​     为维护consumer和group之间的关系，consumer会定期向服务端的coordinator(一个负责维持客户端与服务端关系的协调者)发送心跳heartbeat，当consumer因为某种原因如死机无法在session.timeout.ms配置的时间间隔内发送heartbeat时，coordinator会认为该consumer已死，它所订阅的partition会被重新分配给同一group的其它consumer，该过程叫：rebalanced。
+
+
 
 ## 触发Rebalance
 

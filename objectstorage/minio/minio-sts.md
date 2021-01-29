@@ -4,10 +4,11 @@
 
 ```shell
 $ docker run -di -p 9000:9000 --name minio \
+  -d --restart=always \ 
   -e "MINIO_ACCESS_KEY=minioadmin" \
   -e "MINIO_SECRET_KEY=minioadmin" \
-  -v /mnt/data:/data \
-  -v /mnt/config:/root/.minio \
+  -v /mnt/monioData:/data \
+  -v /mnt/monioConfig:/root/.minio \
   minio/minio server /data
 ```
 

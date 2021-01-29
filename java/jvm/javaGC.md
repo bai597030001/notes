@@ -43,7 +43,7 @@
 
 
 
-### **吞吐量（Throughput）**
+### 吞吐量（Throughput）
 
 ​		吞吐量就是**CPU用于运行用户代码的时间**与**CPU总消耗时间**的比值，即
 
@@ -53,9 +53,9 @@
 
 ​		垃圾收集时间越短，吞吐量越高；垃圾收集时间越长，吞吐量越低。
 
+ 
 
-
-###  **停顿时间**
+###  停顿时间
 
 ​		指垃圾回收器正在运行时，**应用程序** 的 **暂停时间**。
 
@@ -983,11 +983,11 @@ java.lang.OutOfMemoryError: PermGen space
 
 ## 4、CMS GC时出现promotion failed和concurrent mode failure
 
-对于采用CMS进行老年代GC的程序而言，尤其要注意GC日志中是否有promotion failed和concurrent mode failure两种状况，当这两种状况出现时可能会触发Full GC。
+对于采用CMS进行老年代GC的程序而言，尤其要注意GC日志中是否有`promotion failed`和`concurrent mode failure`两种状况，当这两种状况出现时可能会触发Full GC。
 
-promotion failed是在进行Minor GC时，survivor space放不下、对象只能放入老年代，而此时老年代也放不下造成的；
+`promotion failed`是在进行Minor GC时，survivor space放不下、对象只能放入老年代，而此时老年代也放不下造成的；
 
-concurrent mode failure是在执行CMS GC的过程中同时有对象要放入老年代，而此时老年代空间不足造成的（有时候“空间不足”是CMS GC时当前的浮动垃圾过多导致暂时性的空间不足触发Full GC）。
+`concurrent mode failure`是在执行CMS GC的过程中同时有对象要放入老年代，而此时老年代空间不足造成的（有时候“空间不足”是CMS GC当前的浮动垃圾过多导致暂时性的空间不足触发Full GC）。
 
 **应对措施**：增大survivor space、老年代空间或调低触发并发GC的比率，但在JDK 5.0+、6.0+的版本中有可能会由于JDK的bug29导致CMS在remark完毕后很久才触发sweeping动作。对于这种状况，可通过设置`-XX: CMSMaxAbortablePrecleanTime=5`（单位为ms）来避免。
 
@@ -1099,6 +1099,30 @@ XX:+PrintGCTimeStamps -XX:+PrintGCDetails -Xloggc:<filename>
 可以计算出： `18432K` ( 新生代可用空间 ) + `42112K` ( 老年代空间 ) = `60544K` ( 堆的可用空间 )新生代约占堆大小的 1/3，老年代约占堆大小的 2/3。
 
 也可以看出，`GC` 对新生代的回收比较乐观，而对老年代以及方法区的回收并不明显或者说不及新生代。并且在这里 `Full GC` 耗时是 `Minor GC` 的 22.89 倍。
+
+
+
+---
+
+```log
+[GC 118250K->113543K(130112K), 0.0094143 secs]
+[Full GC 121376K->10414K(130112K), 0.0650971 secs]
+```
+
+XX:PrintGCDetails：GC时输出更多详细的信息，如使用的GC回收器类型，新生代或者老年代的回收情况等，不同的垃圾回收器略有不同，如下：
+
+- Serial + ParNew
+  - 新生代：ParNew（par new generation）
+  - 老年代：Tenured
+  - 永久代：Perm
+- ParNew + CMS + Serial Old
+  - 新生代：DefNew(def new generation)
+  - 老年代：CMS
+  - 永久代：CMS Perm
+- Parallel Scavenge + Parallel Old
+  - 新生代：PSYoungGen
+  - 老年代：ParOldGen
+  - 永久代：PSPermGen
 
 
 

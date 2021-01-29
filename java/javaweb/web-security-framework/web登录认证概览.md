@@ -18,7 +18,7 @@ Session内容保存在服务器端的，通常是保存在内存中，当然也�
 
 客户端跟服务器端通过SessionId来关联，SessionId通常以Cookie的形式存储在客户端。
 
-每次HTTP请求，SessionId都会随着Cookie被传递到服务器端，这行就可以通过SessionId取到对应的信息，来判断这个请求来自于哪个客户端/用户。
+每次HTTP请求，SessionId都会随着Cookie被传递到服务器端，这样就可以通过SessionId取到对应的信息，来判断这个请求来自于哪个客户端/用户。
 
 
 
@@ -142,7 +142,7 @@ token 只被保存在客户端 中的cookie 或 localstorage(数据库).
 
 1. 用户登录校验，校验成功后就返回Token给客户端。
 2. 客户端收到数据后保存在客户端
-3. 客户端每次访问API是携带Token到服务器端。
+3. 客户端每次访问API时携带Token到服务器端。
 4. 服务器端采用filter过滤器校验。校验成功则返回请求数据，校验失败则返回错误码
 
 
@@ -184,7 +184,7 @@ token 只被保存在客户端 中的cookie 或 localstorage(数据库).
 
 ## cookie
 
-ookie是由服务器发送给客户端（浏览器）的小量信息，以{key：value}的形式存在。 是一个非常具体的东西，指的就是浏览器里面能永久存储的一种数据。跟服务器没啥关系，仅仅是浏览器实现的一种数据存储功能。
+cookie是由服务器发送给客户端（浏览器）的小量信息，以{key：value}的形式存在。它会在浏览器下次向同一服务器再发起请求时被携带并发送到服务器上。
 
 cookie由服务器生成，发送给浏览器，浏览器把cookie以KV形式存储到某个目录下的文本文件中，下一次请求同一网站时会把该cookie发送给服务器。由于cookie是存在客户端上的，所以浏览器加入了一些限制确保cookie不会被恶意使用，同时不会占据太多磁盘空间。所以每个域的cookie数量是有限制的。
 
@@ -345,7 +345,7 @@ token，注册登录->服务端将生成一个token，并将token与user加密�
 4.CSRF(跨站请求伪造)：用户在访问银行网站时，他们很容易受到跨站请求伪造的攻击，并且能够被利用其访问其他的网站。
 
 
- 在这些问题中，可扩展行是最突出的。 
+ 在这些问题中，可扩展性是最突出的。 
 
 
 
@@ -556,6 +556,8 @@ JWT 作为一个令牌（token），有些场合可能会放到 URL（比如 api
 
 ### JWT 的使用方式
 
+https://www.cnblogs.com/dwlovelife/p/11321541.html
+
 客户端收到服务器返回的 JWT，可以储存在 Cookie 里面，也可以储存在 localStorage。
 
 此后，客户端每次与服务器通信，都要带上这个 JWT。你可以把它放在 Cookie 里面自动发送，但是这样不能跨域，所以更好的做法是放在 HTTP 请求的头信息`Authorization`字段里面。
@@ -565,6 +567,99 @@ Authorization: Bearer <token>
 ```
 
 另一种做法是，跨域的时候，JWT 就放在 POST 请求的数据体里面。
+
+
+
+```xml
+<dependency>
+  <groupId>com.auth0</groupId>
+  <artifactId>java-jwt</artifactId>
+  <version>3.8.2</version>
+</dependency>
+```
+
+
+
+```java
+public class JWTTokenUtil {
+    //设置过期时间
+    private static final long EXPIRE_DATE=30*60*100000;
+    //token秘钥
+    private static final String TOKEN_SECRET = "ZCfasfhuaUUHufguGuwu2020BQWE";
+
+    public static String token (String username,String password){
+
+        String token = "";
+        try {
+            //过期时间
+            Date date = new Date(System.currentTimeMillis()+EXPIRE_DATE);
+            //秘钥及加密算法
+            Algorithm algorithm = Algorithm.HMAC256(TOKEN_SECRET);
+            //设置头部信息
+            Map<String,Object> header = new HashMap<>();
+            header.put("typ","JWT");
+            header.put("alg","HS256");
+            //携带username，password信息，生成签名
+            token = JWT.create()
+                    .withHeader(header)
+                    .withClaim("username",username)
+                    .withClaim("password",password).withExpiresAt(date)
+                    .sign(algorithm);
+        }catch (Exception e){
+            e.printStackTrace();
+            return  null;
+        }
+        return token;
+    }
+
+    public static boolean verify(String token){
+        /**
+         * @desc   验证token，通过返回true
+         * @params [token]需要校验的串
+         **/
+        try {
+            Algorithm algorithm = Algorithm.HMAC256(TOKEN_SECRET);
+            JWTVerifier verifier = JWT.require(algorithm).build();
+            DecodedJWT jwt = verifier.verify(token);
+            return true;
+        }catch (Exception e){
+            e.printStackTrace();
+            return  false;
+        }
+    }
+    public static void main(String[] args) {
+        String username ="name1";
+        String password = "pw1";
+        //注意，一般不会把密码等私密信息放在payload中，这边只是举个列子
+        String token = token(username,password);
+        System.out.println(token);
+        boolean b = verify(token);
+        System.out.println(b);
+    }
+}
+```
+
+客户端收到服务器返回的 JWT，可以储存在 Cookie 里面，也可以储存在 localStorage。
+
+此后，客户端每次与服务器通信，都要带上这个 JWT。你可以把它放在 Cookie 里面自动发送，但是这样不能跨域，所以更好的做法是放在 HTTP 请求的头信息`Authorization`字段里面。
+
+> ```
+> CopyAuthorization: Bearer <token>
+> ```
+
+另一种做法是，跨域的时候，JWT 就放在 POST 请求的数据体里面。
+
+JWT 本身包含了认证信息，一旦泄露，任何人都可以获得该令牌的所有权限。为了减少盗用，JWT 的有效期应该设置得比较短。对于一些比较重要的权限，使用时应该再次对用户进行认证。
+
+为了减少盗用，JWT 不应该使用 HTTP 协议明码传输，要使用 HTTPS 协议传输。（或者是对JWT在前后端之间进行加密之后在传输）
+
+
+
+**密钥问题**
+
+如何防止生产环境的密钥值泄露？
+
+> 用户登录时，生成token的 SecretKey 是一个随机数，也就是说每个用户，每次登录时jwt SecretKey 是随机数，并保存到缓存，key是登录账户，（当然了，分布式缓存的话，就用Redis，sqlserver缓存等等），总之，客户端访问接口是，header 要带登录账户，和token，服务端拿到登录账号，到缓存去捞相应的SecretKey ，然后再进行token校验。可以防伪造token了（这个方案在一定程度上能防止伪造，但是不能防止token泄露被劫持）。
 
 
 
@@ -633,6 +728,14 @@ HTML5提供了两种本地存储的方式 sessionStorage 和 localStorage；
 
 
 # 跨域
+
+协议：域名：端口
+
+
+
+jsonp
+
+CORS
 
 
 

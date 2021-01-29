@@ -49,6 +49,46 @@ MongoDB 是一个跨平台的，面向文档的数据库，是当前 NoSQL 数�
 
 ![](img/mongodb3.png)
 
+# docker安装mongo
+
+```shell
+$ docker run -p 27017:27017 -v <LocalDirectoryPath>:/data/db --name docker_mongodb -d mongo --auth # --auth：需要密码才能访问
+
+# -p 指定容器的端口映射，mongodb 默认端口为 27017
+# -v 为设置容器的挂载目录，这里是将<LocalDirectoryPath>即本机中的目录挂载到容器中的/data/db中，作为 mongodb 的存储目录
+# --name 为设置该容器的名称
+# -d 设置容器以守护进程方式运行
+# --restart=always 此处无效，待验证
+
+$ docker update --restart=always <CONTAINER ID>
+```
+
+```shell
+$ docker container ls -a # -a 参数是查看所有的容器，包括已经停止的容器
+
+# 指定 CONTAINER ID 停止容器
+$ docker stop <CONTAINER ID>
+# 指定容器名称停止容器
+$ docker stop <CONTAINER NAME>
+
+# 指定容器 CONTAINER ID 启动容器
+$ docker start <CONTAINER ID>
+# 指定容器名称启动容器
+$ docker start <CONTAINER NAME>
+
+# 清除无用容器
+$ docker container prune
+```
+
+
+
+```shell
+# 进入 mongo 交互模式
+$ docker exec -it <CONTAINER NAME> mongo admin
+```
+
+
+
 
 
 # 体系结构
@@ -571,11 +611,14 @@ Criteria可以接的一些方法和对应的mongodb方法
 
 ```shell
 $ db.employee.createIndex({'id': 1})
+# 代表升序索引，也可以通过{'id': -1}来指定降序索引
 ```
 
 
 
 ## 复合索引 (Compound Index)
+
+针对多个字段联合创建索引，先按第一个字段排序，第一个字段相同的文档按第二个字段排序，依次类推
 
 ### 索引field的先后顺序很关键
 
@@ -621,7 +664,7 @@ $ db.events.find().sort( { username: 1, date: 1 } )
 
 ## 多key索引 （Multikey Index）
 
-这个主要是针对数据类型为数组的类型
+这个主要是针对数据类型为数组的类型。当索引的字段为数组时，创建出的索引称为多key索引，多key索引会为数组的每个元素建立一条索引，比如person表加入一个habbit字段（数组）用于描述兴趣爱好，需要查询有相同兴趣爱好的人就可以利用habbit字段的多key索引。
 
 ```shell
 {"name" : "jack", "age" : 19, habbit: ["football, runnning"]}
@@ -636,17 +679,17 @@ $ db.person.find( {habbit: "football"} )
 
 ### 哈希索引
 
-这些索引在其范围内具有更随机的值分布，但*仅*支持相等匹配，而不能支持基于范围的查询.
+是指按照某个字段的hash值来建立索引，目前主要用于[MongoDB Sharded Cluster](https://yq.aliyun.com/articles/32434?spm=5176.100238.yqhn2.22.0cUwgh)的Hash分片，hash索引只能满足字段完全匹配的查询，不能满足范围查询等。
 
 ### 地理位置索引
 
-
+能很好的解决O2O的应用场景，比如『查找附近的美食』、『查找某个区域内的车站』等。
 
 ### 文本索引
 
 `MongoDB`提供了一种`text`索引类型，该类型支持在集合中搜索字符串内容. 这些文本索引不存储特定于语言的*停用*词（例如" the"，" a"，" or"），并且在集合中*词干*仅存储根词.
 
-
+能解决快速文本查找的需求，比如有一个博客文章集合，需要根据博客的内容来快速查找，则可以针对博客内容建立文本索引。
 
 # 索引属性
 
@@ -656,7 +699,7 @@ $ db.person.find( {habbit: "football"} )
 
 - partial
 
-  局部索引。很有用，在索引的时候只针对符合特定条件的文档来建立索引，如下
+  局部索引。很有用，在索引的时候只针对符合特定条件的文档来建立索引（3.2版本才支持该特性），如下
 
 ```shell
 $ db.restaurants.createIndex(
@@ -669,11 +712,7 @@ $ db.restaurants.createIndex(
 
 - sparse
 
-  稀疏索引。可以认为是partial索引的一种特殊情况，由于MongoDB3.2之后已经支持partial属性，所以建议直接使用partial属性。
-
-  索引的稀疏属性可确保索引仅包含具有索引字段的文档的条目. 索引会跳过*没有*索引字段的文档.
-
-  可以将稀疏索引选项与唯一索引选项结合使用，以防止插入索引字段具有重复值的文档，而跳过缺少索引字段的索引文档.
+  稀疏索引。只针对存在索引字段的文档建立索引，可以认为是partial索引的一种特殊情况
 
 - TTL
 
@@ -681,15 +720,19 @@ $ db.restaurants.createIndex(
 
 
 
-
-
 # API
 
 ```xml
+<!-- mongo驱动 -->
 <dependency>
     <groupId>org.mongodb</groupId>
     <artifactId>mongo-java-driver</artifactId>
     <version>3.11.0</version>
+</dependency>
+
+<dependency>
+    <groupId>org.mongodb</groupId>
+    <artifactId>mongodb-driver-sync</artifactId>
 </dependency>
 ```
 

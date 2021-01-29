@@ -257,6 +257,11 @@ Simple队列中只能一一对应的生产消费，实际开发中生产者发�
 
 ![](./img/rabbit_mq_4.png)
 
+RabbitMQ有两种对队列长度的限制方式
+
+- 对队列中消息的条数进行限制 `x-max-length`
+- 对队列中消息的总量进行限制 `x-max-length-bytes`
+
 
 
 ### round robin 轮询分发
@@ -395,7 +400,7 @@ public class Send {
         AMQP.Queue.DeclareOk declareOk = channel.queueDeclare(QUEUE_NAME, false, false, false, null);
 
         // 每个消费者发送确认消息之前，消息队列不发送下一个消息到消费者，一次只发送一个消息
-        // 从而限制一次性发送给消费者到消息不得超过1个。
+        // 从而限制一次性发送给消费者的消息不得超过1个。
         int perfetchCount = 1;
         channel.basicQos(perfetchCount);
 
@@ -523,9 +528,7 @@ Exchange(交换机，转发器)：**「一方面接受生产者消息，另一�
 
 ![](./img/rabbit_mq_6.png)
 
-### Topics 主题
-
-将路由键跟某个模式匹配，# 表示匹配 >=1个字符， *表示匹配一个。生产者会带routingKey，但是消费者的MQ会带模糊routingKey。
+Topics 主题：将路由键跟某个模式匹配，# 表示匹配 >=1个字符， *表示匹配一个。生产者会带routingKey，但是消费者的MQ会带模糊routingKey。
 
 ![](./img/rabbit_mq_7.png)
 
@@ -640,7 +643,7 @@ public class Consumer {
 
 死信队列：没有被及时消费的消息存放的队列，消息没有被及时消费有以下几点原因：
 
-**a.消息被拒绝（channel.basicNack/channel.basicReject）并且不再重新投递 requeue=false**
+**a.消费者拒绝消息（channel.basicNack/channel.basicReject）并且不再重新投递 requeue=false**
 
 **b.TTL(time-to-live)：消息在队列的存活时间超过设置的TTL时间**
 
@@ -660,7 +663,7 @@ channel.queueDeclare(queueName, true, false, false, args);
 
 1. 配置业务队列，绑定到业务交换机上
 2. 为业务队列配置死信交换机和路由key
-3. 为死信交换机配置死信队列、
+3. 为死信交换机配置死信队列
 
 注意：并不是直接声明一个公共的死信队列，然后所以死信消息就自己跑到死信队列里去了。而是为每个需要使用死信的业务队列配置一个死信交换机，这里同一个项目的死信交换机可以共用一个，然后为每个业务队列分配一个单独的路由key。
 
@@ -683,7 +686,8 @@ public class RabbitMQConfig {
     public static final String DEAD_LETTER_QUEUEA_NAME = "dead.letter.demo.simple.deadletter.queuea";
     public static final String DEAD_LETTER_QUEUEB_NAME = "dead.letter.demo.simple.deadletter.queueb";
     
-    // 声明业务Exchange @Bean("businessExchange")
+    // 声明业务Exchange 
+    @Bean("businessExchange")
     public FanoutExchange businessExchange() {
         return new FanoutExchange(BUSINESS_EXCHANGE_NAME);
     }
@@ -705,7 +709,8 @@ public class RabbitMQConfig {
         return QueueBuilder.durable(BUSINESS_QUEUEA_NAME).withArguments(args).build();
     }
 
-    // 声明业务队列B @Bean("businessQueueB") 
+    // 声明业务队列B 
+    @Bean("businessQueueB") 
     public Queue businessQueueB() {
         Map<String, Object> args = new HashMap<>(2);
         // x-dead-letter-exchange 这里声明当前队列绑定的死信交换机 
@@ -715,7 +720,8 @@ public class RabbitMQConfig {
         return QueueBuilder.durable(BUSINESS_QUEUEB_NAME).withArguments(args).build();
     }
 
-    // 声明死信队列A @Bean("deadLetterQueueA") 
+    // 声明死信队列A 
+    @Bean("deadLetterQueueA") 
     public Queue deadLetterQueueA() {
         return new Queue(DEAD_LETTER_QUEUEA_NAME);
     }
@@ -758,14 +764,14 @@ public class RabbitMQConfig {
 
 ```yaml
 spring: 
-	rabbitmq: host: 
-	localhost 
-	password: guest 
-	username: guest 
-	listener: 
-		type: simple 
-		simple: default-requeue-rejected: false 
-		acknowledge-mode: manual
+	rabbitmq: 
+		host: localhost 
+        password: guest 
+        username: guest 
+        listener: 
+            type: simple 
+            simple: default-requeue-rejected: false 
+            acknowledge-mode: manual
 ```
 
 接下来，是业务队列的消费代码：
@@ -774,6 +780,7 @@ spring:
 @Slf4j
 @Component
 public class BusinessMessageReceiver {
+    
     @RabbitListener(queues = BUSINESS_QUEUEA_NAME)
     public void receiveA(Message message, Channel channel) throws IOException {
         String msg = new String(message.getBody());
@@ -922,6 +929,10 @@ java.lang.RuntimeException: dead letter exception
 
 # 延迟队列
 
+延时消息就是指当消息被发送以后，并不想让消费者立即拿到消息，而是等待指定时间后，消费者才拿到这个消息进行消费。
+
+## 实现
+
 延迟队列，我们可以通过死信交换机来完成。
 
 生产者发送消息，定义2S后消息过期，消息就回进入死信交换机，最后进到死信队列；消费者可以从死信队列获取消息，这样就可以得到延迟后的消息。
@@ -931,6 +942,16 @@ java.lang.RuntimeException: dead letter exception
 ```shell
 $ rabbitmq-plugins enable rabbitmq_delayed_message_exchange
 ```
+
+## 作用
+
+- **订单业务：** 在电商/点餐中，都有下单后 30 分钟内没有付款，就自动取消订单。
+- **短信通知：** 下单成功后 60s 之后给用户发送短信通知。
+- **失败重试：** 业务操作失败后，间隔一定的时间进行失败重试。
+
+这类业务的特点就是：非实时的，需要延迟处理，需要进行失败重试。一种比较笨的方式是采用定时任务，轮训数据库，方法简单好用，但性能底下，在高并发情况下容易弄死数据库，间隔时间不好设置，时间过大，影响精度，过小影响性能，而且做不到按超时的时间顺序处理。另一种就是用Java中的DelayQueue 位于java.util.concurrent包下，本质是由PriorityQueue和BlockingQueue实现的阻塞优先级队列，这个最大的问题就是不支持分布式与持久化。
+
+
 
 # HA
 
@@ -942,7 +963,7 @@ $ rabbitmq-plugins enable rabbitmq_delayed_message_exchange
 
 ## queue的持久化
 
-queue的持久化是通过durable=true来实现的。
+queue的持久化是通过`durable=true`来实现的。
 
 ```java
 Connection connection = connectionFactory.newConnection();
@@ -972,7 +993,7 @@ channel.queueDeclare("queue.persistent.name", true, false, false, null);
      exclusive：
      	排他队列，如果一个队列被声明为排他队列，该队列仅对首次申明它的连接可见，并在连接断开时自动删除。
      	这里需要注意三点：
-     		1. 排他队列是基于连接可见的，同一连接的不同信道是可以同时访问同一连接创建的排他队列；
+     		1.排他队列是基于连接可见的，同一连接的不同信道是可以同时访问同一连接创建的排他队列；
      		2.“首次”，如果一个连接已经声明了一个排他队列，其他连接是不允许建立同名的排他队列的，这个与普通队列不同；
      		3.即使该队列是持久化的，一旦连接关闭或者客户端退出，该排他队列都会被自动删除的，这种队列适用于一个客户端发送读取消息的应用场景
      		
@@ -996,7 +1017,7 @@ channel.queueDeclare("queue.persistent.name", true, false, false, null);
 
 如过将queue的持久化标识durable设置为true,则代表是一个持久的队列，那么在服务重启之后，也会存在，因为服务会把持久化的queue存放在硬盘上，当服务重启的时候，会重新加载之前被持久化的queue。
 
-队列是可以被持久化，但是里面的消息是否为持久化那还要看消息的持久化设置。也就是说，重启之前那个queue里面还没有发出去的消息的话，重启之后那队列里面是不是还存在原来的消息，这个就要取决于发生着在发送消息时对消息的设置了。
+队列是可以被持久化，但是里面的消息是否为持久化那还要看消息的持久化设置。也就是说，重启之前那个queue里面还没有发出去的消息的话，重启之后那队列里面是不是还存在原来的消息，这个就要取决于发生在发送消息时对消息的设置了。
 
 如果要在重启后保持消息的持久化必须设置消息是持久化的标识。
 
@@ -1069,6 +1090,67 @@ Exchange.DeclareOk exchangeDeclarePassive(String name) throws IOException;
 channel.exchangeDeclare(exchangeName, “direct/topic/header/fanout”, true);
 ```
 
+
+
+# 持久化番外篇
+
+## 消息什么时候需要持久化
+
+根据 官方介绍，RabbitMQ在两种情况下会将消息写入磁盘：
+
+1. 消息本身在publish的时候就要求消息写入磁盘；（confirm机制）
+2. 内存紧张，需要将部分内存中的消息转移到磁盘；
+
+## 消息什么时候会刷到磁盘
+
+1. 写入文件前会有一个Buffer，大小为1M（1048576），数据在写入文件时，首先会写入到这个Buffer，如果Buffer已满，则会将Buffer写入到文件（未必刷到磁盘）；
+2. 有个固定的刷盘时间：25ms，也就是不管Buffer满不满，每隔25ms，Buffer里的数据及未刷新到磁盘的文件内容必定会刷到磁盘；
+3. 每次消息写入后，如果没有后续写入请求，则会直接将已写入的消息刷到磁盘：使用Erlang的receive x after 0来实现，只要进程的信箱里没有消息，则产生一个timeout消息，而timeout会触发刷盘操作。
+
+## 消息在磁盘文件中的格式
+
+消息保存于`$MNESIA/msg_store_persistent/x.rdq`文件中，其中x为数字编号，从1开始，每个文件最大为16M（16777216），超过这个大小会生成新的文件，文件编号加1。消息以以下格式存在于文件中：
+
+```
+<<Size:64, MsgId:16/binary, MsgBody>>
+```
+
+MsgId为RabbitMQ通过rabbit_guid:gen()每一个消息生成的GUID，MsgBody会包含消息对应的exchange，routing_keys，消息的内容，消息对应的协议版本，消息内容格式（二进制还是其它）等等。
+
+## 文件何时删除（垃圾回收）
+
+PUBLISH消息时写入内容，ack消息时删除内容（更新该文件的有用数据大小），当一个文件的有用数据等于0时，删除该文件。
+
+由于执行消息删除操作时，并不立即对在文件中对消息进行删除，也就是说消息依然在文件中，仅仅是垃圾数据而已。当垃圾数据（已经被删除的消息）比例超过一定阈值后（默认比例GARBAGE_FRACTION = 0.5即50%），并且至少有三个及以上的文件时，rabbitmq触发垃圾回收文件合并操作，以提高磁盘利用率。垃圾回收会先找到符合要求的两个文件（根据#file_summary{}中left，right找逻辑上相邻的两个文件，并且两个文件的有效数据可在一个文件中存储），然后锁定这两个文件，并先对左边文件的有效数据进行整理，再将右边文件的有效数据写入到左边文件，同时更新消息的相关信息（存储的文件，文件中的偏移量），文件的相关信息（文件的有效数据，左边文件，右边文件），最后将右边的文件删除。
+
+![](./img/rabbitmq2.jpg)
+
+
+
+# 保证消息不丢
+
+![](./img/rabbitmq1.png)
+
+分析RabbitMQ消息丢失的情况，不妨先看看一条消息从生产者发送到消费者消费的过程：
+
+![](./img/rabbitmq2.png)
+
+可以看出，一条消息整个过程要经历两次的网络传输：**从生产者发送到RabbitMQ服务器，从RabbitMQ服务器发送到消费者**。
+
+**在消费者未消费前存储在队列(Queue)中**。
+
+所以可以知道，有三个场景下是会发生消息丢失的：
+
+- 存储在队列中，如果队列没有对消息持久化，RabbitMQ服务器宕机重启会丢失数据。
+- 生产者发送消息到RabbitMQ服务器过程中，RabbitMQ服务器如果宕机停止服务，消息会丢失。
+- 消费者从RabbitMQ服务器获取队列中存储的数据消费，但是消费者程序出错或者宕机而没有正确消费，导致数据丢失。
+
+针对以上三种场景，RabbitMQ提供了三种解决的方式，分别是消息持久化，confirm机制，ACK事务机制。
+
+![](./img/rabbitmq3.png)
+
+
+
 ## ACK
 
 将queue，exchange, message等都设置了持久化之后就能保证100%保证数据不丢失了吗？不是。
@@ -1109,9 +1191,11 @@ channel.txCommit();
 
 ### Confirm机制
 
-生产者将信道设置成confirm模式，一旦信道进入confirm模式，所有在该信道上面发布的消息都会被指派一个唯一的ID(从1开始)，一旦消息被投递到所有匹配的
+![](./img/rabbitmq4.png)
 
-队列之后，broker就会发送一个确认给生产者（包含消息的唯一ID）,这就使得生产者知道消息已经正确到达目的队列了。
+
+
+生产者将信道channel设置成confirm模式，一旦信道进入confirm模式，所有在该信道上面发布的消息都会被指派一个唯一的ID(从1开始)，一旦消息被投递到所有匹配的队列之后，broker就会发送一个确认给生产者（包含消息的唯一ID）,这就使得生产者知道消息已经正确到达目的队列了。
 
 <font color=#00dd00>如果消息和队列是可持久化的，那么确认消息会将消息写入磁盘之后发出</font>，broker回传给生产者的确认消息中deliver-tag域包含了确认消息的序列号，此外broker也可以设置basic.ack的multiple域，表示到这个序列号之前的所有消息都已经得到了处理。
 
@@ -1131,7 +1215,7 @@ confirm模式最大的好处在于他是异步的，一旦发布一条消息，�
 
 **开启confirm模式**
 
-生产者通过调用channel.confirmSelect()方法将channel设置为confirm模式
+生产者通过调用`channel.confirmSelect()`方法将channel设置为confirm模式
 
 ## mandatory
 
@@ -1182,9 +1266,11 @@ channel.addReturnListener(new ReturnListener() {
  });
 ```
 
+
+
 此时有人问了，不想复杂化生产者的编程逻辑，又不想消息丢失，那么怎么办？ 
 
-还好RabbitMQ提供了一个叫做alternate-exchange东西，翻译下就是备份交换器，这个干什么用呢？很简单，它可以将未被路由的消息存储在另一个exchange队列中，再在需要的时候去处理这些消息。
+还好RabbitMQ提供了一个叫做**alternate-exchange**东西，翻译下就是**备份交换器**，这个干什么用呢？很简单，它可以将未被路由的消息存储在另一个exchange队列中，再在需要的时候去处理这些消息。
 
 如何实现
 
@@ -1284,7 +1370,7 @@ q:
 
 rabbitmq 怎么实现多个消费者同时接收一个队列的消息?
 
-> 通配符 与 订阅模式都是发送端发送消息到交换机 接收端定义不通的队列名绑定到交换机 消费者监听不同的队列 实现的多个消费者同时接收同一个消息 怎么实现多个消费者同时接收一个队列的消息呢 类似activemq的topic模式
+> 通配符 与 订阅模式都是发送端发送消息到交换机 接收端定义不同的队列名绑定到交换机 消费者监听不同的队列 实现的多个消费者同时接收同一个消息 怎么实现多个消费者同时接收一个队列的消息呢 类似activemq的topic模式
 
 a:
 

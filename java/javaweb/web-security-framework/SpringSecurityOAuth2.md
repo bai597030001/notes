@@ -35,8 +35,6 @@ public class CustomAuthenticationServerConfig extends AuthorizationServerConfigu
 
 - 资源获取服务：**ResourceServer**
 
-------
-
 ```java
 @Configuration
 @EnableResourceServer
@@ -97,8 +95,8 @@ public class CustomResourceServerConfig extends ResourceServerConfigurerAdapter 
 spring OAuth2中，我们配置一个授权认证服务，我们最主要有以下三点：
 
 1. 第三方用户客户端详情        →  Client
-2. 令牌的生成管理   			→  Access Token
-3. 端点接入				   →  endpoints
+2. 令牌的生成管理   			    →  Access Token
+3. 端点接入				               →  endpoints
 
 spring中有三个配置与这三点一一对应：
 

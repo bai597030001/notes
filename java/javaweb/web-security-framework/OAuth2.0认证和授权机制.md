@@ -77,7 +77,7 @@ OAuth在"客户端"与"服务提供商"之间，设置了一个授权层（autho
 
 授权码模式（authorization code）是功能最完整、流程最严密的授权模式。它的特点就是通过客户端的后台服务器，与"服务提供商"的认证服务器进行互动。
 
-OAuth2最常用的一种授权许可类型，比如QQ，微博，Facebook和豆瓣等等。要求Client具有可公开访问的Server服务器来接受**Authorization Code**
+OAuth2中最常用的一种授权许可类型，比如QQ，微博，Facebook和豆瓣等等。要求Client具有可公开访问的Server服务器来接受**Authorization Code**
 
 ![](img/OAuth2.png)
 
@@ -91,7 +91,7 @@ OAuth2最常用的一种授权许可类型，比如QQ，微博，Facebook和豆�
 >
 > （D）客户端收到授权码，附上早先的"重定向URI"，向认证服务器申请令牌。这一步是在客户端的后台的服务器上完成的，对用户不可见。
 >
-> （E）认证服务器核对了授权码和重定向URI，确认无误后，向客户端发送访问令牌（access token）和更新令牌（refresh token）。
+> （E）认证服务器核对了授权码和重定向URI，确认无误后，向客户端发送访问令牌（access token）和 更新令牌（refresh token）。
 
 
 
@@ -361,3 +361,20 @@ grant_type=refresh_token&refresh_token=tGzv3JOkF0XG5Qx2TlKWIA
 ## 一次 OAuth 2.0 的流程
 
 ![](img/OAuth6.png)
+
+
+
+## OAuth2.0 Demo
+
+排名 https://gitee.com/explore/oauth-dev
+
+自定义实现 https://gitee.com/zifangsky/OAuth2.0Demo
+
+oltu示例 https://github.com/zhouyongtao/homeinns-web	https://github.com/ameizi/oltu-oauth2-example
+
+（因项目不活跃，Apache Oltu 已宣布退休。）
+
+spring-security-oauth2 https://github.com/lexburner/oauth2-demo
+
+JustAuth https://github.com/justauth/JustAuth
+

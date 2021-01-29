@@ -290,3 +290,189 @@ compile group: 'io.prometheus', name: 'simpleclient_spring_boot', version: '0.5.
 <dependency>
 ```
 
+
+
+# 数据同步
+
+https://prometheus.io/docs/prometheus/latest/federation/
+
+
+
+# springboot整合prometheus示例
+
+CounterMetrics
+
+```java
+@Component
+public class CounterMetrics {
+
+    @Autowired
+    private CollectorRegistry collectorRegistry;
+
+    /**
+     * http请求总数
+     **/
+    @Bean
+    public Counter httpRequestsTotalCounterCollector() {
+        return Counter.build()
+                .name("http_requests_total")
+                .labelNames("path", "method", "code")
+                .help("http请求总计数")
+                .register(collectorRegistry);
+    }
+
+    /**
+     * 当前正在处理的http请求数
+     * 当前在线人数......
+     **/
+    @Bean
+    public Gauge httpInprogressRequestsGuageCollector() {
+        return Gauge.build()
+                .name("http_inprogress_requests")
+                .labelNames("path", "method", "code")
+                .help("http当前正在处理的请求数")
+                .register(collectorRegistry);
+    }
+
+    /**
+     * 默认的buckets范围为{.005, .01, .025, .05, .075, .1, .25, .5, .75, 1, 2.5, 5, 7.5, 10}。如果需要覆盖默认的buckets，可以使用.buckets(double… buckets)覆盖。
+     * <p>
+     * http请求内容长度的区间分布图
+     **/
+    @Bean
+    public Histogram httpRequestsBytesHistogramCollector() {
+        return Histogram.build()
+                .name("http_requests_bytes_histogram")
+                .labelNames("path", "method", "code")
+                .help("http bucket 请求大小区间分布图")
+                .buckets(25, 50, 75, 100)
+                .register(collectorRegistry);
+    }
+
+    @Bean
+    public Summary httpRequestsBytesSummaryCollector() {
+        return Summary.build()
+                .name("http_requests_bytes_summary")
+                .labelNames("path", "method", "code")
+                .help("Request bytes ")
+                .register(collectorRegistry);
+    }
+}
+```
+
+
+
+InterceptorConfiguration
+
+```java
+@Configuration
+public class InterceptorConfiguration implements WebMvcConfigurer {
+
+    @Bean
+    public HandlerInterceptor prometheusInterceptor() {
+        return new PrometheusInterceptor();
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(prometheusInterceptor()).addPathPatterns("/**");
+    }
+}
+```
+
+
+
+PrometheusInterceptor
+
+```java
+@Slf4j
+public class PrometheusInterceptor implements HandlerInterceptor {
+
+    //http请求总数
+    @Resource(name = "httpRequestsTotalCounterCollector")
+    private Counter httpRequestsTotalCounterCollector;
+
+    //当前正在处理的请求数
+    @Resource(name = "httpInprogressRequestsGuageCollector")
+    private Gauge httpInprogressRequestsGuageCollector;
+
+    // http请求内容长度的区间分布图
+    @Resource(name = "httpRequestsBytesHistogramCollector")
+    private Histogram httpRequestsBytesHistogramCollector;
+
+    @Resource(name = "httpRequestsBytesSummaryCollector")
+    private Summary httpRequestsBytesSummaryCollector;
+
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        log.info("Prometheus intercrptor preHandle ...");
+        String requestURI = request.getRequestURI();
+        String method = request.getMethod();
+        int status = response.getStatus();
+        httpRequestsTotalCounterCollector
+                .labels(requestURI, method, String.valueOf(status))
+                .inc();
+        //当前正在处理的请求数 + 1
+        httpInprogressRequestsGuageCollector
+                .labels(requestURI, method, String.valueOf(status))
+                .inc();
+        // 请求大小
+        httpRequestsBytesHistogramCollector
+                .labels(requestURI, method, String.valueOf(status))
+                .observe(request.getContentLength());
+        // Summary
+        httpRequestsBytesSummaryCollector
+                .labels(requestURI, method, String.valueOf(status))
+                .observe(new Random().nextInt(100));
+        return HandlerInterceptor.super.preHandle(request, response, handler);
+    }
+
+    @Override
+    public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler,
+                           ModelAndView modelAndView) throws Exception {
+        log.info("Prometheus intercrptor postHandle ...");
+        HandlerInterceptor.super.postHandle(request, response, handler, modelAndView);
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
+        log.info("Prometheus intercrptor afterCompletion ...");
+
+        String requestURI = request.getRequestURI();
+        String method = request.getMethod();
+        int status = response.getStatus();
+        //当前正在处理的请求数 - 1
+        httpInprogressRequestsGuageCollector.labels(requestURI, method, String.valueOf(status)).dec();
+        HandlerInterceptor.super.afterCompletion(request, response, handler, ex);
+    }
+}
+```
+
+
+
+application
+
+```yaml
+server.port: 10001
+spring.application.name: example
+management:
+  endpoint:
+    metrics:
+      enabled: true
+    prometheus:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        http:
+          server:
+            requests: true
+```
+
