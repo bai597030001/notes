@@ -180,10 +180,16 @@ Count: 1  Time=10.00s (10s)  Lock=0.00s (0s)  Rows=1.0 (1), root[root]@localhost
 
 [https://www.cnblogs.com/f-ck-need-u/p/9010872.html](https://www.cnblogs.com/f-ck-need-u/p/9010872.html)
 
+redolog 用来保证Innodb的原子性和持久性。
 
+redolog是物理日志，记录的是页的物理修改操作。
 
 
 
 ## 回滚日志
 
 [https://www.cnblogs.com/f-ck-need-u/p/9010872.html](https://www.cnblogs.com/f-ck-need-u/p/9010872.html)
+
+undolog 用来保证innodb的一致性。
+
+undolog 是逻辑日志，根据每行的记录进行记录。
