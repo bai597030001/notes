@@ -601,7 +601,7 @@ public final class WebSecurity extends
 
 在application.properties文件中加入数据库连接信息：
 
-```xml
+```properties
 spring.datasource.url=jdbc:mysql://localhost:3306/yourDB?useUnicode=true&characterEncoding=UTF-8
 spring.datasource.username=dbuser
 spring.datasource.password=******

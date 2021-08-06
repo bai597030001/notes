@@ -2,6 +2,8 @@
 
 https://blog.csdn.net/u011277123/article/details/68940939
 
+https://www.cnblogs.com/wmyskxz/p/10229148.html#_label1_0
+
 ## 权限控制的方式
 
 认证
@@ -60,7 +62,7 @@ https://cloud.tencent.com/developer/article/1175271 + https://github.com/zhaojun
 
 
 
-subject：主题，可以是用户也可以是程序，主体要访问系统，系统需要对主体进行认证、授权。
+subject：主题，可以是用户也可以是程序，主题要访问系统，系统需要对主题进行认证、授权。
 
 securityManager：安全管理器，主体进行认证和授权都是通过securityManager进行。
 
@@ -81,6 +83,26 @@ cryptography：密码管理，提供了一套加密/解密的组件，方便开�
 
 
 **注意：在realm中存储授权和认证的逻辑。**
+
+
+
+## Shiro 核心组件
+
+1、UsernamePasswordToken，Shiro 用来封装用户登录信息，使用用户的登录信息创建令牌 Token，登录的过程即 Shiro 验证令牌是否具有合法身份以及相关权限。
+
+2、 SecurityManager，Shiro 的核心部分，负责安全认证与授权。
+
+3、Subject，Shiro 的一个抽象概念，包含了用户信息。
+
+4、Realm，开发者自定义的模块，根据项目的需求，验证和授权的逻辑在 Realm 中实现。
+
+5、AuthenticationInfo，用户的角色信息集合，认证时使用。
+
+6、AuthorizationInfo，角色的权限信息集合，授权时使用。
+
+7、DefaultWebSecurityManager，安全管理器，开发者自定义的 Realm 需要注入到 DefaultWebSecurityManager 进行管理才能生效。
+
+8、ShiroFilterFactoryBean，过滤器工厂，Shiro 的基本运行机制是开发者定制规则，Shiro 去执行，具体的执行操作就是由 ShiroFilterFactoryBean 创建一个个 Filter 对象来完成。
 
 
 
@@ -456,3 +478,42 @@ insert into sys_users_roles values(1,1,21);
 insert into sys_roles_permissions values(1,21,31);
 ```
 
+## 过滤器
+
+| 过滤器简称 | 对应的 Java 类                                               |
+| ---------- | ------------------------------------------------------------ |
+| 认证过滤器 |                                                              |
+| anon       | org.apache.shiro.web.filter.authc.AnonymousFilter            |
+| authc      | org.apache.shiro.web.filter.authc.FormAuthenticationFilter   |
+| authcBasic | org.apache.shiro.web.filter.authc.BasicHttpAuthenticationFilter |
+| user       | org.apache.shiro.web.filter.authc.UserFilter                 |
+| 授权过滤器 |                                                              |
+| perms      | org.apache.shiro.web.filter.authz.PermissionsAuthorizationFilter |
+| port       | org.apache.shiro.web.filter.authz.PortFilter                 |
+| rest       | org.apache.shiro.web.filter.authz.HttpMethodPermissionFilter |
+| roles      | org.apache.shiro.web.filter.authz.RolesAuthorizationFilter   |
+| ssl        | org.apache.shiro.web.filter.authz.SslFilter                  |
+
+logout 	| org.apache.shiro.web.filter.authc.LogoutFilter noSessionCreation 	| org.apache.shiro.web.filter.session.NoSessionCreationFilter
+
+```
+/admins/**=auth               # 表示该 uri 需要认证才能访问
+/admins/**=authcBasic         # 表示该 uri 需要 httpBasic 认证
+/admins/**=perms[user:add:*]  # 表示该 uri 需要认证用户拥有 user:add:* 权限才能访问
+/admins/**=port[8081]         # 表示该 uri 需要使用 8081 端口
+/admins/**=rest[user]         # 相当于 /admins/**=perms[user:method]，其中，method 表示  get、post、delete 等
+/admins/**=roles[admin]       # 表示该 uri 需要认证用户拥有 admin 角色才能访问
+/admins/**=ssl                # 表示该 uri 需要使用 https 协议
+/admins/**=user               # 表示该 uri 需要认证或通过记住我认证才能访问
+/logout=logout                # 表示注销,可以当作固定配置
+
+注意：
+anon，authcBasic，auchc，user 是认证过滤器。
+perms，roles，ssl，rest，port 是授权过滤器。
+```
+
+
+
+# Shiro整合springboot
+
+https://cloud.tencent.com/developer/article/1643122

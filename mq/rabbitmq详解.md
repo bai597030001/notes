@@ -1390,3 +1390,1070 @@ public class DownCmdConsumer {
 }
 ```
 
+
+
+# spring-rabbit重连机制
+
+spring-rabbit实现了自己的短线重连机制，下面我们看看是如何实现的，spring-rabbit版本 5.2.3.RELEASE。
+
+先看一下如何实现重连代码生产和消费。
+
+```java
+@Component
+@Slf4j
+public class SpringRabbitListener implements ChannelAwareMessageListener {
+
+    @Value("${rabbitmq.business.time:300}")
+    private int businessTime;
+
+    @Override
+    public void onMessage(Message message, Channel channel) throws Exception {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        String nowTime = sdf.format(new Date());
+        log.info(nowTime + this.getClass().getSimpleName() + ": 监听到消息：" + message.toString());
+        // 业务处理
+        if (businessTime > 0) {
+            Thread.sleep(businessTime);
+        }
+    }
+}
+```
+
+
+
+
+
+```java
+@Slf4j
+@Component
+public class RabbitBean {
+
+    @Value("${spring.rabbitmq.host}")
+    private String host;
+    @Value("${spring.rabbitmq.port:5672}")
+    private int port;
+    @Value("${spring.rabbitmq.username:admin}")
+    private String username;
+    @Value("${spring.rabbitmq.password:agS4dci8Dhhmo68R}")
+    private String password;
+    @Value("${spring.rabbitmq.virtual-host:/}")
+    private String virtualHost;
+
+    /**
+     * 声明直连交换机 支持持久化.
+     * @return the exchange
+     */
+    @Bean("directExchange")
+    public Exchange directExchange() {
+        return ExchangeBuilder.directExchange("PRESS_TEST_exchange_cloudt").durable(true).build();
+    }
+
+    @Bean("directQueue")
+    public Queue directQueue(){
+        return new Queue("PRESS_TEST_SGa.WLa.GID", true, false, false);
+        //return QueueBuilder.durable("directQueue").build();
+    }
+
+    @Bean
+    public Binding directBinding(@Qualifier("directQueue")Queue queue, @Qualifier("directExchange")Exchange directExchange){
+        return BindingBuilder
+                .bind(queue)
+                .to(directExchange)
+                .with("PRESS_TEST_SGa.WLa.GID")
+                .noargs();
+    }
+
+    @Bean
+    public ConnectionFactory connectionFactory() {
+        final CachingConnectionFactory connectionFactory = new CachingConnectionFactory(host, port);
+        connectionFactory.setUsername(username);
+        connectionFactory.setPassword(password);
+        connectionFactory.setVirtualHost("/");
+        connectionFactory.setRequestedHeartBeat(30);
+        connectionFactory.getRabbitConnectionFactory().setNetworkRecoveryInterval(3000);
+        connectionFactory.getRabbitConnectionFactory().setAutomaticRecoveryEnabled(true);
+        connectionFactory.getRabbitConnectionFactory().setRequestedHeartbeat(30);
+        return connectionFactory;
+    }
+```
+
+
+
+```java
+@Configuration
+public class RabbitMQConfig {
+
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+
+    @Bean
+    public AmqpTemplate amqpTemplate(@Qualifier("connectionFactory") ConnectionFactory connectionFactory) {
+        rabbitTemplate.setEncoding("UTF-8");
+        rabbitTemplate.setMandatory(true);
+        rabbitTemplate.setConnectionFactory(connectionFactory);
+        return rabbitTemplate;
+    }
+
+    @Bean
+    public RabbitAdmin rabbitAdmin(@Qualifier("connectionFactory") ConnectionFactory factory) {
+        return new RabbitAdmin(factory);
+    }
+
+    @Bean
+    public SimpleMessageListenerContainer listenerContainerCopernicusErrorQueue(
+            @Qualifier("connectionFactory") ConnectionFactory connectionFactory,
+            @Qualifier("springRabbitListener") MessageListener messageListener) {
+        final SimpleMessageListenerContainer container = new SimpleMessageListenerContainer();
+        container.setConnectionFactory(connectionFactory);
+        container.setMessageListener(messageListener);
+        container.setQueueNames("PRESS_TEST_SGa.WLa.GID");
+        container.setAcknowledgeMode(AcknowledgeMode.AUTO);
+        container.setDefaultRequeueRejected(false);
+        container.setMissingQueuesFatal(false);
+        return container;
+    }
+
+    @Bean(name = "rabbitListenerContainerFactory")
+    public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(SimpleRabbitListenerContainerFactoryConfigurer configurer,
+                                                                               @Qualifier("connectionFactory") ConnectionFactory connectionFactory) {
+        SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
+        factory.setConnectionFactory(connectionFactory);
+        //factory.setAcknowledgeMode(AcknowledgeMode.AUTO);
+        factory.setRecoveryInterval(30000L);
+        BackOff recoveryBackOff = new FixedBackOff(5000, 3000);
+        factory.setRecoveryBackOff(recoveryBackOff);
+        factory.setMissingQueuesFatal(false);
+        configurer.configure(factory, connectionFactory);
+        return factory;
+    }
+}
+```
+
+其中SimpleMessageListenerContainer是消息监听器的容器类，也是实现消息消费、重试的主要入口。
+
+我们定义了消息监听器 springRabbitListener，包含处理消息的业务逻辑；以及connectionFactory连接工厂类，用了带缓存的CachingConnectionFactory工厂。并且设置了SimpleMessageListenerContainer的监听器为springRabbitListener，连接工厂connectionFactory。
+
+接下来，我们看看SimpleMessageListenerContainer是如何实现消息消费的。
+
+```java
+public class SimpleMessageListenerContainer extends AbstractMessageListenerContainer {
+    // ...
+    private Set<BlockingQueueConsumer> consumers;
+}
+
+public abstract class AbstractMessageListenerContainer extends RabbitAccessor implements MessageListenerContainer, ApplicationContextAware, BeanNameAware, DisposableBean, ApplicationEventPublisherAware {
+	// ...
+    private final AbstractMessageListenerContainer.ContainerDelegate delegate = this::actualInvokeListener;
+    protected final Object consumersMonitor = new Object();
+    private final Map<String, Object> consumerArgs = new HashMap();
+    
+    private Executor taskExecutor;
+    private volatile List<Queue> queues;
+    private volatile MessageListener messageListener;
+    private volatile int prefetchCount;
+}
+```
+
+因为`SimpleMessageListenerContainer`的上层接口`MessageListenerContainer`实现了 `SmartLifecycle`接口，所以可以知道，当spring容器完成刷新`refresh() => finishRefresh()`，如下所示
+
+org.springframework.context.support.AbstractApplicationContext#refresh
+
+->
+
+org.springframework.context.support.AbstractApplicationContext#finishRefresh
+
+-> 
+
+org.springframework.context.LifecycleProcessor#onRefresh	=> org.springframework.context.support.DefaultLifecycleProcessor#onRefresh
+
+完成刷新时，会通过getLifecycleProcessor().onRefresh()将刷新传播到生命周期处理器 LifecycleProcessor，通过LifecycleProcessor管理所有实现了Lifecycle接口的bean的生命周期（调用其start方法），关闭时调用所有实现了Lifecycle接口的bean的stop方法。
+
+`org.springframework.context.LifecycleProcessor`
+
+```java
+public class DefaultLifecycleProcessor implements LifecycleProcessor, BeanFactoryAware {
+    // ...
+    	@Override
+	public void onRefresh() {
+		startBeans(true);
+		this.running = true;
+	}
+
+	@Override
+	public void onClose() {
+		stopBeans();
+		this.running = false;
+	}
+    // ...
+}
+```
+
+在`startBeans(true)`中，逐个开启了`LifecycleGroup`
+
+`org.springframework.context.support.DefaultLifecycleProcessor#startBeans`
+
+```java
+private void startBeans(boolean autoStartupOnly) {
+    Map<String, Lifecycle> lifecycleBeans = getLifecycleBeans();
+    Map<Integer, LifecycleGroup> phases = new TreeMap<>();
+
+    lifecycleBeans.forEach((beanName, bean) -> {
+        if (!autoStartupOnly || (bean instanceof SmartLifecycle && ((SmartLifecycle) bean).isAutoStartup())) {
+            int phase = getPhase(bean);
+            phases.computeIfAbsent(
+                phase,
+                p -> new LifecycleGroup(phase, this.timeoutPerShutdownPhase, lifecycleBeans, autoStartupOnly)
+            ).add(beanName, bean);
+        }
+    });
+    if (!phases.isEmpty()) {
+        // 逐个开启 LifecycleGroup start
+        phases.values().forEach(LifecycleGroup::start);
+    }
+}
+```
+
+而在LifecycleGroup的start方法中，逐个调用`doStart`方法开启bean。
+
+```java
+private void doStart(Map<String, ? extends Lifecycle> lifecycleBeans, String beanName, boolean autoStartupOnly) {
+    Lifecycle bean = lifecycleBeans.remove(beanName);
+    // ...
+    try {
+        bean.start();
+    }
+    // ...
+}
+```
+
+这时的`bean.start()`会开启`org.springframework.amqp.rabbit.listener.AbstractMessageListenerContainer#start`方法。
+
+```java
+@Override
+public void start() {
+    // ...
+    try {
+        logger.debug("Starting Rabbit listener container.");
+        configureAdminIfNeeded();
+        checkMismatchedQueues();
+        doStart();
+    }
+    catch (Exception ex) {
+        throw convertRabbitAccessException(ex);
+    }
+    finally {
+        this.lazyLoad = false;
+    }
+}
+```
+
+继续调用`org.springframework.amqp.rabbit.listener.AbstractMessageListenerContainer#doStart`，以及其子类方法`org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer#doStart`
+
+```java
+@Override
+protected void doStart() {
+    Assert.state(!this.consumerBatchEnabled || getMessageListener() instanceof BatchMessageListener
+                 || getMessageListener() instanceof ChannelAwareBatchMessageListener,
+                 "When setting 'consumerBatchEnabled' to true, the listener must support batching");
+    checkListenerContainerAware();
+    super.doStart();
+    synchronized (this.consumersMonitor) {
+        if (this.consumers != null) {
+            throw new IllegalStateException("A stopped container should not have consumers");
+        }
+        int newConsumers = initializeConsumers();
+        if (this.consumers == null) {
+            logger.info("Consumers were initialized and then cleared " +
+                        "(presumably the container was stopped concurrently)");
+            return;
+        }
+        if (newConsumers <= 0) {
+            if (logger.isInfoEnabled()) {
+                logger.info("Consumers are already running");
+            }
+            return;
+        }
+        Set<AsyncMessageProcessingConsumer> processors = new HashSet<AsyncMessageProcessingConsumer>();
+        for (BlockingQueueConsumer consumer : this.consumers) {
+            AsyncMessageProcessingConsumer processor = new AsyncMessageProcessingConsumer(consumer);
+            processors.add(processor);
+            getTaskExecutor().execute(processor);
+            if (getApplicationEventPublisher() != null) {
+                getApplicationEventPublisher().publishEvent(new AsyncConsumerStartedEvent(this, consumer));
+            }
+        }
+        waitForConsumersToStart(processors);
+    }
+}
+```
+
+在上述方法中调用了`getTaskExecutor().execute(processor);`，即线程开始执行`org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer.AsyncMessageProcessingConsumer#run`。这个是最关键的一部分代码：
+
+```java
+@Override // NOSONAR - complexity - many catch blocks
+public void run() { // NOSONAR - line count
+    // ...
+
+    try {
+        initialize();
+        while (isActive(this.consumer) || this.consumer.hasDelivery() || !this.consumer.cancelled()) {
+            mainLoop();
+        }
+    }
+    // ...
+    
+    // In all cases count down to allow container to progress beyond startup
+    this.start.countDown();
+
+    killOrRestart(aborted);
+
+    if (routingLookupKey != null) {
+        SimpleResourceHolder.unbind(getRoutingConnectionFactory()); // NOSONAR never null here
+    }
+}
+```
+
+继续跟进`org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer.AsyncMessageProcessingConsumer#initialize`，会发现里边开启了AsyncMessageProcessingConsumer.BlockingQueueConsumer consumer的`org.springframework.amqp.rabbit.listener.BlockingQueueConsumer#start`方法。
+
+```java
+public void start() throws AmqpException {
+    if (logger.isDebugEnabled()) {
+        logger.debug("Starting consumer " + this);
+    }
+
+    this.thread = Thread.currentThread();
+
+    try {
+        this.resourceHolder = ConnectionFactoryUtils.getTransactionalResourceHolder(this.connectionFactory,
+                                                                                    this.transactional);
+        this.channel = this.resourceHolder.getChannel();
+        ClosingRecoveryListener.addRecoveryListenerIfNecessary(this.channel); // NOSONAR never null here
+    }
+    catch (AmqpAuthenticationException e) {
+        throw new FatalListenerStartupException("Authentication failure", e);
+    }
+    this.deliveryTags.clear();
+    this.activeObjectCounter.add(this);
+
+    passiveDeclarations();
+    setQosAndCreateConsumers();
+}
+```
+
+其中最后的的`setQosAndCreateConsumers()`设置了channel的通道最大消息量prefetchCount
+
+```java
+private void setQosAndCreateConsumers() {
+    if (!this.acknowledgeMode.isAutoAck() && !cancelled()) {
+        try {
+            this.channel.basicQos(this.prefetchCount, this.globalQos);
+        }
+        catch (IOException e) {
+            this.activeObjectCounter.release(this);
+            throw new AmqpIOException(e);
+        }
+    }
+
+    try {
+        if (!cancelled()) {
+            for (String queueName : this.queues) {
+                if (!this.missingQueues.contains(queueName)) {
+                    consumeFromQueue(queueName);
+                }
+            }
+        }
+    }
+    catch (IOException e) {
+        throw RabbitExceptionTranslator.convertRabbitAccessException(e);
+    }
+}
+```
+
+然后`consumeFromQueue`方法开始从队列消费消息到内部队列`BlockingQueueConsumer.this.queue`上
+
+```java
+private void consumeFromQueue(String queue) throws IOException {
+    InternalConsumer consumer = new InternalConsumer(this.channel, queue);
+    String consumerTag = this.channel.basicConsume(queue, this.acknowledgeMode.isAutoAck(),
+                                                   (this.tagStrategy != null ? this.tagStrategy.createConsumerTag(queue) : ""), this.noLocal,
+                                                   this.exclusive, this.consumerArgs,
+                                                   consumer);
+
+    if (consumerTag != null) {
+        this.consumers.put(queue, consumer);
+        if (logger.isDebugEnabled()) {
+            logger.debug("Started on queue '" + queue + "' with tag " + consumerTag + ": " + this);
+        }
+    }
+    else {
+        logger.error("Null consumer tag received for queue " + queue);
+    }
+}
+```
+
+
+
+```java
+private final class InternalConsumer extends DefaultConsumer {
+
+    private final String queueName;
+
+    private boolean canceled;
+
+    InternalConsumer(Channel channel, String queue) {
+        super(channel);
+        this.queueName = queue;
+    }
+
+    @Override
+    public void handleConsumeOk(String consumerTag) {
+        super.handleConsumeOk(consumerTag);
+        if (logger.isDebugEnabled()) {
+            logger.debug("ConsumeOK: " + BlockingQueueConsumer.this);
+        }
+        if (BlockingQueueConsumer.this.applicationEventPublisher != null) {
+            BlockingQueueConsumer.this.applicationEventPublisher
+                .publishEvent(new ConsumeOkEvent(this, this.queueName, consumerTag));
+        }
+    }
+
+    @Override
+    public void handleShutdownSignal(String consumerTag, ShutdownSignalException sig) {
+        if (logger.isDebugEnabled()) {
+            if (RabbitUtils.isNormalShutdown(sig)) {
+                logger.debug("Received shutdown signal for consumer tag=" + consumerTag + ": " + sig.getMessage());
+            }
+            else {
+                logger.debug("Received shutdown signal for consumer tag=" + consumerTag, sig);
+            }
+        }
+        BlockingQueueConsumer.this.shutdown = sig;
+        // The delivery tags will be invalid if the channel shuts down
+        BlockingQueueConsumer.this.deliveryTags.clear();
+        BlockingQueueConsumer.this.activeObjectCounter.release(BlockingQueueConsumer.this);
+    }
+
+    @Override
+    public void handleCancel(String consumerTag) {
+        if (logger.isWarnEnabled()) {
+            logger.warn("Cancel received for " + consumerTag + " ("
+                        + this.queueName
+                        + "); " + BlockingQueueConsumer.this);
+        }
+        BlockingQueueConsumer.this.consumers.remove(this.queueName);
+        if (!BlockingQueueConsumer.this.consumers.isEmpty()) {
+            basicCancel(false);
+        }
+        else {
+            BlockingQueueConsumer.this.cancelled.set(true);
+        }
+    }
+
+    @Override
+    public void handleCancelOk(String consumerTag) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("Received cancelOk for tag " + consumerTag + " ("
+                         + this.queueName
+                         + "); " + BlockingQueueConsumer.this);
+        }
+        this.canceled = true;
+    }
+
+    @Override
+    public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties,
+                               byte[] body) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("Storing delivery for consumerTag: '"
+                         + consumerTag + "' with deliveryTag: '" + envelope.getDeliveryTag() + "' in "
+                         + BlockingQueueConsumer.this);
+        }
+        try {
+            if (BlockingQueueConsumer.this.abortStarted > 0) {
+                if (!BlockingQueueConsumer.this.queue.offer(
+                    new Delivery(consumerTag, envelope, properties, body, this.queueName),
+                    BlockingQueueConsumer.this.shutdownTimeout, TimeUnit.MILLISECONDS)) {
+
+                    Channel channelToClose = super.getChannel();
+                    RabbitUtils.setPhysicalCloseRequired(channelToClose, true);
+                    // Defensive - should never happen
+                    BlockingQueueConsumer.this.queue.clear();
+                    if (!this.canceled) {
+                        RabbitUtils.cancel(channelToClose, consumerTag);
+                    }
+                    try {
+                        channelToClose.close();
+                    }
+                    catch (@SuppressWarnings("unused") TimeoutException e) {
+                        // no-op
+                    }
+                }
+            }
+            else {
+                BlockingQueueConsumer.this.queue
+                    .put(new Delivery(consumerTag, envelope, properties, body, this.queueName));
+            }
+        }
+        catch (@SuppressWarnings("unused") InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        catch (Exception e) {
+            BlockingQueueConsumer.logger.warn("Unexpected exception during delivery", e);
+        }
+    }
+
+    @Override
+    public String toString() {
+        return "InternalConsumer{" + "queue='" + this.queueName + '\'' +
+            ", consumerTag='" + getConsumerTag() + '\'' +
+            '}';
+    }
+
+}
+```
+
+其中`handleDelivery`方法可以看到 `BlockingQueueConsumer.this.queue.put(new Delivery(consumerTag, envelope, properties, body, this.queueName));`
+
+那么这个队列上的消息是什么时候被业务逻辑消费的呢？
+
+就是在`org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer.AsyncMessageProcessingConsumer#run`方法中，当上述的`initialize()`方法执行完毕后，开始了主循环`mainLoop()`逻辑。继续跟进可以发现，其内部逻辑就是不断从自己的内部队列中获取消息，执行业务处理逻辑，ack，然后继续下一条消息。
+
+`org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer.AsyncMessageProcessingConsumer#mainLoop`
+
+```java
+private void mainLoop() throws Exception { // NOSONAR Exception
+    try {
+        boolean receivedOk = receiveAndExecute(this.consumer); // At least one message received
+    }
+    // ...
+}
+```
+
+`org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer#receiveAndExecute`
+
+```java
+private boolean receiveAndExecute(final BlockingQueueConsumer consumer) throws Exception { // NOSONAR
+    // ...
+    return doReceiveAndExecute(consumer);
+}
+```
+
+
+
+```java
+private boolean doReceiveAndExecute(BlockingQueueConsumer consumer) throws Exception { //NOSONAR
+
+    Channel channel = consumer.getChannel();
+
+    List<Message> messages = null;
+    long deliveryTag = 0;
+
+    for (int i = 0; i < this.batchSize; i++) {
+
+        logger.trace("Waiting for message from consumer.");
+        Message message = consumer.nextMessage(this.receiveTimeout);
+        if (message == null) {
+            break;
+        }
+        if (this.consumerBatchEnabled) {
+            // ... 
+        }
+        else {
+            messages = debatch(message);
+            if (messages != null) {
+                break;
+            }
+            try {
+                // 消息的业务处理逻辑
+                executeListener(channel, message);
+            }
+			// ... 处理异常
+        }
+    }
+    if (messages != null) {
+        executeWithList(channel, messages, deliveryTag, consumer);
+    }
+
+    return consumer.commitIfNecessary(isChannelLocallyTransacted());
+}
+```
+
+
+
+## 总结
+
+org.springframework.context.support.AbstractApplicationContext#refresh
+
+->
+
+org.springframework.context.support.AbstractApplicationContext#finishRefresh
+
+-> 
+
+org.springframework.context.support.DefaultLifecycleProcessor#onRefresh
+
+->
+
+org.springframework.context.support.DefaultLifecycleProcessor#startBeans
+
+-> 
+
+org.springframework.context.support.DefaultLifecycleProcessor.LifecycleGroup#start
+
+-> 
+
+org.springframework.context.support.DefaultLifecycleProcessor#doStart
+
+=>
+
+org.springframework.amqp.rabbit.listener.AbstractMessageListenerContainer#start
+
+
+
+## 正常启动流程
+
+```java
+public class RabbitListenerAnnotationBeanPostProcessor
+		implements BeanPostProcessor, Ordered, BeanFactoryAware, BeanClassLoaderAware, EnvironmentAware,
+		SmartInitializingSingleton {
+	
+	private RabbitListenerEndpointRegistry endpointRegistry;
+}
+
+
+public class RabbitListenerEndpointRegistrar implements BeanFactoryAware, InitializingBean {
+    
+    @Nullable
+	private RabbitListenerEndpointRegistry endpointRegistry;
+}
+
+public class RabbitListenerEndpointRegistry implements DisposableBean, SmartLifecycle, ApplicationContextAware,
+		ApplicationListener<ContextRefreshedEvent> {
+            
+	private final Map<String, MessageListenerContainer> listenerContainers = new ConcurrentHashMap<String, MessageListenerContainer>();
+	
+}
+```
+
+
+
+org.springframework.amqp.rabbit.annotation.RabbitListenerAnnotationBeanPostProcessor#postProcessAfterInitialization
+
+=>
+
+org.springframework.amqp.rabbit.annotation.RabbitListenerAnnotationBeanPostProcessor#afterSingletonsInstantiated
+
+=>
+
+org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistrar#afterPropertiesSet
+
+=>
+
+org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistrar#registerAllEndpoints
+
+=> 这时经过spring容器初始化，开始调用LifeCycle接口bean的start方法	同上
+
+=>
+
+org.springframework.context.support.AbstractApplicationContext#refresh
+
+org.springframework.context.support.AbstractApplicationContext#finishRefresh
+
+org.springframework.context.support.DefaultLifecycleProcessor#startBeans
+
+org.springframework.context.support.DefaultLifecycleProcessor#doStart
+
+org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistry#start
+
+org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistry#startIfNecessary
+
+接着就是 org.springframework.amqp.rabbit.listener.AbstractMessageListenerContainer#start方法了，注意在
+
+org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer#doStart方法中调用 initializeConsumers() 方法时，根据concurrentConsumers个数创建多个BlockingQueueConsumer，然后开启多个线程分别执行，实现并发消费。
+
+
+
+## 附1：LifeCycle系列接口
+
+Spring容器本身是有生命周期的，比如容器启动则开始生命和容器关闭则结束生命，如果想让Spring容器管理的bean也同样有生命周期的话，比如数据库连接对象，当容器启动时，连接bean生命周期开启，当容器关闭时，连接bean生命周期结束。
+
+此时就可以用到Spring提供的一个扩展接口--Lifecycle接口
+
+```java
+public interface Lifecycle {
+
+    /**
+         * 生命周期开始
+         */
+    void start();
+
+    /**
+         * 生命周期结束
+         */
+    void stop();
+
+    /**
+         * 判断当前bean是否是开始状态
+         */
+    boolean isRunning();
+
+}
+```
+
+从接口的方法上很好理解，主要是开始和结束当前对象的生命周期，以及判断当前对象生命周期的状态。
+
+
+
+扩展接口LifecycleProcessor，是Lifecycle接口的处理器。
+
+```java
+public interface LifecycleProcessor extends Lifecycle {
+
+    /**
+     * 刷新容器,自动开始生命周期
+     */
+    void onRefresh();
+
+    /**
+     * 关闭容器,自动结束生命周期
+     */
+    void onClose();
+
+}
+```
+
+SmartLifecycle接口
+
+```java
+public interface SmartLifecycle extends Lifecycle, Phased {
+
+    /**
+     * 默认优先级,Integer的最大值
+     */
+    int DEFAULT_PHASE = Integer.MAX_VALUE;
+
+
+    /**
+     * 是否自动启动,默认为true
+     */
+    default boolean isAutoStartup() {
+        return true;
+    }
+
+    /**
+     * 默认直接执行stop方法,并执行回调方法
+     */
+    default void stop(Runnable callback) {
+        stop();
+        callback.run();
+    }
+
+    /**
+     * 获取优先级,启动时值越小越先启动；停止时值越小越后停止
+     */
+    @Override
+    default int getPhase() {
+        return DEFAULT_PHASE;
+    }
+
+}
+```
+
+SmartLifecycle接口有一个优先级，如果没有实现SmartLifecycle接口的其他的Lifecycle的优先级为0，启动的时候按phase的值从小到大执行；关闭的时候按phase的值从大到小执行。
+
+isAutoStartup()方法表示Spring容器刷新的时候自动执行start()方法，返回true表示会；返回false则不会,那么就需要手动调用start方法才可以执行。
+
+Spring容器初始化完成之后，会调用LifecycleProcessor的onRefresh方法刷新整个上下文，但是此时的AbstractApplicationContext实际上还并没有执行start方法，此时如果有bean需要在Spring容器刷新的时候就调用start方法，那么就可以使用SmartLifecycle，
+
+当SmartLifecycle接口的isAutoStartup方法返回true时表示只要Spring容器刷新了就会调用该bean的start方法，否则必须要等到Spring容器执行了start方法之后才会执行SmartLifecycle对象的start方法。
+
+
+
+## 附2：BeanPostProcessor接口
+
+后置处理器，作用是在Bean对象在实例化和依赖注入完毕后，在显示调用初始化方法的前后添加我们自己的逻辑。注意是Bean实例化完毕后及依赖注入完成后触发的。
+
+```java
+public interface BeanPostProcessor {
+    /*该方法主要针对spring在bean初始化时调用初始化方法前进行自定义处理。*/
+    @Nullable
+    default Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
+        return bean;
+    }
+
+    /*该方法主要针对spring在bean初始化时调用初始化方法后进行自定义处理。*/
+    @Nullable
+    default Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
+        return bean;
+    }
+}
+```
+
+
+
+## 附3：spring容器生命周期
+
+Spring容器是有生命周期的，因为Spring容器抽象类AbstractApplicationContext实现了Lifecycle接口。
+
+```java
+public abstract class AbstractApplicationContext extends DefaultResourceLoader
+		implements ConfigurableApplicationContext {
+    
+    // ...
+    
+    //---------------------------------------------------------------------
+	// Implementation of Lifecycle interface
+	//---------------------------------------------------------------------
+    @Override
+	public void start() {
+		getLifecycleProcessor().start();
+		publishEvent(new ContextStartedEvent(this));
+	}
+
+	@Override
+	public void stop() {
+		getLifecycleProcessor().stop();
+		publishEvent(new ContextStoppedEvent(this));
+	}
+
+	@Override
+	public boolean isRunning() {
+		return (this.lifecycleProcessor != null && this.lifecycleProcessor.isRunning());
+	}
+    
+    // ...
+    
+}
+```
+
+AbstractApplicationContext的start和stop方法完全委托给了内部的LifecycleProcessor来执行的。而LifecycleProcessor的初始化是在AbstractactApplicationContext初始化时进行的。
+
+而AbstractApplicationContext初始化时，当容器全部初始化完毕之后会执行finishRefresh方法表示整个容器刷新完成了，执行逻辑如下：
+
+`org.springframework.context.support.AbstractApplicationContext#refresh`	
+
+=>调用	
+
+`org.springframework.context.support.AbstractApplicationContext#finishRefresh`
+
+```java
+protected void finishRefresh() {
+    // Clear context-level resource caches (such as ASM metadata from scanning).
+    clearResourceCaches();
+
+    //初始化LifecycleProcessor对象
+    initLifecycleProcessor();
+
+    //调用LifecycleProcessor对象的onRefresh()方法
+    getLifecycleProcessor().onRefresh();
+
+    // Publish the final event.
+    publishEvent(new ContextRefreshedEvent(this));
+
+    // Participate in LiveBeansView MBean, if active.
+    LiveBeansView.registerApplicationContext(this);
+}
+```
+
+在finishRefresh方法中首先是初始化了内部的LifecycleProcessor对象，然后调用了该对象的onRefresh()方法，而初始化LifecycleProcessor方法的逻辑也不复杂，首先是从BeanFactory中找到自定义的LifecycleProcessor，如果没有用户自定义的，则创建一个默认的LifecycleProcessor实现类DefaultLifecycleProcessor对象
+
+```java
+protected void initLifecycleProcessor() {
+    ConfigurableListableBeanFactory beanFactory = getBeanFactory();
+    /** 如果BeanFactory中有自定义的LifecycleProcessor的bean,则直接用自定义的*/
+    if (beanFactory.containsLocalBean(LIFECYCLE_PROCESSOR_BEAN_NAME)) {
+        this.lifecycleProcessor =
+            beanFactory.getBean(LIFECYCLE_PROCESSOR_BEAN_NAME, LifecycleProcessor.class);
+        if (logger.isTraceEnabled()) {
+            logger.trace("Using LifecycleProcessor [" + this.lifecycleProcessor + "]");
+        }
+    }
+    else {
+        /** 如果没有自定义，则创建默认的实现类DefaultLifecycleProcesor*/
+        DefaultLifecycleProcessor defaultProcessor = new DefaultLifecycleProcessor();
+        defaultProcessor.setBeanFactory(beanFactory);
+        this.lifecycleProcessor = defaultProcessor;
+        beanFactory.registerSingleton(LIFECYCLE_PROCESSOR_BEAN_NAME, this.lifecycleProcessor);
+        if (logger.isTraceEnabled()) {
+            logger.trace("No '" + LIFECYCLE_PROCESSOR_BEAN_NAME + "' bean, using " +
+                         "[" + this.lifecycleProcessor.getClass().getSimpleName() + "]");
+        }
+    }
+}
+```
+
+接下来分析下默认的LifecycleProcessor的处理逻辑：
+
+```java
+/**
+    * 执行startBeans(false)方法开启所有实现了Lifecycle接口的bean的生命周期
+     */
+    @Override
+    public void start() {
+        startBeans(false);
+        this.running = true;
+    }
+
+    /**
+     * 执行stopBeans()方法关闭所有实现了Lifecycle接口的bean的生命周期
+     */
+    @Override
+    public void stop() {
+        stopBeans();
+        this.running = false;
+    }
+
+    @Override
+    public void onRefresh() {
+        startBeans(true);
+        this.running = true;
+    }
+
+    @Override
+    public void onClose() {
+        stopBeans();
+        this.running = false;
+    }
+
+    @Override
+    public boolean isRunning() {
+        return this.running;
+    }
+```
+
+核心逻辑都是在startBeans和stopBeans两个方法中。
+
+```java
+/** 开始bean的生命周期
+     * @param autoStartupOnly:自动开启还是手动开启
+     * */
+    private void startBeans(boolean autoStartupOnly) {
+        /**
+         * 1.调用getLifecycleBeans方法获取所有实现了Lifecycle接口的bean
+         *  实现逻辑就是调用BeanFactory的getBeanNamesForType(LifeCycle.class)方法来获取所有bean
+         * */
+        Map<String, Lifecycle> lifecycleBeans = getLifecycleBeans();
+        Map<Integer, LifecycleGroup> phases = new HashMap<>();
+        /**
+         * 2.遍历所有Lifecycle的bean,按不同阶段进行分组,同组的封装为LifecycleGroup对象
+         * */
+        lifecycleBeans.forEach((beanName, bean) -> {
+            if (!autoStartupOnly || (bean instanceof SmartLifecycle && ((SmartLifecycle) bean).isAutoStartup())) {
+                int phase = getPhase(bean);
+                LifecycleGroup group = phases.get(phase);
+                if (group == null) {
+                    group = new LifecycleGroup(phase, this.timeoutPerShutdownPhase, lifecycleBeans, autoStartupOnly);
+                    phases.put(phase, group);
+                }
+                group.add(beanName, bean);
+            }
+        });
+        /**
+         * 3.遍历所有LifecycleGroup,调用LifecycleGroup的start方法
+         * */
+        if (!phases.isEmpty()) {
+            List<Integer> keys = new ArrayList<>(phases.keySet());
+            Collections.sort(keys);
+            for (Integer key : keys) {
+                phases.get(key).start();
+            }
+        }
+    }
+```
+
+主要分成以下三步：
+
+第一步：从BeanFactory中获取所有实现了Lifecycle接口的bean
+
+第二步：遍历所有实现了Lifecycle接口的bean，按不同阶段进行分组，同一组的bean封装成LifecycleGroup对象
+
+第三步：遍历所有组，调用LifecycleGroup对象的start方法
+
+```java
+public void start() {
+    if (this.members.isEmpty()) {
+        return;
+    }
+    if (logger.isDebugEnabled()) {
+        logger.debug("Starting beans in phase " + this.phase);
+    }
+    /** 将Lifecycle对象进行排序*/
+    Collections.sort(this.members);
+    /** 遍历调用doStart方法开启Lifecycle对象的生命周期*/
+    for (LifecycleGroupMember member : this.members) {
+        doStart(this.lifecycleBeans, member.name, this.autoStartupOnly);
+    }
+}
+```
+
+
+
+```java
+private void doStart(Map<String, ? extends Lifecycle> lifecycleBeans, String beanName, boolean autoStartupOnly) {
+    /**
+         * 1.根据beanName从集合中获取Lifecycle对象并移除
+         * */
+    Lifecycle bean = lifecycleBeans.remove(beanName);
+    if (bean != null && bean != this) {
+        /**
+             * 2.如果有依赖,则先开启依赖bean的生命周期
+             * */
+        String[] dependenciesForBean = getBeanFactory().getDependenciesForBean(beanName);
+        for (String dependency : dependenciesForBean) {
+            doStart(lifecycleBeans, dependency, autoStartupOnly);
+        }
+        if (!bean.isRunning() &&
+            (!autoStartupOnly || !(bean instanceof SmartLifecycle) || ((SmartLifecycle) bean).isAutoStartup())) {
+            try {
+                /**
+                     * 3.调用Lifecycle对象的start方法开启生命周期
+                     * */
+                bean.start();
+            }
+            catch (Throwable ex) {
+                throw new ApplicationContextException("Failed to start bean '" + beanName + "'", ex);
+            }
+        }
+    }
+}
+```
+
+startBeans整体逻辑如下：
+
+1、从BeanFactory中获取所有实现了Lifecycle接口的bean
+
+2、将所有Lifecycle按阶段进行分组
+
+3、遍历所有阶段的组，遍历每个组内的所有Lifecycle对象，如果Lifecycle对象有依赖bean就先开启依赖bean的生命周期，然后直接执行Lifecycle对象的start方法
+
+
+
+## spring-rabbit如何启动
+
+```java
+// 根据上述 代码追踪，到了 RabbitListenerAnnotationBeanPostProcessor
+// 继续往下追踪代码
+=>	
+
+org.springframework.amqp.rabbit.annotation.RabbitBootstrapConfiguration#registerBeanDefinitions
+
+=>
+
+org.springframework.amqp.rabbit.annotation.RabbitListenerConfigurationSelector#selectImports
+
+=> 
+
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@Import(RabbitListenerConfigurationSelector.class)
+public @interface EnableRabbit {
+}
+```
+
+
+
+org.springframework.amqp.rabbit.annotation.RabbitBootstrapConfiguration#registerBeanDefinitions
+
+=>
+
+org.springframework.beans.factory.support.DefaultListableBeanFactory#registerBeanDefinition

@@ -183,7 +183,7 @@ public class Test4 {
 
 web环境Spring、Spring mvc容器加载过程
 
-对于一个web应用，部署在web容器中，容易提供一个全局应用上下文（ServletContext），为后面的IOC容器提供宿主环境。
+对于一个web应用，部署在web容器中，容器提供一个全局应用上下文（ServletContext），为后面的IOC容器提供宿主环境。
 
 其次，因为web.xml中会提供有contextLoaderListener（或ContextLoaderServlet），当web容器启动后，触发IOC容器初始化时间，contextLoaderListener监听到事件后，Spring将初始化一个上下文（WebApplicationContext接口），实现类为XmlWebApplicationContext（IOC容器）。 IOC初始化后，开始初始化各种servlet（DispatchServlet），以IOC容器为宿主环境进行初始化（两者都有属于自己的bean缓存）
 
@@ -470,11 +470,27 @@ public class MyApplicationContext implements BeanNameAware,ApplicationContextAwa
 
 # Import系列
 
+
+
+## @Import
+
 Spring 3.0之前，我们的Bean可以通过xml配置文件与扫描特定包下面的类来将类注入到Spring IOC容器内。
 
 Spring 3.0之后提供了JavaConfig的方式，也就是将IOC容器里Bean的元信息以java代码的方式进行描述。我们可以通过@Configuration与@Bean这两个注解配合使用来将原来配置在xml文件里的bean通过java代码的方式进行描述。
 
 @Import注解提供了**@Bean注解的功能，同时还有xml配置文件里\<import>标签组织多个分散的xml文件的功能，当然在这里是组织多个分散的@Configuration**。
+
+
+
+`@Import`模式向容器导入Bean确实非常非常的重要，特别是在注解驱动的Spring项目中、`@Enablexxx`的设计模式中有大量的使用，在当下最流行的Spring Boot中，可以说作为设置是最重要的一种方式，来做底层抽象、组件式的设计。
+
+比如我们熟悉的：`@EnableAsync`、`@EnableAspectJAutoProxy`、`@EnableMBeanExport`、`@EnableTransactionManagement`…等等统一采用的都是借助`@Import`注解来实现的
+
+在`@Import`的使用上，结合`ImportSelector、DeferredImportSelector、ImportBeanDefinitionRegistrar`这三个接口的一些高级应用
+
+>  需要注意的是：`ImportSelector、DeferredImportSelector、ImportBeanDefinitionRegistrar`这三个接口都必须依赖于@Import一起使用，而@Import可以单独使用
+
+
 
 ```java
 @Target(ElementType.TYPE)
@@ -588,9 +604,58 @@ public interface ImportSelector {
 
 
 
+```java
+public class UserServiceImportSelector implements ImportSelector {
+
+	/**
+	 * importingClassMetadata:被修饰的类注解信息
+	 */
+	@Override
+	public String[] selectImports(AnnotationMetadata importingClassMetadata) {
+
+		// 注意，自定义注解这里是拿不到的
+		System.out.println(importingClassMetadata.getAnnotationTypes());
+
+		// ...其余判断逻辑等
+		return new String[] { "com.XXX.UserService" };
+	}
+}
+```
 
 
 
+## ImportSelector/DefferredImportSelector接口
+
+`@Import`注释是让我们导入一组指定的配置类--`@Configuration`修饰的类，类名一旦指定，将全部被解析。
+
+相反，`ImportSelector`将允许我们根据条件动态选择想导入的配置类，换句话说，它具有动态性。
+
+`ImportSelector`使用时，我们要创建一个类实现`ImportSelector`接口，并重写其中的`String[] selectImports(AnnotationMetadata importingClassMetadata);`方法。
+
+
+
+使用@Import的时候，它的类可以是实现了`ImportSelector或者DeferredImportSelector`接口的类。 Spring容器会**实例化这个实现类**，`并且`执行其`selectImports`方法（执行时机不同）
+
+
+
+两个接口的区别：
+
+1. DeferredImportSelector是ImportSelector的一个扩展；Deferred=》延期的
+2. ImportSelector实例的selectImports方法的执行时机，是在@Configguration注解中的其他逻辑被处理之前，所谓的其他逻辑，包括对@ImportResource、@Bean这些注解的处理（注意，这里只是对@Bean修饰的方法的处理，并不是立即调用@Bean修饰的方法，这个区别很重要！）；
+3. DeferredImportSelector实例的selectImports方法的执行时机，是在@Configguration注解中的其他逻辑被处理完毕之后，所谓的其他逻辑，包括对@ImportResource、@Bean这些注解的处理；
+4. DeferredImportSelector的实现类可以用Order注解，或者实现Ordered接口来对selectImports的执行顺序排序；
+
+
+
+## ImportBeanDefinitionRegistrar接口
+
+该接口功能非常强大，能够实现快速的、批量的、扫描式的注册。比如我们熟悉的`ServletComponentScanRegistrar`就是去解析注解`@ServletComponentScan`实现批量注册Bean定义 `MapperScannerRegistrar`就是MyBatis用来解析`@MapperScan`注解，来扫描的 等等还有很多类似的设计方式
+
+
+
+## 应用场景
+
+根据各个接口的特点，有各自的应用场景。因为直接@Import普通类的场景相对较少，主要还是实现接口的方式的不同场景。
 
 # applicationcontextinitializer
 

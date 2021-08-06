@@ -126,3 +126,8 @@ green  open   pms                             Fte4N2fNS8GvF095Z-70UA   1   0    
 green  open   .monitoring-es-6-2019.12.29     kVDiJXNGQMKZN5O4zwWyPQ   1   0      21520           15      7.9mb          7.9mb
 ```
 
+
+
+# bi站
+
+https://search.bilibili.com/all?keyword=%E5%9B%9B%E5%A4%A9%E6%90%9E%E6%87%82elasticsearch%E5%8E%9F%E7%90%86&from_source=webtop_search&spm_id_from=333.909

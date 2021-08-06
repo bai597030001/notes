@@ -316,20 +316,6 @@ select * from `user` where user_id = 1 or age = 20;
 
 
 
-### 索引字段可以为null，使用is null或is not null时，可能会导致索引失效
-
-单个索引字段，使用`is null`或`is not null`时，是可以命中索引的。
-
-```sql
-假设USER表中的user_id列有索引且允许null，age列有索引且允许null。
-
-select * from `user` where user_id is not null or age is not null;
-```
-
-阿里的java编码规范中强调，字段要设为`not null`并提供默认值，是有原因值得参考的。
-
-
-
 ### 在索引列上使用内置函数，一定会导致索引失效
 
 ```sql
