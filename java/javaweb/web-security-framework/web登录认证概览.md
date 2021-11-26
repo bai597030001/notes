@@ -644,7 +644,7 @@ public class JWTTokenUtil {
 此后，客户端每次与服务器通信，都要带上这个 JWT。你可以把它放在 Cookie 里面自动发送，但是这样不能跨域，所以更好的做法是放在 HTTP 请求的头信息`Authorization`字段里面。
 
 > ```
-> CopyAuthorization: Bearer <token>
+> Authorization: Bearer <token>
 > ```
 
 另一种做法是，跨域的时候，JWT 就放在 POST 请求的数据体里面。
@@ -659,7 +659,7 @@ JWT 本身包含了认证信息，一旦泄露，任何人都可以获得该令�
 
 如何防止生产环境的密钥值泄露？
 
-> 用户登录时，生成token的 SecretKey 是一个随机数，也就是说每个用户，每次登录时jwt SecretKey 是随机数，并保存到缓存，key是登录账户，（当然了，分布式缓存的话，就用Redis，sqlserver缓存等等），总之，客户端访问接口是，header 要带登录账户，和token，服务端拿到登录账号，到缓存去捞相应的SecretKey ，然后再进行token校验。可以防伪造token了（这个方案在一定程度上能防止伪造，但是不能防止token泄露被劫持）。
+> 用户登录时，生成token的 SecretKey 是一个随机数，也就是说每个用户，每次登录时jwt SecretKey 是随机数，并保存到缓存，key是登录账户，（当然了，分布式缓存的话，就用Redis，sqlserver缓存等等），总之，客户端访问接口时，header 要带登录账户，和token，服务端拿到登录账号，到缓存去捞相应的SecretKey ，然后再进行token校验。可以防伪造token了（这个方案在一定程度上能防止伪造，但是不能防止token泄露被劫持）。
 
 
 
@@ -725,21 +725,132 @@ HTML5提供了两种本地存储的方式 sessionStorage 和 localStorage；
 - token也类似一个令牌，无状态，用户信息都被加密到token中，服务器收到token后解密就可知道是哪个用户。需要开发者手动添加。
 - jwt只是一个跨域认证的方案
 
-
-
 # 跨域
 
-协议：域名：端口
+https://juejin.cn/post/6844904160811286536
+
+https://zhuanlan.zhihu.com/p/66484450
+
+## 什么是跨域
+
+`跨域`是指的浏览器不能执行其它网站的脚本，它是由**浏览器的同源策略造成**，是浏览器对JavaScript实施的安全限制。
+
+因为浏览器的**同源策略**（Same Origin Policy），对 JavaScript 实施了安全限制。非同一**域名、协议、端口**的请求，是不被浏览器允许的（浏览器会将该请求返回的响应内容拦截，并给出跨域警告）。
+
+## 什么是同源策略
+
+`同源策略` 指的是 **协议**，**域名**，**端口** 三者都相同
+
+`http://localhost:8080/home/index.html`
+
+`URL`由**协议**，**域名**，**端口**以及**路径**组成，若两个`URL`的协议、域名和端口相同，则表示他们同源。
+相反，只要**协议**，**域名**，**端口**有任何一个的不同，就被当作是跨域。
 
 
 
-jsonp
-
-CORS
+浏览器一旦发现AJAX请求跨源，就会自动添加一些附加的头信息，有时还会多出一次附加的请求（options请求），但用户不会有感觉。
 
 
 
-# CSRF
+[跨域](https://bbs.huaweicloud.com/blogs/184511)
+
+
+
+## 跨域解决方案
+
+### jsonp
+
+### cors
+
+**（1）Access-Control-Allow-Origin**
+
+该字段是必须的。它的值要么是请求时`Origin`字段的值，要么是一个`*`，表示接受任意域名的请求。
+
+**（2）Access-Control-Allow-Credentials**
+
+该字段可选。它的值是一个布尔值，表示是否允许发送Cookie。默认情况下，Cookie不包括在CORS请求之中。设为`true`，即表示服务器明确许可，Cookie可以包含在请求中，一起发给服务器。这个值也只能设为`true`，如果服务器不要浏览器发送Cookie，删除该字段即可。
+
+**（3）Access-Control-Expose-Headers**
+
+该字段可选。CORS请求时，`XMLHttpRequest`对象的`getResponseHeader()`方法只能拿到6个基本字段：`Cache-Control`、`Content-Language`、`Content-Type`、`Expires`、`Last-Modified`、`Pragma`。如果想拿到其他字段，就必须在`Access-Control-Expose-Headers`里面指定。上面的例子指定，`getResponseHeader('FooBar')`可以返回`FooBar`字段的值。
+
+
+
+withCredentials 属性
+
+CORS请求默认不发送Cookie和HTTP认证信息。如果要把Cookie发到服务器，一方面要服务器同意，指定`Access-Control-Allow-Credentials`字段。
+
+> ```http
+> Access-Control-Allow-Credentials: true
+> ```
+
+另一方面，开发者必须在AJAX请求中打开`withCredentials`属性。
+
+> ```javascript
+> var xhr = new XMLHttpRequest();
+> xhr.withCredentials = true;
+> ```
+
+否则，即使服务器同意发送Cookie，浏览器也不会发送。或者，服务器要求设置Cookie，浏览器也不会处理。
+
+但是，如果省略`withCredentials`设置，有的浏览器还是会一起发送Cookie。这时，可以显式关闭`withCredentials`。
+
+> ```javascript
+> xhr.withCredentials = false;
+> ```
+
+需要注意的是，如果要发送Cookie，`Access-Control-Allow-Origin`就不能设为星号，必须指定明确的、与请求网页一致的域名。同时，Cookie依然遵循同源政策，只有用服务器域名设置的Cookie才会上传，其他域名的Cookie并不会上传，且（跨源）原网页代码中的`document.cookie`也无法读取服务器域名下的Cookie。
+
+
+
+### postMessage
+
+- document.domain
+- window.name
+- location.hash
+- https-proxy
+- nginx
+- websocket
+
+# 跨站请求
+
+https://segmentfault.com/a/1190000038732564
+
+
+
+同源，基本上懂行的前端都知道，只有请求的地址与站点是同协议、同域名、通端口，才能称为同源，除此以外，都是跨域；
+
+而同站就没这么严格，简单看看同站定义：只要两个 URL 的 eTLD + 1 相同即可，不需要考虑协议和端口。
+
+其中，eTLD 表示有效顶级域名，注册于 Mozilla 维护的公共后缀列表（Public Suffix List）中，例如，.com、.co.uk、.`github.io` 等。eTLD+1 则表示，有效顶级域名+二级域名，例如taobao.com等。
+
+举几个例子，www.taobao.com和www.baidu.com是跨站，www.a.taobao.com和www.b.taobao.com是同站，a.github.io和b.github.io是跨站(注意是跨站)。
+
+为什么a.github.io和b.github.io是跨站，因为 `github.io` 是有效顶级域名
+
+
+
+## 点1
+
+1.虽然同站可以携带cookie，但跨了域的同站请求不会主动携带，fetch需要设置`credentials`属性为`include`(ajax有相似设置), 但这只是开始，因为设置了这个属性携带了cookie后，这个请求就变成了非简单请求，服务端需要针对请求的站点设置`Access-control-Allow-Credentials`
+
+## 点2
+
+2.服务端 set-cookie 也需要遵循同站规则，否则不生效；eg: 当前网站域名local.closertb.site, 登录发送请求/user/login，但该请求向admin.closertb.site种了一个cookie, 这个玩法就是非法的（管太宽），这个请求仅可种domai为'local.closertb.site' 或 'closertb.site';
+
+为无效时，浏览器会标黄提醒
+
+## 点3
+
+3.cookie 的path 是针对于请求地址的，和当时浏览器地址无关；path 常用于多个服务通过一个网关来给前端提供接口，为尽量区分各个服务的cookie，所以有这个path属性设置，这样可以减少请求携带的cookie数量；图下所示的cookie，就只会在请求地址是以/rule 开头时才携带，其他地址就会忽略；
+
+## 点4
+
+4.ajax 和 fetch 请求，响应302, 是不能直接改变浏览器地址进行跳转的，除非前端手动去操作；这就是为什么我们会说ajax 和 fetch 是前后端分离的开始，因为以前很多jsp 或 php页面，如果用户没有权限，就302重定向到登录页；而前后端分离后，更常见的做法是响应401，然后前端再手动跳转到登录页；
+
+
+
+## CSRF
 
 CSRF（Cross-site request forgery）跨站请求伪造：攻击者诱导受害者进入第三方网站，在第三方网站中，向被攻击网站发送跨站请求。利用受害者在被攻击网站已经获取的注册凭证，绕过后台的用户验证，达到冒充用户对被攻击的网站执行某项操作的目的。
 
@@ -751,4 +862,3 @@ CSRF（Cross-site request forgery）跨站请求伪造：攻击者诱导受害�
 - a.com接收到请求后，对请求进行验证，并确认是受害者的凭证，误以为是受害者自己发送的请求。
 - a.com以受害者的名义执行了act=xx。
 - 攻击完成，攻击者在受害者不知情的情况下，冒充受害者，让a.com执行了自己定义的操作。
-

@@ -906,3 +906,91 @@ public class MyAuthTokenConfigurer extends SecurityConfigurerAdapter<DefaultSecu
 ```
 
 至此我们就完成了无状态应用中token认证结合spring security。
+
+## 配置自定义 Filter 在 Spring Security 过滤器链中的位置
+
+```java
+protected void configure(HttpSecurity http) throws Exception {
+        http
+                .authorizeRequests()
+                .antMatchers("/").permitAll()
+                .antMatchers("/user/**").hasRole("USER")
+                .and()
+                .formLogin().loginPage("/login").defaultSuccessUrl("/user")
+                .and()
+                .logout().logoutUrl("/logout").logoutSuccessUrl("/login");
+
+        // 在 UsernamePasswordAuthenticationFilter 前添加 BeforeLoginFilter
+        http.addFilterBefore(new BeforeLoginFilter(), UsernamePasswordAuthenticationFilter.class);
+
+        // 在 CsrfFilter 后添加 AfterCsrfFilter
+        http.addFilterAfter(new AfterCsrfFilter(), CsrfFilter.class);
+    }
+```
+
+`HttpSecurity`有三个常用方法来配置：
+
+- addFilterBefore(Filter filter, Class<? extends Filter> beforeFilter) 在 beforeFilter 之前添加 filter
+- addFilterAfter(Filter filter, Class<? extends Filter> afterFilter) 在 afterFilter 之后添加 filter
+- addFilterAt(Filter filter, Class<? extends Filter> atFilter) 在 atFilter 相同位置添加 filter， 此 filter 不覆盖 filter
+
+## Controller中获取当前登录用户信息
+
+第一种方式，使用SecurityContextHolder：
+
+```java
+@RestController
+@RequestMapping("/admin/user")
+public class UserController {
+    // ......
+    @PreAuthorize("hasAuthority('ROLE_ADMIN') or (#reqVo.username == #userDetails.username and !T(org.springframework.util.StringUtils).isEmpty(#reqVo.password))")
+    @PostMapping("/updatePassword")
+    public Result<Integer> updatePassword(@Validated @RequestBody UpdatePasswordReqVo reqVo) {
+        UserDetails userDetails = getUserUserDetails();
+        return new Result<>(userService.updatePassword(reqVo, userDetails));
+    }
+    private UserDetails getUserUserDetails() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return (UserDetails) principal;
+    }
+}
+```
+
+第二种方式，使用@AuthenticationPrincipal注解：
+
+```java
+@RestController
+@RequestMapping("/admin/user") 
+public class UserController {
+    // ......
+    @PreAuthorize("hasAuthority('ROLE_ADMIN') or #reqVo.sysUser.username == #userDetails.username")
+    @PostMapping("/findUsers")
+    public Result<List<SysUser>> findUsers(@RequestBody FindUsersReqVo reqVo, @AuthenticationPrincipal UserDetails userDetails) {
+        PageInfo<SysUser> pageInfo = userService.findUsers(reqVo);
+        return new Result<>(pageInfo.getList(), pageInfo.getTotal());
+    }
+}
+```
+
+推荐使用第二种，简洁方便。其实第二种实质上也是使用SecurityContextHolder来做的，我们看下这个注解的处理类就知道了(只留下关键代码):
+
+```java
+public final class AuthenticationPrincipalArgumentResolver
+		implements HandlerMethodArgumentResolver {
+        // ......
+	public Object resolveArgument(MethodParameter parameter,
+			ModelAndViewContainer mavContainer, NativeWebRequest webRequest,
+			WebDataBinderFactory binderFactory) throws Exception {
+		Authentication authentication = SecurityContextHolder.getContext()
+				.getAuthentication();
+		if (authentication == null) {
+			return null;
+		}
+		Object principal = authentication.getPrincipal();
+
+		// ......
+		return principal;
+	}
+        // ......
+}
+```

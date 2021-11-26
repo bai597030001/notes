@@ -144,6 +144,23 @@ $ systemctl start docker
 
 
 
+## 配置镜像加速器
+
+针对Docker客户端版本大于 1.10.0 的用户
+
+您可以通过修改daemon配置文件/etc/docker/daemon.json来使用加速器
+
+```shell
+sudo mkdir -p /etc/docker
+sudo tee /etc/docker/daemon.json <<-'EOF'
+{
+  "registry-mirrors": ["https://9ttz6yp4.mirror.aliyuncs.com"]
+}
+EOF
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+```
+
 # 常见使用
 
 - 启动/停止docker
@@ -189,7 +206,41 @@ $ docker run centos echo "hello word"
 $ docker run hello-world
 ```
 
+- 登录私有镜像仓库
 
+```shell
+# 第一步 先登录私有仓库
+$ docker login --username=xxxxxx --password=xxxxxx registry.cn-beijing.aliyuncs.com
+```
+
+- 打包镜像
+
+```shell
+# -f指定Dockerfile文件的路径
+# -t指定镜像名字和TAG
+# .指当前目录，这里实际上需要一个上下文路径
+# docker build -t 
+$ docker build -t repo-name:tagname .
+```
+
+- 给镜像打tag
+
+```shell
+$ docker tag local-image:tagname new-repo:tagname
+```
+
+- 推送镜像到私仓
+
+```shell
+# 推送镜像到私仓 docker push new-repo:tagname
+$ docker push repo-name:tagname
+```
+
+- 从私有仓库拉取镜像
+
+```shell
+$ docker pull repo-address:repo-port/image-name:tagname
+```
 
 
 

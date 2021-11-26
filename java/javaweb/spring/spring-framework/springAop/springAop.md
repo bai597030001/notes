@@ -77,3 +77,31 @@ Spring提供了3种类型的AOP支持：
   - 使用XML配置，aop命名空间
 - @AspectJ 注解驱动的切面
   - 使用注解的方式，这是最简洁和最方便的
+
+
+
+## AOP为何失效
+
+之所以会出现上述AOP失效的现象，归根到底是由于AOP的实现机制导致的。Spring AOP采用代理的方式实现AOP，我们编写的横切逻辑被添加到动态生成的代理对象中，只要我们调用的是代理对象，则可以保证调用的是被增强的代理方法。而在代理对象中，不管你的横切逻辑是怎样的，也不管你增加了多少层的横切逻辑，有一点可以确定的是，你终归会调用目标对象的同一方法来调用原始的业务逻辑。
+
+如果目标对象中的原始方法依赖于其他对象，那么Spring会注入所依赖对象的代理对象，从而保证依赖的对象的横切逻辑能够被正常织入。而一旦目标对象调用的是自身的其他方法时，问题就来了，这种情况下，目标对象调用的并不是代理对象的方法，故被调用的方法无法织入横切逻辑。
+
+![](E:\notes\java\javaweb\spring\img\springAop2.png)
+
+如上图所示，method1和method2方法是同个类中的方法，当外部通过代理对象调用method1时，最终会调用目标对象的method1方法，而在目标对象的method1方法中调用method2方法时，最终调用的是目标对象的method2方法，而不是代理对象的method2方法，故而针对method2的AOP增强失效了。
+
+### 解决方法
+
+通过AopContext.currentProxy()获取当前对象的代理对象
+
+```java
+//通过AopContext.currentProxy()获取当前对象的代理对象
+TransactionalAopService service = (TransactionalAopService) AopContext.currentProxy(); //获取代理对象
+service.addUser("13522203330"); //通过代理对象调用addUser，做异步增强
+```
+
+在@EnableAspectJAutoProxy添加属性值。否则线程不能通过AopContext.currentProxy()获取到当前代理对象
+
+```java
+@EnableAspectJAutoProxy(exposeProxy = true)
+```
